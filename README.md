@@ -53,7 +53,7 @@ source .venv/bin/activate
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 
 # 3. Install a Genesis build that includes `genesis.sensors`
-pip install "genesis-world @ git+https://github.com/Genesis-Embodied-AI/Genesis.git@copilot/add-external-sensors-to-genesis"
+pip install "genesis-world @ git+https://github.com/vlordier/Genesis.git@copilot/add-external-sensors-to-genesis"
 
 # 4. Install this companion repo locally
 cd genesis-sensors
