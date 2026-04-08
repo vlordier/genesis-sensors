@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "genesis-sensors"
+version = "0.1.0"
+description = "Self-contained sensor rigs and demos for Genesis"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "Vincent Lordier"}]
+keywords = ["genesis", "robotics", "sensors", "simulation"]
+dependencies = [
+    "genesis-world>=0.4.2",
+    "numpy>=1.26.4",
+    "pydantic>=2.11.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.9",
+]
+
+[project.urls]
+Homepage = "https://github.com/vlordier/genesis-sensors"
+Repository = "https://github.com/vlordier/genesis-sensors"
+Issues = "https://github.com/vlordier/genesis-sensors/issues"
+
+[project.scripts]
+genesis-sensors-demo = "genesis_sensors.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["genesis_sensors", "genesis_sensors.*"]
+
+[tool.setuptools.package-data]
+genesis_sensors = ["py.typed"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-q"]
