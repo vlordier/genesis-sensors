@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and usage help
+    url: https://github.com/vlordier/genesis-sensors/discussions
+    about: Please use Discussions for support questions and ideas.
+  - name: Genesis upstream engine issues
+    url: https://github.com/Genesis-Embodied-AI/Genesis/issues
+    about: Report engine-level simulation bugs in the upstream Genesis repository.

@@ -34,6 +34,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "build>=1.2.2",
+    "bump-my-version>=0.32.1",
     "pytest>=8.0",
     "ruff>=0.9",
     "twine>=6.1.0",
@@ -65,3 +66,19 @@ line-length = 120
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["-q"]
+
+[tool.bumpversion]
+current_version = "0.1.0"
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
+serialize = ["{major}.{minor}.{patch}"]
+commit = false
+tag = false
+message = "chore(release): bump version {current_version} -> {new_version}"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+
+[[tool.bumpversion.files]]
+filename = "src/genesis_sensors/__init__.py"
+search = "__version__ = \"{current_version}\""
+replace = "__version__ = \"{new_version}\""

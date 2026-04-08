@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest an improvement or new sensor/demo capability
+labels: ["enhancement", "semver:minor"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: What use case is missing today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the API, workflow, or behavior you want
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds or alternative designs?

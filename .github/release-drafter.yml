@@ -1,0 +1,39 @@
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+filter-by-commitish: true
+change-template: '- $TITLE (#$NUMBER) @$AUTHOR'
+version-resolver:
+  major:
+    labels:
+      - "semver:major"
+      - breaking
+  minor:
+    labels:
+      - "semver:minor"
+      - enhancement
+      - feature
+  patch:
+    labels:
+      - "semver:patch"
+      - bug
+      - docs
+      - chore
+      - refactor
+      - ci
+  default: patch
+categories:
+  - title: '🚀 Features'
+    labels:
+      - enhancement
+      - feature
+  - title: '🐛 Fixes'
+    labels:
+      - bug
+  - title: '🧹 Maintenance'
+    labels:
+      - chore
+      - refactor
+      - ci
+      - docs
+exclude-labels:
+  - skip-changelog

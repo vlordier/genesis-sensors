@@ -111,7 +111,18 @@ The repo includes a release workflow at `.github/workflows/publish.yml` for tagg
 
 ---
 
-## 🧭 Notes
+## � Repository standards
+
+- default development branch: `develop`
+- protected release branch: `main`
+- required branch prefixes: `feat/`, `fix/`, `docs/`, `refactor/`, `chore/`, `test/`, `ci/`, `build/`, `release/`
+- release policy: Semantic Versioning (`major.minor.patch`)
+
+See `CONTRIBUTING.md`, `RELEASE.md`, and `CHANGELOG.md` for the full workflow.
+
+---
+
+## �🧭 Notes
 
 - This package assumes the upstream `genesis.sensors` package is available.
 - The API centers on `SensorRig` and `DemoScene` so it stays easy to extend.
