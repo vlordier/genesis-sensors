@@ -37,13 +37,18 @@ jobs:
           pip install -e .[dev]
 
       - name: Run semantic release
+        if: ${{ secrets.RELEASE_PAT != '' }}
         id: semantic-release
         uses: python-semantic-release/python-semantic-release@v10.2.0
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.RELEASE_PAT }}
+
+      - name: Validate semantic release configuration
+        if: ${{ secrets.RELEASE_PAT == '' }}
+        run: semantic-release version --print
 
       - name: Upload distributions to GitHub Release
         if: steps.semantic-release.outputs.released == 'true'
         uses: python-semantic-release/publish-action@v10.2.0
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.RELEASE_PAT }}

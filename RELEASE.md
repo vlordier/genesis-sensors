@@ -37,6 +37,10 @@ After the merge, the release is automated:
 - `CHANGELOG.md` and the GitHub Release are updated automatically
 - `.github/workflows/publish.yml` publishes the tagged build to PyPI
 
+> To let semantic-release write back to protected `main`, add a repo secret named `RELEASE_PAT`
+> with `contents:write` access (a classic PAT or fine-grained token for this repo). Without it,
+> the workflow stays in validation mode and prints the next release version without publishing.
+
 ## Manual fallback
 
 ```bash
