@@ -37,7 +37,9 @@ def build_drone_demo(*, dt: float = 0.01, show_viewer: bool = False, use_gpu: bo
 
     scene = gs.Scene(
         sim_options=gs.options.SimOptions(dt=dt, substeps=2),
-        viewer_options=gs.options.ViewerOptions(camera_pos=(2.5, 0.0, 2.5), camera_lookat=(0.0, 0.0, 0.8), camera_fov=35),
+        viewer_options=gs.options.ViewerOptions(
+            camera_pos=(2.5, 0.0, 2.5), camera_lookat=(0.0, 0.0, 0.8), camera_fov=35
+        ),
         rigid_options=gs.options.RigidOptions(dt=dt, enable_collision=True, enable_joint_limit=True),
         show_viewer=show_viewer,
     )
@@ -49,15 +51,18 @@ def build_drone_demo(*, dt: float = 0.01, show_viewer: bool = False, use_gpu: bo
         t = step * dt
         tilt_x = 0.012 * np.sin(0.4 * t)
         tilt_y = 0.012 * np.cos(0.4 * t)
-        rpms = np.array(
-            [
-                1.0 + tilt_x - tilt_y,
-                1.0 + tilt_x + tilt_y,
-                1.0 - tilt_x - tilt_y,
-                1.0 - tilt_x + tilt_y,
-            ],
-            dtype=np.float32,
-        ) * _HOVER_RPM
+        rpms = (
+            np.array(
+                [
+                    1.0 + tilt_x - tilt_y,
+                    1.0 + tilt_x + tilt_y,
+                    1.0 - tilt_x - tilt_y,
+                    1.0 - tilt_x + tilt_y,
+                ],
+                dtype=np.float32,
+            )
+            * _HOVER_RPM
+        )
         drone.set_propellels_rpm(rpms)
 
     return DemoScene(
@@ -69,13 +74,17 @@ def build_drone_demo(*, dt: float = 0.01, show_viewer: bool = False, use_gpu: bo
     )
 
 
-def build_franka_demo(*, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0) -> DemoScene:
+def build_franka_demo(
+    *, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0
+) -> DemoScene:
     """Build a Franka arm scene plus a wrist/proprioception sensor rig."""
     _init_genesis(use_gpu=use_gpu)
 
     scene = gs.Scene(
         sim_options=gs.options.SimOptions(dt=dt),
-        viewer_options=gs.options.ViewerOptions(camera_pos=(3.2, 0.0, 2.0), camera_lookat=(0.0, 0.0, 0.5), camera_fov=40),
+        viewer_options=gs.options.ViewerOptions(
+            camera_pos=(3.2, 0.0, 2.0), camera_lookat=(0.0, 0.0, 0.5), camera_fov=40
+        ),
         vis_options=gs.options.VisOptions(show_world_frame=True),
         profiling_options=gs.options.ProfilingOptions(show_FPS=False),
         show_viewer=show_viewer,
@@ -125,7 +134,9 @@ def build_go2_demo(*, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool
 
     scene = gs.Scene(
         sim_options=gs.options.SimOptions(dt=dt),
-        viewer_options=gs.options.ViewerOptions(camera_pos=(2.8, 0.0, 1.5), camera_lookat=(0.0, 0.0, 0.35), camera_fov=45),
+        viewer_options=gs.options.ViewerOptions(
+            camera_pos=(2.8, 0.0, 1.5), camera_lookat=(0.0, 0.0, 0.35), camera_fov=45
+        ),
         vis_options=gs.options.VisOptions(show_world_frame=True),
         profiling_options=gs.options.ProfilingOptions(show_FPS=False),
         show_viewer=show_viewer,
@@ -142,4 +153,6 @@ def build_go2_demo(*, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool
         except Exception:
             pass
 
-    return DemoScene(name="go2", scene=scene, entity=go2, rig=make_go2_rig(go2, dt=dt, seed=seed), controller=_controller)
+    return DemoScene(
+        name="go2", scene=scene, entity=go2, rig=make_go2_rig(go2, dt=dt, seed=seed), controller=_controller
+    )

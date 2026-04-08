@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: weekly
+    target-branch: "develop"
+    labels:
+      - "chore"
+      - "dependencies"
+      - "semver:patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: weekly
+    target-branch: "develop"
+    labels:
+      - "ci"
+      - "dependencies"
+      - "semver:patch"

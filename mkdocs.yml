@@ -1,0 +1,23 @@
+site_name: Genesis Sensors
+site_description: Self-contained sensor rigs and demos for Genesis
+site_url: https://vlordier.github.io/genesis-sensors/
+repo_url: https://github.com/vlordier/genesis-sensors
+repo_name: vlordier/genesis-sensors
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - content.code.copy
+nav:
+  - Home: index.md
+  - Overview: overview.md
+  - Contributing: contributing.md
+  - Release Guide: release.md
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - tables
+  - pymdownx.highlight
+  - pymdownx.superfences

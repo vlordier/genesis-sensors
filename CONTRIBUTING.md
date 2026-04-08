@@ -71,15 +71,18 @@ See `RELEASE.md` for the full release checklist.
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev]
+pre-commit install
 ```
 
 ## Checks
 
 ```bash
+pre-commit run --all-files
 ruff check .
 pytest tests -q
 python -m build
 python -m twine check dist/*
+mkdocs build --strict
 ```
 
 ## Scope

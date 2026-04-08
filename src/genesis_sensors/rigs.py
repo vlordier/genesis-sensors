@@ -215,7 +215,9 @@ def make_go2_rig(
     extra_sensors = []
     for idx, foot_link in enumerate(foot_links):
         contact_cfg = BUMPER_50HZ.model_copy(update={"name": f"{foot_link}_contact", "seed": seed_for(8 + idx)})
-        extra_sensors.append((f"{foot_link}_contact", NamedContactSensor(link_name=foot_link, **contact_cfg.model_dump())))
+        extra_sensors.append(
+            (f"{foot_link}_contact", NamedContactSensor(link_name=foot_link, **contact_cfg.model_dump()))
+        )
 
     suite = SensorSuite(
         imu=IMUModel(update_rate_hz=200.0, seed=seed_for(0)),

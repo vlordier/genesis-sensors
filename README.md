@@ -119,6 +119,7 @@ The repo includes a release workflow at `.github/workflows/publish.yml` for tagg
 - release policy: Semantic Versioning (`major.minor.patch`)
 
 See `CONTRIBUTING.md`, `RELEASE.md`, and `CHANGELOG.md` for the full workflow.
+The docs site is built with **MkDocs Material** and published via **GitHub Pages**.
 
 ---
 
@@ -127,3 +128,4 @@ See `CONTRIBUTING.md`, `RELEASE.md`, and `CHANGELOG.md` for the full workflow.
 - This package assumes the upstream `genesis.sensors` package is available.
 - The API centers on `SensorRig` and `DemoScene` so it stays easy to extend.
 - See `docs/overview.md` for the design intent and extension points.
+- The published documentation site is served from GitHub Pages.
