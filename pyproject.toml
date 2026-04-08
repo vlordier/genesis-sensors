@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,9 +8,23 @@ version = "0.1.0"
 description = "Self-contained sensor rigs and demos for Genesis"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "Apache-2.0"}
-authors = [{name = "Vincent Lordier"}]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{name = "Vincent Lordier", email = "vlordier@users.noreply.github.com"}]
 keywords = ["genesis", "robotics", "sensors", "simulation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
 dependencies = [
     "genesis-world>=0.4.2",
     "numpy>=1.26.4",
@@ -19,14 +33,18 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "build>=1.2.2",
     "pytest>=8.0",
     "ruff>=0.9",
+    "twine>=6.1.0",
 ]
 
 [project.urls]
 Homepage = "https://github.com/vlordier/genesis-sensors"
 Repository = "https://github.com/vlordier/genesis-sensors"
 Issues = "https://github.com/vlordier/genesis-sensors/issues"
+Documentation = "https://github.com/vlordier/genesis-sensors/blob/main/docs/overview.md"
+Changelog = "https://github.com/vlordier/genesis-sensors/releases"
 
 [project.scripts]
 genesis-sensors-demo = "genesis_sensors.cli:main"

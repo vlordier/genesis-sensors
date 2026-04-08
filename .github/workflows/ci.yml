@@ -6,8 +6,10 @@ on:
   pull_request:
 
 jobs:
-  lint-and-test:
+  lint-test-and-build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -29,3 +31,9 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/src
         run: pytest tests -q
+
+      - name: Build distributions
+        run: python -m build
+
+      - name: Validate package metadata
+        run: python -m twine check dist/*

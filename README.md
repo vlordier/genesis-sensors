@@ -50,15 +50,14 @@ python -m venv .venv
 source .venv/bin/activate
 
 # 2. Install Genesis
-# Either from PyPI (when the sensor branch is merged/released)
 pip install genesis-world
 
-# Or against a checked-out Genesis repo/branch
-pip install -e /path/to/Genesis
-
-# 3. Install this companion repo
+# 3. Install this companion repo locally
 cd genesis-sensors
 pip install -e .[dev]
+
+# 4. Once published on PyPI, install directly with
+pip install genesis-sensors
 ```
 
 ---
@@ -92,6 +91,23 @@ genesis-sensors-demo drone --steps 200
 genesis-sensors-demo franka --steps 200
 genesis-sensors-demo go2 --steps 200
 ```
+
+---
+
+## 📤 PyPI release
+
+```bash
+# local packaging checks
+python -m pip install -e .[dev]
+python -m build
+python -m twine check dist/*
+
+# publish from GitHub Actions after configuring PyPI trusted publishing
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The repo includes a release workflow at `.github/workflows/publish.yml` for tagged releases.
 
 ---
 
