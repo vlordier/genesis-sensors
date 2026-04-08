@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 import genesis as gs
 
-from .rigs import SensorRig, make_drone_navigation_rig, make_franka_wrist_rig, make_go2_rig
+from .rigs import SensorRig, make_drone_navigation_rig, make_drone_perception_rig, make_franka_wrist_rig, make_go2_rig
 
 _HOVER_RPM = 14_468.43
 
@@ -70,6 +70,51 @@ def build_drone_demo(*, dt: float = 0.01, show_viewer: bool = False, use_gpu: bo
         scene=scene,
         entity=drone,
         rig=make_drone_navigation_rig(drone, dt=dt, seed=seed),
+        controller=_controller,
+    )
+
+
+def build_perception_demo(
+    *, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0
+) -> DemoScene:
+    """Build a drone scene showcasing the richer multimodal perception stack."""
+    _init_genesis(use_gpu=use_gpu)
+
+    scene = gs.Scene(
+        sim_options=gs.options.SimOptions(dt=dt, substeps=2),
+        viewer_options=gs.options.ViewerOptions(
+            camera_pos=(3.0, -1.2, 2.2), camera_lookat=(0.0, 0.0, 0.8), camera_fov=40
+        ),
+        rigid_options=gs.options.RigidOptions(dt=dt, enable_collision=True, enable_joint_limit=True),
+        show_viewer=show_viewer,
+    )
+    scene.add_entity(gs.morphs.Plane())
+    drone = scene.add_entity(gs.morphs.Drone(file="urdf/drones/cf2x.urdf", pos=(0.0, 0.0, 0.7)))
+    scene.build()
+
+    def _controller(step: int) -> None:
+        t = step * dt
+        tilt_x = 0.02 * np.sin(0.55 * t)
+        tilt_y = 0.015 * np.cos(0.35 * t)
+        rpms = (
+            np.array(
+                [
+                    1.0 + tilt_x - tilt_y,
+                    1.0 + tilt_x + tilt_y,
+                    1.0 - tilt_x - tilt_y,
+                    1.0 - tilt_x + tilt_y,
+                ],
+                dtype=np.float32,
+            )
+            * _HOVER_RPM
+        )
+        drone.set_propellels_rpm(rpms)
+
+    return DemoScene(
+        name="perception",
+        scene=scene,
+        entity=drone,
+        rig=make_drone_perception_rig(drone, dt=dt, seed=seed),
         controller=_controller,
     )
 

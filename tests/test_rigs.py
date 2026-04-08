@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
-from genesis.sensors import CurrentSensor, SensorSuite
-from genesis_sensors.rigs import NamedContactSensor, SensorRig
+from genesis_sensors import CurrentSensor, SensorSuite, get_preset, list_presets, make_synthetic_sensor_state
+from genesis_sensors.rigs import NamedContactSensor, SensorRig, make_synthetic_multimodal_rig
 
 
 def test_named_contact_sensor_reads_only_its_link_force() -> None:
@@ -33,3 +34,26 @@ def test_sensor_rig_exposes_sensor_names() -> None:
     suite = SensorSuite(current=CurrentSensor(noise_sigma_a=0.0, seed=0))
     rig = SensorRig(name="test", suite=suite, state_fn=lambda: {"current_a": 0.0})
     assert rig.sensor_names() == ["current"]
+
+
+def test_synthetic_multimodal_rig_surfaces_more_upstream_sensors() -> None:
+    rig = make_synthetic_multimodal_rig(dt=0.05, seed=0)
+    rig.reset()
+
+    obs0 = rig.step(0.0)
+    obs1 = rig.step(0.05)
+
+    assert {"rgb", "events", "thermal", "lidar", "radio", "stereo", "wheel_odometry"}.issubset(set(rig.sensor_names()))
+    assert np.asarray(obs0["rgb"]["rgb"]).shape[-1] == 3
+    assert np.asarray(obs0["thermal"]["temperature_c"]).ndim == 2
+    assert "points" in obs0["lidar"]
+    assert "queue_depth" in obs1["radio"]
+    assert "linear_vel_ms" in obs1["wheel_odometry"]
+
+
+def test_synthetic_state_and_preset_helpers_expose_upstream_surface() -> None:
+    state = make_synthetic_sensor_state(2)
+
+    assert {"rgb", "rgb_right", "depth", "seg", "range_image", "temperature_map"}.issubset(state)
+    assert "ZED2_STEREO" in list_presets(kind="stereo")
+    assert get_preset("FLIR_BOSON_320").name == "FLIR_BOSON_320"
