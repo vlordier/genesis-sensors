@@ -14,7 +14,7 @@
 
 ```bash
 pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install genesis-world
+pip install "genesis-world @ git+https://github.com/Genesis-Embodied-AI/Genesis.git@copilot/add-external-sensors-to-genesis"
 pip install genesis-sensors
 ```
 
