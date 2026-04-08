@@ -49,14 +49,17 @@ genesis-sensors/
 python -m venv .venv
 source .venv/bin/activate
 
-# 2. Install Genesis
+# 2. Install PyTorch for your platform (CPU example)
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# 3. Install Genesis
 pip install genesis-world
 
-# 3. Install this companion repo locally
+# 4. Install this companion repo locally
 cd genesis-sensors
 pip install -e .[dev]
 
-# 4. Once published on PyPI, install directly with
+# 5. Once published on PyPI, install directly with
 pip install genesis-sensors
 ```
 

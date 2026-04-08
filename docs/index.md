@@ -13,6 +13,7 @@
 ## Quick install
 
 ```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install genesis-world
 pip install genesis-sensors
 ```
