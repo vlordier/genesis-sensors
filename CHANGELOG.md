@@ -10,6 +10,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ### Added
 - GitHub issue templates, PR template, branch naming checks, and release governance
 - SemVer and release workflow documentation for PyPI publishing
+- Semantic-release automation, GitHub Pages docs, Dependabot, and pre-commit enforcement
 
 ## [0.1.0] - 2026-04-08
 

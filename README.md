@@ -117,6 +117,7 @@ The repo includes a release workflow at `.github/workflows/publish.yml` for tagg
 - protected release branch: `main`
 - required branch prefixes: `feat/`, `fix/`, `docs/`, `refactor/`, `chore/`, `test/`, `ci/`, `build/`, `release/`
 - release policy: Semantic Versioning (`major.minor.patch`)
+- automated releases: Conventional Commit PR titles on `main` drive semantic-release and changelog generation
 
 See `CONTRIBUTING.md`, `RELEASE.md`, and `CHANGELOG.md` for the full workflow.
 The docs site is built with **MkDocs Material** and published via **GitHub Pages**.

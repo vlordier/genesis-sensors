@@ -46,6 +46,8 @@ fix(scope): short summary
 chore(scope): short summary
 ```
 
+> Keep the squash-merge title in this format: release automation reads these Conventional Commit titles to decide the next version bump.
+
 ## Versioning
 
 This project uses **Semantic Versioning**:

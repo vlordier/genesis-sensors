@@ -5,6 +5,9 @@ on:
     branches: [main, develop]
   pull_request:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   lint-test-and-build:
     runs-on: ubuntu-latest
@@ -12,7 +15,7 @@ jobs:
       contents: read
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,8 +35,36 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/src
         run: pytest tests -q
 
+      - name: Build docs
+        run: mkdocs build --strict
+
       - name: Build distributions
         run: python -m build
 
       - name: Validate package metadata
         run: python -m twine check dist/*
+
+  compatibility:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.12']
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Import package
+        run: python -c "import genesis_sensors; print(genesis_sensors.__version__)"

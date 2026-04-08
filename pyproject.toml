@@ -39,15 +39,16 @@ dev = [
     "mkdocs-material>=9.5.39",
     "pre-commit>=4.0.1",
     "pytest>=8.0",
+    "python-semantic-release>=10.2.0",
     "ruff>=0.9",
     "twine>=6.1.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/vlordier/genesis-sensors"
+Homepage = "https://vlordier.github.io/genesis-sensors/"
 Repository = "https://github.com/vlordier/genesis-sensors"
 Issues = "https://github.com/vlordier/genesis-sensors/issues"
-Documentation = "https://github.com/vlordier/genesis-sensors/blob/main/docs/overview.md"
+Documentation = "https://vlordier.github.io/genesis-sensors/"
 Changelog = "https://github.com/vlordier/genesis-sensors/releases"
 
 [project.scripts]
@@ -85,3 +86,30 @@ filename = "pyproject.toml"
 filename = "src/genesis_sensors/__init__.py"
 search = "__version__ = \"{current_version}\""
 replace = "__version__ = \"{new_version}\""
+
+[tool.semantic_release]
+allow_zero_version = true
+build_command = "python -m build"
+commit_message = "chore(release): {version} [skip ci]"
+commit_parser = "conventional"
+exclude_commit_patterns = ["^chore\\(release\\):"]
+major_on_zero = false
+tag_format = "v{version}"
+upload_to_vcs_release = true
+version_toml = ["pyproject.toml:project.version"]
+version_variables = ["src/genesis_sensors/__init__.py:__version__"]
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["feat", "fix", "perf", "build", "ci", "docs", "refactor", "test", "chore"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf"]
+parse_squash_commits = true
+ignore_merge_commits = true
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+[tool.semantic_release.changelog.default_templates]
+changelog_file = "CHANGELOG.md"
+output_format = "md"
