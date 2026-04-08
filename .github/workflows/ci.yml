@@ -26,7 +26,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install "genesis-world @ git+https://github.com/vlordier/Genesis.git@copilot/add-external-sensors-to-genesis"
+          pip install "genesis-world @ git+https://github.com/vlordier/Genesis.git@copilot/genesis-sensors-integration"
           pip install -e .[dev]
 
       - name: Ruff
@@ -67,7 +67,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install "genesis-world @ git+https://github.com/vlordier/Genesis.git@copilot/add-external-sensors-to-genesis"
+          pip install "genesis-world @ git+https://github.com/vlordier/Genesis.git@copilot/genesis-sensors-integration"
           pip install -e .
 
       - name: Import package
