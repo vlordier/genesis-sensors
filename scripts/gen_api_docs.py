@@ -23,6 +23,7 @@ from pathlib import Path
 
 PACKAGE = "genesis_sensors._runtime_sensors"
 API_DIR = Path(__file__).resolve().parent.parent / "docs" / "api"
+ASSET_DIR = Path(__file__).resolve().parent.parent / "docs" / "assets" / "sensors"
 # Modules to document, in nav order.  Each tuple is (module_name, page_title).
 MODULES: list[tuple[str, str]] = [
     ("base", "Base Sensor"),
@@ -61,6 +62,48 @@ MODULES: list[tuple[str, str]] = [
     ("rpm_sensor", "RPM Sensor"),
 ]
 
+EXAMPLE_ASSETS: dict[str, list[tuple[str, str]]] = {
+    "imu": [("IMU example plot", "imu.svg")],
+    "gnss": [("GNSS example plot", "gnss.svg")],
+    "barometer": [("Barometer example plot", "barometer.svg")],
+    "magnetometer": [("Magnetometer example plot", "magnetometer.svg")],
+    "airspeed": [("Airspeed example plot", "airspeed.svg")],
+    "camera_model": [("RGB camera example plot", "camera_model.svg")],
+    "stereo_camera": [("Stereo camera example plot", "stereo_camera.svg")],
+    "depth_camera": [("Depth camera example plot", "depth_camera.svg")],
+    "thermal_camera": [("Thermal camera example plot", "thermal_camera.svg")],
+    "event_camera": [("Event camera example plot", "event_camera.svg")],
+    "lidar": [("LiDAR example plot", "lidar.svg")],
+    "rangefinder": [("Rangefinder example plot", "rangefinder.svg")],
+    "optical_flow": [("Optical flow example plot", "optical_flow.svg")],
+    "ultrasonic": [("Ultrasonic array example plot", "ultrasonic.svg")],
+    "sonar": [
+        ("Imaging sonar example plot", "imaging_sonar.svg"),
+        ("Side-scan sonar example plot", "side_scan_sonar.svg"),
+    ],
+    "acoustic_navigation": [
+        ("DVL example plot", "dvl.svg"),
+        ("Current profiler example plot", "acoustic_current_profiler.svg"),
+    ],
+    "environmental": [
+        ("Thermometer example plot", "thermometer.svg"),
+        ("Hygrometer example plot", "hygrometer.svg"),
+        ("Light sensor example plot", "light_sensor.svg"),
+        ("Gas sensor example plot", "gas_sensor.svg"),
+        ("Anemometer example plot", "anemometer.svg"),
+    ],
+    "wireless": [("UWB example plot", "uwb_ranging.svg"), ("Radar example plot", "radar.svg")],
+    "radio": [("Radio link example plot", "radio.svg")],
+    "battery": [("Battery example plot", "battery.svg")],
+    "wheel_odometry": [("Wheel odometry example plot", "wheel_odometry.svg")],
+    "force_torque": [("Force / torque example plot", "force_torque.svg")],
+    "joint_state": [("Joint-state example plot", "joint_state.svg")],
+    "contact_sensor": [("Contact-sensor example plot", "contact_sensor.svg")],
+    "tactile_array": [("Tactile-array example plot", "tactile_array.svg")],
+    "current_sensor": [("Current-sensor example plot", "current_sensor.svg")],
+    "rpm_sensor": [("RPM-sensor example plot", "rpm_sensor.svg")],
+}
+
 
 def _module_path(mod_name: str) -> str:
     """Return fully qualified module path."""
@@ -80,6 +123,27 @@ def _collect_public_names(mod_name: str) -> list[str]:
     return [name for name, obj in inspect.getmembers(mod) if not name.startswith("_") and inspect.getmodule(obj) is mod]
 
 
+def _example_block(mod_name: str) -> list[str]:
+    """Return optional example plot markdown for a module page."""
+    assets = EXAMPLE_ASSETS.get(mod_name, [])
+    if not assets:
+        return []
+
+    lines = [
+        "## Example output",
+        "",
+        "> Generated from `examples/generate_sensor_doc_assets.py` using `make_synthetic_sensor_state()`.",
+        "",
+    ]
+    added = False
+    for caption, filename in assets:
+        if not (ASSET_DIR / filename).exists():
+            continue
+        lines.extend([f"### {caption}", "", f"![{caption}](../assets/sensors/{filename})", ""])
+        added = True
+    return lines if added else []
+
+
 def _write_module_page(mod_name: str, title: str) -> str:
     """Write a single API reference page and return its relative path."""
     fqn = _module_path(mod_name)
@@ -87,6 +151,7 @@ def _write_module_page(mod_name: str, title: str) -> str:
     lines = [
         f"# {title}",
         "",
+        *_example_block(mod_name),
         f"::: {fqn}",
         "    options:",
         "      show_root_heading: true",

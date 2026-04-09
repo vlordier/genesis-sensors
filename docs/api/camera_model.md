@@ -1,5 +1,13 @@
 # RGB Camera
 
+## Example output
+
+> Generated from `examples/generate_sensor_doc_assets.py` using `make_synthetic_sensor_state()`.
+
+### RGB camera example plot
+
+![RGB camera example plot](../assets/sensors/camera_model.svg)
+
 ::: genesis_sensors._runtime_sensors.camera_model
     options:
       show_root_heading: true

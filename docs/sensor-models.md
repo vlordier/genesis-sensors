@@ -3,6 +3,10 @@
 How every sensor category is modelled, what noise/error effects are applied,
 and how configuration parameters map to physical behaviour.
 
+> Visual plots for the API pages are generated with
+> `PYTHONPATH=src python examples/generate_sensor_doc_assets.py --output-dir docs/assets/sensors`.
+> When those SVGs are present, the per-sensor API docs embed them automatically.
+
 ---
 
 ## General Pipeline

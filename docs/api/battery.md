@@ -1,5 +1,13 @@
 # Battery
 
+## Example output
+
+> Generated from `examples/generate_sensor_doc_assets.py` using `make_synthetic_sensor_state()`.
+
+### Battery example plot
+
+![Battery example plot](../assets/sensors/battery.svg)
+
 ::: genesis_sensors._runtime_sensors.battery
     options:
       show_root_heading: true
