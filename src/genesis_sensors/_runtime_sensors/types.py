@@ -134,6 +134,7 @@ class SensorState(TypedDict, total=False):
     # Wireless / ranging
     uwb_anchors: list[dict[str, Any]] | dict[str, Any]  # UWB anchor descriptors or id->position map
     radar_targets: list[dict[str, Any]]  # radar target descriptors with positions / velocities / RCS
+    ultrasonic_ranges_m: list[float] | dict[str, float]  # short-range sonar / ultrasonic beam distances (m)
 
     # Airspeed / wind
     airspeed_ms: float  # true airspeed (m/s); used directly when present
@@ -197,6 +198,17 @@ class RangefinderObservation(TypedDict):
 
     range_m: float  # noisy range measurement (m), or no_hit_value when out of range / dropout
     in_range: bool  # True when a valid return was detected
+
+
+class UltrasonicObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.UltrasonicArrayModel`."""
+
+    beam_ids: list[str]
+    beam_angles_deg: FloatArray  # shape (N,) — per-beam pointing angles (deg)
+    ranges_m: FloatArray  # shape (N,) — measured sonar ranges (m)
+    valid_mask: BoolArray  # shape (N,) — valid / not dropped measurements
+    echo_strength: FloatArray  # shape (N,) — heuristic echo confidence / intensity [0, 1]
+    nearest_range_m: float  # nearest valid obstacle distance (m), or no_hit_value when none are valid
 
 
 # ---------------------------------------------------------------------------

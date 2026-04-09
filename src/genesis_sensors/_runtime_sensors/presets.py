@@ -57,6 +57,7 @@ from .config import (
     ThermalCameraConfig,
     ThermometerConfig,
     UWBRangeConfig,
+    UltrasonicArrayConfig,
     WheelOdometryConfig,
 )
 
@@ -84,6 +85,7 @@ PresetConfig = (
     | RadioConfig
     | UWBRangeConfig
     | RadarConfig
+    | UltrasonicArrayConfig
     | OpticalFlowConfig
     | BatteryConfig
     | WheelOdometryConfig
@@ -802,6 +804,42 @@ NAVTECH_CTS350X = RadarConfig(
 )
 
 # ---------------------------------------------------------------------------
+# Ultrasonic / sonar presets
+# ---------------------------------------------------------------------------
+
+HC_SR04_ARRAY4 = UltrasonicArrayConfig(
+    # Source: HC-SR04 datasheet, scaled to a 4-sensor bumper ring.
+    name="HC_SR04_ARRAY4",
+    update_rate_hz=15.0,
+    n_beams=4,
+    beam_span_deg=110.0,
+    min_range_m=0.02,
+    max_range_m=4.0,
+    noise_floor_m=0.008,
+    noise_slope=0.012,
+    dropout_prob=0.04,
+    cross_talk_prob=0.06,
+    beam_width_deg=15.0,
+    temperature_compensation=False,
+)
+
+MAXBOTIX_MB1242_RING8 = UltrasonicArrayConfig(
+    # Source: MaxBotix MB1242 XL-MaxSonar-EZ4 specification summary.
+    name="MAXBOTIX_MB1242_RING8",
+    update_rate_hz=10.0,
+    n_beams=8,
+    beam_span_deg=180.0,
+    min_range_m=0.20,
+    max_range_m=7.65,
+    noise_floor_m=0.010,
+    noise_slope=0.008,
+    dropout_prob=0.02,
+    cross_talk_prob=0.03,
+    beam_width_deg=20.0,
+    temperature_compensation=True,
+)
+
+# ---------------------------------------------------------------------------
 # Magnetometer presets
 # ---------------------------------------------------------------------------
 
@@ -1424,6 +1462,9 @@ _REGISTRY: dict[str, PresetConfig] = {
     "QORVO_DWM3001C": QORVO_DWM3001C,
     "TI_IWR6843AOP": TI_IWR6843AOP,
     "NAVTECH_CTS350X": NAVTECH_CTS350X,
+    # Ultrasonic sensing
+    "HC_SR04_ARRAY4": HC_SR04_ARRAY4,
+    "MAXBOTIX_MB1242_RING8": MAXBOTIX_MB1242_RING8,
     # Airspeed
     "SDP33": SDP33,
     "MS4525DO": MS4525DO,
@@ -1489,6 +1530,7 @@ _CONFIG_TYPE_TO_KIND: dict[type, str] = {
     AnemometerConfig: "anemometer",
     UWBRangeConfig: "uwb",
     RadarConfig: "radar",
+    UltrasonicArrayConfig: "ultrasonic",
     AirspeedConfig: "airspeed",
     RangefinderConfig: "rangefinder",
     OpticalFlowConfig: "optical_flow",
@@ -1649,6 +1691,9 @@ __all__ = [
     "QORVO_DWM3001C",
     "TI_IWR6843AOP",
     "NAVTECH_CTS350X",
+    # Ultrasonic presets
+    "HC_SR04_ARRAY4",
+    "MAXBOTIX_MB1242_RING8",
     # Magnetometer presets
     "IST8310",
     "HMC5883L",

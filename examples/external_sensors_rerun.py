@@ -69,6 +69,7 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
     gnss = obs["gnss"]
     battery = obs["battery"]
     radio = obs["radio"]
+    ultrasonic = obs.get("ultrasonic", {})
     uwb = obs.get("uwb", {})
     radar = obs.get("radar", {})
     flow = obs["optical_flow"]
@@ -94,6 +95,8 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
     _log_scalar("traces/battery/voltage_v", float(battery.get("voltage_v", 0.0)))
     _log_scalar("traces/battery/current_a", float(battery.get("current_a", 0.0)))
     _log_scalar("traces/radio/queue_depth", int(radio.get("queue_depth", 0)))
+    _log_scalar("traces/ultrasonic/nearest_range_m", float(ultrasonic.get("nearest_range_m", 0.0)))
+    _log_scalar("traces/ultrasonic/valid_beams", int(np.sum(np.asarray(ultrasonic.get("valid_mask", []), dtype=bool))))
     _log_scalar("traces/uwb/anchor_count", len(uwb.get("ranges_m", {})))
     if "position_estimate" in uwb:
         _log_vector("traces/uwb/position_estimate_m", np.asarray(uwb["position_estimate"]))
@@ -116,7 +119,7 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
             f"frame={frame:03d} t={frame * dt:.2f}s\n"
             f"events={event_count} range={float(rangefinder.get('range_m', 0.0)):.2f}m temp={float(thermometer.get('temperature_c', 0.0)):.1f}C\n"
             f"battery={float(battery.get('voltage_v', 0.0)):.2f}V fix={int(gnss.get('fix_quality', 0))} hum={float(hygrometer.get('relative_humidity_pct', 0.0)):.0f}%\n"
-            f"uwb={len(uwb.get('ranges_m', {}))} anchors radar={int(radar.get('n_detections', 0))} detections"
+            f"ultra={float(ultrasonic.get('nearest_range_m', 0.0)):.2f}m uwb={len(uwb.get('ranges_m', {}))} anchors radar={int(radar.get('n_detections', 0))} detections"
         ),
     )
 

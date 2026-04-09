@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, Final, cast
 import numpy as np
 
 from .base import BaseSensor, SensorInput, SensorObservation
-from .types import FloatArray, Float64Array, RadarObservation, UWBObservation
+from .types import Float64Array, RadarObservation, UWBObservation
 
 if TYPE_CHECKING:
     from .config import RadarConfig, UWBRangeConfig
@@ -348,7 +348,9 @@ class RadarModel(BaseSensor[RadarObservation]):
             if self._rng.random() > p_detect:
                 continue
 
-            det_range = float(np.clip(range_true + self._rng.normal(0.0, self.range_noise_sigma_m), 0.0, self.max_range_m))
+            det_range = float(
+                np.clip(range_true + self._rng.normal(0.0, self.range_noise_sigma_m), 0.0, self.max_range_m)
+            )
             det_az = azimuth_deg + float(self._rng.normal(0.0, self.azimuth_noise_deg))
             det_el = elevation_deg + float(self._rng.normal(0.0, self.elevation_noise_deg))
             det_vel = radial_velocity + float(self._rng.normal(0.0, self.velocity_noise_sigma_ms))

@@ -75,6 +75,7 @@ from .rpm_sensor import RPMSensor
 from .scheduler import SensorScheduler
 from .wireless import RadarModel, UWBRangingModel
 from .stereo_camera import StereoCameraModel
+from .ultrasonic import UltrasonicArrayModel
 from .tactile_array import TactileArraySensor
 from .thermal_camera import ThermalCameraModel
 from .wheel_odometry import WheelOdometryModel
@@ -154,6 +155,7 @@ class SensorSuite:
         anemometer: AnemometerModel | None = None,
         airspeed: AirspeedModel | None = None,
         rangefinder: RangefinderModel | None = None,
+        ultrasonic: UltrasonicArrayModel | None = None,
         optical_flow: OpticalFlowModel | None = None,
         battery: BatteryModel | None = None,
         stereo_camera: StereoCameraModel | None = None,
@@ -205,6 +207,8 @@ class SensorSuite:
             self._scheduler.add(airspeed, name="airspeed")
         if rangefinder is not None:
             self._scheduler.add(rangefinder, name="rangefinder")
+        if ultrasonic is not None:
+            self._scheduler.add(ultrasonic, name="ultrasonic")
         if optical_flow is not None:
             self._scheduler.add(optical_flow, name="optical_flow")
         if battery is not None:
@@ -256,6 +260,7 @@ class SensorSuite:
         anemometer_rate_hz: float = 0.0,
         airspeed_rate_hz: float = 0.0,
         rangefinder_rate_hz: float = 0.0,
+        ultrasonic_rate_hz: float = 0.0,
         optical_flow_rate_hz: float = 0.0,
         battery_rate_hz: float = 0.0,
         stereo_rate_hz: float = 0.0,
@@ -307,7 +312,7 @@ class SensorSuite:
         """
         # Derive N independent, deterministic seeds via SeedSequence so that
         # close base seeds (e.g. 0 vs 1) don't produce correlated sensor noise.
-        _N_SENSORS = 29
+        _N_SENSORS = 30
         if seed is not None:
             child_seeds = np.random.SeedSequence(seed).spawn(_N_SENSORS)
             _seeds: list[int | None] = [int(cs.generate_state(1)[0]) for cs in child_seeds]
@@ -356,43 +361,48 @@ class SensorSuite:
                 if rangefinder_rate_hz > 0
                 else None
             ),
+            ultrasonic=(
+                UltrasonicArrayModel(update_rate_hz=ultrasonic_rate_hz, seed=_seed(18))
+                if ultrasonic_rate_hz > 0
+                else None
+            ),
             optical_flow=(
-                OpticalFlowModel(update_rate_hz=optical_flow_rate_hz, seed=_seed(18))
+                OpticalFlowModel(update_rate_hz=optical_flow_rate_hz, seed=_seed(19))
                 if optical_flow_rate_hz > 0
                 else None
             ),
-            battery=(BatteryModel(update_rate_hz=battery_rate_hz, seed=_seed(19)) if battery_rate_hz > 0 else None),
+            battery=(BatteryModel(update_rate_hz=battery_rate_hz, seed=_seed(20)) if battery_rate_hz > 0 else None),
             stereo_camera=(
-                StereoCameraModel(update_rate_hz=stereo_rate_hz, seed=_seed(20)) if stereo_rate_hz > 0 else None
+                StereoCameraModel(update_rate_hz=stereo_rate_hz, seed=_seed(21)) if stereo_rate_hz > 0 else None
             ),
             wheel_odometry=(
-                WheelOdometryModel(update_rate_hz=wheel_odometry_rate_hz, seed=_seed(21))
+                WheelOdometryModel(update_rate_hz=wheel_odometry_rate_hz, seed=_seed(22))
                 if wheel_odometry_rate_hz > 0
                 else None
             ),
             force_torque=(
-                ForceTorqueSensorModel(update_rate_hz=force_torque_rate_hz, seed=_seed(22))
+                ForceTorqueSensorModel(update_rate_hz=force_torque_rate_hz, seed=_seed(23))
                 if force_torque_rate_hz > 0
                 else None
             ),
             joint_state=(
-                JointStateSensor(update_rate_hz=joint_state_rate_hz, seed=_seed(23))
+                JointStateSensor(update_rate_hz=joint_state_rate_hz, seed=_seed(24))
                 if joint_state_rate_hz > 0
                 else None
             ),
-            contact=(ContactSensor(update_rate_hz=contact_rate_hz, seed=_seed(24)) if contact_rate_hz > 0 else None),
+            contact=(ContactSensor(update_rate_hz=contact_rate_hz, seed=_seed(25)) if contact_rate_hz > 0 else None),
             depth_camera=(
-                DepthCameraModel(update_rate_hz=depth_camera_rate_hz, seed=_seed(25))
+                DepthCameraModel(update_rate_hz=depth_camera_rate_hz, seed=_seed(26))
                 if depth_camera_rate_hz > 0
                 else None
             ),
             tactile_array=(
-                TactileArraySensor(update_rate_hz=tactile_array_rate_hz, seed=_seed(26))
+                TactileArraySensor(update_rate_hz=tactile_array_rate_hz, seed=_seed(27))
                 if tactile_array_rate_hz > 0
                 else None
             ),
-            current=(CurrentSensor(update_rate_hz=current_rate_hz, seed=_seed(27)) if current_rate_hz > 0 else None),
-            rpm=(RPMSensor(update_rate_hz=rpm_rate_hz, seed=_seed(28)) if rpm_rate_hz > 0 else None),
+            current=(CurrentSensor(update_rate_hz=current_rate_hz, seed=_seed(28)) if current_rate_hz > 0 else None),
+            rpm=(RPMSensor(update_rate_hz=rpm_rate_hz, seed=_seed(29)) if rpm_rate_hz > 0 else None),
         )
 
     @classmethod
@@ -435,6 +445,7 @@ class SensorSuite:
             anemometer=(AnemometerModel.from_config(config.anemometer) if config.anemometer is not None else None),
             airspeed=AirspeedModel.from_config(config.airspeed) if config.airspeed is not None else None,
             rangefinder=(RangefinderModel.from_config(config.rangefinder) if config.rangefinder is not None else None),
+            ultrasonic=(UltrasonicArrayModel.from_config(config.ultrasonic) if config.ultrasonic is not None else None),
             optical_flow=(
                 OpticalFlowModel.from_config(config.optical_flow) if config.optical_flow is not None else None
             ),

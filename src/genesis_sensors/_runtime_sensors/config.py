@@ -426,6 +426,45 @@ class RangefinderConfig(BaseModel):
         return self
 
 
+class UltrasonicArrayConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.UltrasonicArrayModel`."""
+
+    name: str = "ultrasonic"
+    update_rate_hz: float = Field(default=15.0, gt=0, description="Measurement rate (Hz).")
+    n_beams: int = Field(default=4, ge=1, description="Number of sonar transducers in the array.")
+    beam_span_deg: float = Field(default=120.0, ge=0.0, le=360.0, description="Angular coverage of the beam fan (deg).")
+    beam_angles_deg: list[float] | None = Field(
+        default=None,
+        description="Optional explicit per-beam pointing angles (deg). Must match `n_beams` when provided.",
+    )
+    min_range_m: float = Field(default=0.02, ge=0.0, description="Minimum measurable range (m).")
+    max_range_m: float = Field(default=4.5, gt=0.0, description="Maximum measurable range (m).")
+    noise_floor_m: float = Field(default=0.005, ge=0.0, description="Fixed Gaussian timing/noise floor (m).")
+    noise_slope: float = Field(default=0.01, ge=0.0, description="Range-proportional noise coefficient.")
+    dropout_prob: float = Field(default=0.02, ge=0.0, le=1.0, description="Per-beam missed-echo probability.")
+    cross_talk_prob: float = Field(
+        default=0.03, ge=0.0, le=1.0, description="Probability of echo bleed between adjacent beams."
+    )
+    beam_width_deg: float = Field(default=25.0, ge=0.0, description="Approximate -3 dB beam width (deg).")
+    temperature_compensation: bool = Field(default=True, description="Compensate for ambient speed-of-sound changes.")
+    no_hit_value: float = Field(default=0.0, description="Value returned when no valid echo is observed.")
+    seed: int | None = None
+
+    @model_validator(mode="after")
+    def _range_ordered(self) -> "UltrasonicArrayConfig":
+        if self.min_range_m >= self.max_range_m:
+            raise ValueError(f"min_range_m ({self.min_range_m}) must be less than max_range_m ({self.max_range_m})")
+        return self
+
+    @model_validator(mode="after")
+    def _angles_match(self) -> "UltrasonicArrayConfig":
+        if self.beam_angles_deg is not None and len(self.beam_angles_deg) != self.n_beams:
+            raise ValueError(
+                f"beam_angles_deg must have exactly n_beams ({self.n_beams}) values, got {len(self.beam_angles_deg)}"
+            )
+        return self
+
+
 # ---------------------------------------------------------------------------
 # Environmental sensing configs
 # ---------------------------------------------------------------------------
@@ -943,6 +982,9 @@ class SensorSuiteConfig(BaseModel):
     anemometer: AnemometerConfig | None = Field(default=None, description="Wind sensor (None = disabled).")
     airspeed: AirspeedConfig | None = Field(default=None, description="Pitot airspeed sensor (None = disabled).")
     rangefinder: RangefinderConfig | None = Field(default=None, description="1-D rangefinder (None = disabled).")
+    ultrasonic: UltrasonicArrayConfig | None = Field(
+        default=None, description="Ultrasonic proximity array (None = disabled)."
+    )
     optical_flow: OpticalFlowConfig | None = Field(
         default=None, description="Downward-facing optical flow sensor (None = disabled)."
     )
@@ -994,6 +1036,7 @@ class SensorSuiteConfig(BaseModel):
             anemometer=None,
             airspeed=None,
             rangefinder=None,
+            ultrasonic=None,
             optical_flow=None,
             battery=None,
             wheel_odometry=None,
@@ -1029,6 +1072,7 @@ class SensorSuiteConfig(BaseModel):
             anemometer=None,
             airspeed=None,
             rangefinder=None,
+            ultrasonic=None,
             optical_flow=None,
             battery=None,
             wheel_odometry=None,
@@ -1064,6 +1108,7 @@ class SensorSuiteConfig(BaseModel):
             anemometer=AnemometerConfig(),
             airspeed=AirspeedConfig(),
             rangefinder=RangefinderConfig(),
+            ultrasonic=UltrasonicArrayConfig(),
             optical_flow=OpticalFlowConfig(),
             battery=BatteryConfig(),
             wheel_odometry=WheelOdometryConfig(),
@@ -1102,6 +1147,7 @@ __all__ = [
     "RadioConfig",
     "RangefinderConfig",
     "SensorSuiteConfig",
+    "UltrasonicArrayConfig",
     "StereoCameraConfig",
     "TactileArrayConfig",
     "ThermalCameraConfig",

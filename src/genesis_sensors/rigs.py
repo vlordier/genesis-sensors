@@ -20,6 +20,7 @@ from ._compat import (
     FINGERTIP_TACTILE_4X4,
     FINGERTIP_TACTILE_200HZ,
     GENERIC_SERVO_ENCODER,
+    HC_SR04_ARRAY4,
     INA226_10A,
     INTEL_D435,
     OPTICAL_ENC_1024,
@@ -56,6 +57,7 @@ from ._compat import (
     TactileArraySensor,
     ThermalCameraModel,
     ThermometerModel,
+    UltrasonicArrayModel,
     HygrometerModel,
     LightSensorModel,
     GasSensorModel,
@@ -246,6 +248,12 @@ def _make_perception_state(
             "rcs_dbsm": 9.0,
         },
     ]
+    ultrasonic_ranges = {
+        "front_left": max(0.08, 0.80 + 0.20 * np.sin(0.45 * sim_time)),
+        "front_right": max(0.08, 1.05 + 0.18 * np.cos(0.36 * sim_time)),
+        "left": max(0.08, 0.60 + 0.14 * np.cos(0.28 * sim_time + 0.2)),
+        "right": max(0.08, 1.25 + 0.20 * np.sin(0.31 * sim_time + 0.4)),
+    }
 
     return {
         "rgb": rgb_uint8,
@@ -273,6 +281,7 @@ def _make_perception_state(
         "gas_sources": gas_sources,
         "uwb_anchors": uwb_anchors,
         "radar_targets": radar_targets,
+        "ultrasonic_ranges_m": ultrasonic_ranges,
         "range_m": max(0.05, float(pos[2])),
     }
 
@@ -309,10 +318,11 @@ def _build_multimodal_suite(seed_for: Callable[[int], int | None]) -> tuple[Sens
         anemometer=AnemometerModel.from_config(DAVIS_6410_ANEMOMETER.model_copy(update={"seed": seed_for(16)})),
         airspeed=AirspeedModel(update_rate_hz=50.0, seed=seed_for(17)),
         rangefinder=RangefinderModel(update_rate_hz=20.0, seed=seed_for(18)),
-        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(19)),
-        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(20)),
+        ultrasonic=UltrasonicArrayModel.from_config(HC_SR04_ARRAY4.model_copy(update={"seed": seed_for(19)})),
+        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(20)),
+        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(21)),
         wheel_odometry=WheelOdometryModel.from_config(
-            DIFF_DRIVE_ENCODER_50HZ.model_copy(update={"seed": seed_for(21)})
+            DIFF_DRIVE_ENCODER_50HZ.model_copy(update={"seed": seed_for(22)})
         ),
     )
     return suite, radio
@@ -350,8 +360,9 @@ def make_drone_navigation_rig(entity: Any, *, dt: float = 0.01, seed: int | None
         anemometer=AnemometerModel.from_config(DAVIS_6410_ANEMOMETER.model_copy(update={"seed": seed_for(9)})),
         airspeed=AirspeedModel(update_rate_hz=50.0, seed=seed_for(10)),
         rangefinder=RangefinderModel(update_rate_hz=20.0, seed=seed_for(11)),
-        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(12)),
-        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(13)),
+        ultrasonic=UltrasonicArrayModel.from_config(HC_SR04_ARRAY4.model_copy(update={"seed": seed_for(12)})),
+        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(13)),
+        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(14)),
     )
 
     def _state_fn() -> dict[str, Any]:

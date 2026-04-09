@@ -113,6 +113,7 @@ from .config import (
     ThermalCameraConfig,
     ThermometerConfig,
     UWBRangeConfig,
+    UltrasonicArrayConfig,
     WheelOdometryConfig,
 )
 from .contact_sensor import ContactSensor
@@ -154,6 +155,7 @@ from .presets import (
     GARMIN_LIDAR_LITE_V3,
     GENERIC_SERVO_ENCODER,
     GOPRO_HERO11_4K30,
+    HC_SR04_ARRAY4,
     HESAI_XT32,
     HMC5883L,
     INTEL_D415,
@@ -171,6 +173,7 @@ from .presets import (
     INA226_10A,
     MATEKSYS_3901_L0X,
     MAUCH_HS_200,
+    MAXBOTIX_MB1242_RING8,
     MECANUM_DRIVE_ENCODER_100HZ,
     MS4525DO,
     MS5611,
@@ -219,6 +222,7 @@ from .scheduler import SensorScheduler
 from .stereo_camera import StereoCameraModel
 from .suite import SensorSuite
 from .thermal_camera import ThermalCameraModel
+from .ultrasonic import UltrasonicArrayModel
 from .wireless import RadarModel, UWBRangingModel
 from .types import (
     AirspeedObservation,
@@ -259,6 +263,7 @@ from .types import (
     UInt16Array,
     UWBObservation,
     UInt8Array,
+    UltrasonicObservation,
     WheelOdometryObservation,
 )
 
@@ -318,6 +323,9 @@ __all__ = [
     "NAVTECH_CTS350X",
     "QORVO_DWM3001C",
     "TI_IWR6843AOP",
+    # Preset constants — ultrasonic
+    "HC_SR04_ARRAY4",
+    "MAXBOTIX_MB1242_RING8",
     # Preset constants — magnetometer
     "HMC5883L",
     "IST8310",
@@ -406,6 +414,7 @@ __all__ = [
     "TactileArraySensor",
     "ThermalCameraModel",
     "ThermometerModel",
+    "UltrasonicArrayModel",
     "UWBRangingModel",
     "WheelOdometryModel",
     # Config classes
@@ -438,6 +447,7 @@ __all__ = [
     "ThermalCameraConfig",
     "ThermometerConfig",
     "UWBRangeConfig",
+    "UltrasonicArrayConfig",
     "WheelOdometryConfig",
     # Type aliases and TypedDicts
     "AirspeedObservation",
@@ -480,5 +490,6 @@ __all__ = [
     "UInt16Array",
     "UInt8Array",
     "UWBObservation",
+    "UltrasonicObservation",
     "WheelOdometryObservation",
 ]

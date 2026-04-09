@@ -58,6 +58,7 @@ def test_synthetic_multimodal_rig_surfaces_more_upstream_sensors() -> None:
         "anemometer",
         "uwb",
         "radar",
+        "ultrasonic",
     }.issubset(set(rig.sensor_names()))
     assert np.asarray(obs0["rgb"]["rgb"]).shape[-1] == 3
     assert np.asarray(obs0["thermal"]["temperature_c"]).ndim == 2
@@ -71,6 +72,7 @@ def test_synthetic_multimodal_rig_surfaces_more_upstream_sensors() -> None:
     assert "wind_speed_ms" in obs0["anemometer"]
     assert "position_estimate" in obs0["uwb"]
     assert "n_detections" in obs0["radar"]
+    assert "nearest_range_m" in obs0["ultrasonic"]
 
 
 def test_synthetic_state_and_preset_helpers_expose_upstream_surface() -> None:
@@ -89,11 +91,13 @@ def test_synthetic_state_and_preset_helpers_expose_upstream_surface() -> None:
         "gas_sources",
         "uwb_anchors",
         "radar_targets",
+        "ultrasonic_ranges_m",
     }.issubset(state)
     assert "ZED2_STEREO" in list_presets(kind="stereo")
     assert "DS18B20_PROBE" in list_presets(kind="thermometer")
     assert "DAVIS_6410_ANEMOMETER" in list_presets(kind="anemometer")
     assert "QORVO_DWM3001C" in list_presets(kind="uwb")
     assert "TI_IWR6843AOP" in list_presets(kind="radar")
+    assert "HC_SR04_ARRAY4" in list_presets(kind="ultrasonic")
     assert get_preset("FLIR_BOSON_320").name == "FLIR_BOSON_320"
     assert get_preset("TSL2591_LIGHT").name == "TSL2591_LIGHT"

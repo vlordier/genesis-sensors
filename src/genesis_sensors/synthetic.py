@@ -155,9 +155,18 @@ def make_synthetic_sensor_state(
             "rcs_dbsm": 8.0,
         },
     ]
+    ultrasonic_ranges = {
+        "front_left": max(0.08, 0.85 + 0.20 * np.sin(0.50 * sim_time)),
+        "front_right": max(0.08, 1.10 + 0.18 * np.cos(0.40 * sim_time)),
+        "left": max(0.08, 0.65 + 0.15 * np.cos(0.32 * sim_time + 0.2)),
+        "right": max(0.08, 1.35 + 0.25 * np.sin(0.28 * sim_time + 0.6)),
+    }
     if phase_name == "urban_canyon":
         obstruction = min(0.82, obstruction + 0.20)
         illuminance_lux *= 0.55
+        ultrasonic_ranges["left"] = max(0.08, ultrasonic_ranges["left"] - 0.22)
+    if phase_name == "signal_recovery":
+        ultrasonic_ranges["front_left"] = max(0.08, ultrasonic_ranges["front_left"] - 0.18)
     if phase_name == "rain_burst":
         rain_rate = max(rain_rate, 6.0)
         relative_humidity_pct = min(98.0, relative_humidity_pct + 10.0)
@@ -192,6 +201,7 @@ def make_synthetic_sensor_state(
         "gas_sources": gas_sources,
         "uwb_anchors": uwb_anchors,
         "radar_targets": radar_targets,
+        "ultrasonic_ranges_m": ultrasonic_ranges,
         "range_m": max(0.05, float(pos[2])),
         "current_a": float(np.clip(8.0 + 2.5 * speed, 0.0, 30.0)),
         "voltage_v": 14.8,
