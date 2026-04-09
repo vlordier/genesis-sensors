@@ -1,12 +1,12 @@
 # GNSS / GPS
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### GNSS example plot
+### GNSS generated example
 
-![GNSS example plot](../assets/sensors/gnss.svg)
+![GNSS generated example](../assets/sensors/gnss.svg)
 
 ::: genesis_sensors._runtime_sensors.gnss
     options:

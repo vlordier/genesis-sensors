@@ -1,16 +1,16 @@
 # DVL & Current Profiler
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### DVL example plot
+### DVL generated example
 
-![DVL example plot](../assets/sensors/dvl.svg)
+![DVL generated example](../assets/sensors/dvl.svg)
 
-### Current profiler example plot
+### Current profiler generated example
 
-![Current profiler example plot](../assets/sensors/acoustic_current_profiler.svg)
+![Current profiler generated example](../assets/sensors/acoustic_current_profiler.svg)
 
 ::: genesis_sensors._runtime_sensors.acoustic_navigation
     options:

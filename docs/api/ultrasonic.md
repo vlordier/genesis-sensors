@@ -1,12 +1,12 @@
 # Ultrasonic Array
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### Ultrasonic array example plot
+### Ultrasonic array generated example
 
-![Ultrasonic array example plot](../assets/sensors/ultrasonic.svg)
+![Ultrasonic array generated example](../assets/sensors/ultrasonic.svg)
 
 ::: genesis_sensors._runtime_sensors.ultrasonic
     options:

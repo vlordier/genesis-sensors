@@ -1,6 +1,6 @@
 # RGB Camera
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 

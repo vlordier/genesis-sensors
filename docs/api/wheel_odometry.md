@@ -1,12 +1,12 @@
 # Wheel Odometry
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### Wheel odometry example plot
+### Wheel odometry generated example
 
-![Wheel odometry example plot](../assets/sensors/wheel_odometry.svg)
+![Wheel odometry generated example](../assets/sensors/wheel_odometry.svg)
 
 ::: genesis_sensors._runtime_sensors.wheel_odometry
     options:

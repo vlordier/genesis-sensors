@@ -1,28 +1,28 @@
 # Environmental Sensors
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### Thermometer example plot
+### Thermometer generated example
 
-![Thermometer example plot](../assets/sensors/thermometer.svg)
+![Thermometer generated example](../assets/sensors/thermometer.svg)
 
-### Hygrometer example plot
+### Hygrometer generated example
 
-![Hygrometer example plot](../assets/sensors/hygrometer.svg)
+![Hygrometer generated example](../assets/sensors/hygrometer.svg)
 
-### Light sensor example plot
+### Light sensor generated example
 
-![Light sensor example plot](../assets/sensors/light_sensor.svg)
+![Light sensor generated example](../assets/sensors/light_sensor.svg)
 
-### Gas sensor example plot
+### Gas sensor generated example
 
-![Gas sensor example plot](../assets/sensors/gas_sensor.svg)
+![Gas sensor generated example](../assets/sensors/gas_sensor.svg)
 
-### Anemometer example plot
+### Anemometer generated example
 
-![Anemometer example plot](../assets/sensors/anemometer.svg)
+![Anemometer generated example](../assets/sensors/anemometer.svg)
 
 ::: genesis_sensors._runtime_sensors.environmental
     options:

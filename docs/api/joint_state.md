@@ -1,12 +1,12 @@
 # Joint State
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### Joint-state example plot
+### Joint-state generated example
 
-![Joint-state example plot](../assets/sensors/joint_state.svg)
+![Joint-state generated example](../assets/sensors/joint_state.svg)
 
 ::: genesis_sensors._runtime_sensors.joint_state
     options:

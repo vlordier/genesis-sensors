@@ -1,12 +1,12 @@
 # RPM Sensor
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### RPM-sensor example plot
+### RPM-sensor generated example
 
-![RPM-sensor example plot](../assets/sensors/rpm_sensor.svg)
+![RPM-sensor generated example](../assets/sensors/rpm_sensor.svg)
 
 ::: genesis_sensors._runtime_sensors.rpm_sensor
     options:

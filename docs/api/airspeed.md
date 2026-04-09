@@ -1,12 +1,12 @@
 # Airspeed
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### Airspeed example plot
+### Airspeed generated example
 
-![Airspeed example plot](../assets/sensors/airspeed.svg)
+![Airspeed generated example](../assets/sensors/airspeed.svg)
 
 ::: genesis_sensors._runtime_sensors.airspeed
     options:

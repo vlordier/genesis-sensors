@@ -1,12 +1,12 @@
 # Barometer
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### Barometer example plot
+### Barometer generated example
 
-![Barometer example plot](../assets/sensors/barometer.svg)
+![Barometer generated example](../assets/sensors/barometer.svg)
 
 ::: genesis_sensors._runtime_sensors.barometer
     options:

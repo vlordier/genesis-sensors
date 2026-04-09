@@ -1,12 +1,12 @@
 # IMU
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### IMU example plot
+### IMU generated example
 
-![IMU example plot](../assets/sensors/imu.svg)
+![IMU generated example](../assets/sensors/imu.svg)
 
 ::: genesis_sensors._runtime_sensors.imu
     options:

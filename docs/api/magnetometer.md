@@ -1,12 +1,12 @@
 # Magnetometer
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### Magnetometer example plot
+### Magnetometer generated example
 
-![Magnetometer example plot](../assets/sensors/magnetometer.svg)
+![Magnetometer generated example](../assets/sensors/magnetometer.svg)
 
 ::: genesis_sensors._runtime_sensors.magnetometer
     options:

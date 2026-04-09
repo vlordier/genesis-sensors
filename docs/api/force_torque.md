@@ -1,12 +1,12 @@
 # Force / Torque
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### Force / torque example plot
+### Force / torque generated example
 
-![Force / torque example plot](../assets/sensors/force_torque.svg)
+![Force / torque generated example](../assets/sensors/force_torque.svg)
 
 ::: genesis_sensors._runtime_sensors.force_torque
     options:

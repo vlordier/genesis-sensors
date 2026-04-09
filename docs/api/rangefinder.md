@@ -1,12 +1,12 @@
 # Rangefinder
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### Rangefinder example plot
+### Rangefinder generated example
 
-![Rangefinder example plot](../assets/sensors/rangefinder.svg)
+![Rangefinder generated example](../assets/sensors/rangefinder.svg)
 
 ::: genesis_sensors._runtime_sensors.rangefinder
     options:

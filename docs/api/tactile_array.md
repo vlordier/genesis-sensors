@@ -1,12 +1,12 @@
 # Tactile Array
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### Tactile-array example plot
+### Tactile-array generated example
 
-![Tactile-array example plot](../assets/sensors/tactile_array.svg)
+![Tactile-array generated example](../assets/sensors/tactile_array.svg)
 
 ::: genesis_sensors._runtime_sensors.tactile_array
     options:

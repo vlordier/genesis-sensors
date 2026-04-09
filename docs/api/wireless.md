@@ -1,12 +1,12 @@
 # UWB & Radar
 
-## Example output
+## Generated example
 
 > Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### UWB example plot
+### UWB generated example
 
-![UWB example plot](../assets/sensors/uwb_ranging.svg)
+![UWB generated example](../assets/sensors/uwb_ranging.svg)
 
 ### Radar snapshot
 
