@@ -15,7 +15,8 @@ the vehicle velocity relative to the local wind — into an indicated airspeed
 * **Slow Gauss-Markov bias** representing ice accretion, contamination,
   or temperature-induced zero-offset drift.
 * **Minimum detectable speed** (port-pressure dead-band below ~2–3 m/s typical).
-* **Tube blockage** simulation — rare random events that clamp output to zero.
+* **Tube blockage** simulation — rare random events that persistently clamp
+  output to zero until the sensor is reset.
 
 Usage
 -----
@@ -121,8 +122,9 @@ class AirspeedModel(BaseSensor):
         Tube saturation speed (m/s).  Exceeding this clips the measurement.
         Typical industrial range: 50–300 m/s.
     tube_blockage_prob:
-        Per-step probability [0, 1] that the tube is temporarily blocked,
-        returning 0 for that step.  Models bird strikes / ice events.
+        Per-step probability [0, 1] that the tube becomes permanently blocked
+        (until reset).  Once triggered the output is clamped to 0.
+        Models ice build-up or debris obstructing the pitot port.
     seed:
         Optional RNG seed for reproducibility.
     """
@@ -148,6 +150,7 @@ class AirspeedModel(BaseSensor):
         self.tube_blockage_prob = float(tube_blockage_prob)
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
+        self._tube_blocked: bool = False
 
         dt = 1.0 / self.update_rate_hz
         self._bias_process = GaussMarkovProcess(
@@ -198,6 +201,7 @@ class AirspeedModel(BaseSensor):
 
     def reset(self, env_id: int = 0) -> None:
         self._bias_process.reset(self.bias_sigma_ms)
+        self._tube_blocked = False
         self._last_obs = {}
         self._last_update_time = -1.0
 
@@ -260,9 +264,14 @@ class AirspeedModel(BaseSensor):
         bias_ms = float(self._bias_process.step())
 
         # ------------------------------------------------------------------
-        # 4. Tube blockage — random rare event; clamps output to 0 after drift
+        # 4. Tube blockage — persistent: once triggered, stays blocked until
+        #    reset().  Models ice build-up or debris obstructing the pitot port.
         # ------------------------------------------------------------------
-        if self.tube_blockage_prob > 0.0 and float(self._rng.random()) < self.tube_blockage_prob:
+        if not self._tube_blocked and self.tube_blockage_prob > 0.0:
+            if float(self._rng.random()) < self.tube_blockage_prob:
+                self._tube_blocked = True
+
+        if self._tube_blocked:
             obs: AirspeedObservation = {"airspeed_ms": 0.0, "dynamic_pressure_pa": 0.0}
             self._last_obs = obs
             self._mark_updated(sim_time)

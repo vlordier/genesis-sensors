@@ -112,6 +112,35 @@ class BaseSensor(ABC, Generic[ObservationT]):
     # Convenience
     # ------------------------------------------------------------------
 
+    @classmethod
+    def from_preset(cls, name: str, **overrides):
+        """
+        Construct a sensor from a named preset, with optional overrides.
+
+        Parameters
+        ----------
+        name:
+            Preset name (case-insensitive), e.g. ``"PIXHAWK_ICM20689"``.
+        **overrides:
+            Keyword arguments forwarded to the config's ``model_copy(update=...)``.
+
+        Returns
+        -------
+        BaseSensor
+            A new sensor instance.
+
+        Examples
+        --------
+        ::
+
+            imu = IMUModel.from_preset("PIXHAWK_ICM20689")
+            imu = IMUModel.from_preset("PIXHAWK_ICM20689", update_rate_hz=500.0)
+        """
+        from .presets import get_preset
+
+        cfg = get_preset(name, **overrides)
+        return cls.from_config(cfg)
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}(name={self.name!r}, rate={self.update_rate_hz} Hz)"
 

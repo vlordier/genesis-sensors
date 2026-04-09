@@ -16,7 +16,7 @@ genesis-sensors/
 │       ├── suite.py         # SensorSuite (34 sensor types)
 │       ├── config.py        # Pydantic configuration models
 │       ├── types.py         # TypedDict observation schemas
-│       ├── presets.py        # 80+ real-world sensor presets
+│       ├── presets.py        # 90+ real-world sensor presets
 │       ├── _gauss_markov.py # Shared bias-drift utility
 │       └── *.py             # Individual sensor models
 ├── tests/
@@ -134,7 +134,7 @@ assert cfg.model_dump() == cfg2.model_dump()
 | Test File | Purpose | Count |
 |-----------|---------|-------|
 | `test_architecture.py` | Config roundtrips, preset validation, GaussMarkov, suite factories | ~130 |
-| `test_edge_cases.py` | NaN/Inf inputs, error wrapping, extreme rates, set_seed | ~19 |
+| `test_edge_cases.py` | NaN/Inf inputs, error wrapping, extreme rates, set_seed, config validation, saturation | ~100 |
 | `test_rigs.py` | Pre-built rig integration | ~5 |
 | `test_robustness.py` | Fault injection wrapper | ~3 |
-| `test_*.py` (domain) | Per-domain sensor tests | ~16 |
+| `test_*.py` (domain) | Per-domain sensor tests | ~30 |

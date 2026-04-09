@@ -1488,6 +1488,227 @@ OPTICAL_ENC_1024 = RPMSensorConfig(
     seed=None,
 )
 
+# ---------------------------------------------------------------------------
+# Additional GNSS mode presets
+# ---------------------------------------------------------------------------
+
+UBLOX_F9P_FLOAT = GNSSConfig(
+    # u-blox ZED-F9P in RTK float (not fixed) mode.
+    # Source: UBX-17051259.  Float CEP ≈ 0.1 m horizontal.
+    # 1σ ≈ 0.085 m per-axis.  Velocity: 0.02 m/s.
+    name="UBLOX_F9P_FLOAT",
+    update_rate_hz=10.0,
+    noise_m=0.085,
+    vel_noise_ms=0.02,
+    bias_tau_s=120.0,
+    bias_sigma_m=0.05,
+    multipath_sigma_m=0.3,
+    min_fix_altitude_m=0.2,
+)
+
+UBLOX_F9P_AUTONOMOUS = GNSSConfig(
+    # u-blox ZED-F9P in autonomous (standalone, no corrections) mode.
+    # Source: UBX-17051259.  Autonomous CEP ≈ 2.0 m.
+    # 1σ ≈ 1.7 m.  Velocity: 0.05 m/s.
+    name="UBLOX_F9P_AUTONOMOUS",
+    update_rate_hz=5.0,
+    noise_m=1.7,
+    vel_noise_ms=0.05,
+    bias_tau_s=60.0,
+    bias_sigma_m=0.5,
+    multipath_sigma_m=1.0,
+    min_fix_altitude_m=0.5,
+)
+
+NOVATEL_OEM7_SBAS = GNSSConfig(
+    # NovAtel OEM7 with SBAS (WAAS/EGNOS) corrections.
+    # Source: OM-20000129.  SBAS CEP ≈ 0.6 m.  Velocity: 0.03 m/s.
+    name="NOVATEL_OEM7_SBAS",
+    update_rate_hz=20.0,
+    noise_m=0.51,
+    vel_noise_ms=0.03,
+    bias_tau_s=90.0,
+    bias_sigma_m=0.1,
+    multipath_sigma_m=0.3,
+    min_fix_altitude_m=0.3,
+)
+
+# ---------------------------------------------------------------------------
+# Additional depth camera presets
+# ---------------------------------------------------------------------------
+
+OAK_D_LITE = DepthCameraConfig(
+    # Source: Luxonis OAK-D Lite datasheet.
+    # Global-shutter stereo, 640×480 depth @ 30 fps.
+    # Depth range: 0.2–9.0 m.  Depth accuracy ≈ < 2% at 2 m.
+    name="OAK_D_LITE",
+    update_rate_hz=30.0,
+    resolution=(640, 480),
+    depth_noise_sigma_m=0.005,
+    depth_noise_scale_z=0.02,
+    missing_edge_px=3,
+    min_depth_m=0.2,
+    max_depth_m=9.0,
+)
+
+REALSENSE_D455 = DepthCameraConfig(
+    # Source: Intel RealSense D455 datasheet (rev 006).
+    # Active IR stereo, 1280×720 @ 30 fps.
+    # Depth range: 0.4–6.0 m (indoor).  RMS error < 2% at 4 m.
+    name="REALSENSE_D455",
+    update_rate_hz=30.0,
+    resolution=(1280, 720),
+    depth_noise_sigma_m=0.003,
+    depth_noise_scale_z=0.015,
+    missing_edge_px=4,
+    min_depth_m=0.4,
+    max_depth_m=6.0,
+)
+
+# ---------------------------------------------------------------------------
+# Additional IMU presets
+# ---------------------------------------------------------------------------
+
+ADIS16470 = IMUConfig(
+    # Source: Analog Devices ADIS16470 datasheet, rev E.
+    # Tactical-grade MEMS IMU, 6-DoF, 2 kHz ODR.
+    # Gyro ARW: 0.34 °/√h → 9.9e-5 rad/s/√Hz.
+    # Accel noise density: 0.023 mg/√Hz ≈ 2.26e-4 m/s²/√Hz.
+    # In-run bias stability: gyro 2 °/h, accel 6 µg.
+    name="ADIS16470",
+    update_rate_hz=2000.0,
+    noise_density_acc=2.26e-4,
+    noise_density_gyr=9.9e-5,
+    bias_tau_acc_s=1000.0,
+    bias_sigma_acc=5.9e-5,
+    bias_tau_gyr_s=1000.0,
+    bias_sigma_gyr=9.7e-6,
+    scale_factor_acc=5e-4,
+    scale_factor_gyr=5e-4,
+)
+
+LSM6DSO = IMUConfig(
+    # Source: STMicroelectronics LSM6DSO datasheet, rev 9.
+    # Consumer MEMS IMU (used in many drones/phones).
+    # Accel noise density: 70 µg/√Hz ≈ 6.87e-4 m/s²/√Hz.
+    # Gyro noise density: 3.8 mdps/√Hz ≈ 6.63e-5 rad/s/√Hz.
+    name="LSM6DSO",
+    update_rate_hz=416.0,
+    noise_density_acc=6.87e-4,
+    noise_density_gyr=6.63e-5,
+    bias_tau_acc_s=300.0,
+    bias_sigma_acc=2e-3,
+    bias_tau_gyr_s=300.0,
+    bias_sigma_gyr=3e-3,
+    scale_factor_acc=3e-3,
+    scale_factor_gyr=3e-3,
+)
+
+ICM42688P = IMUConfig(
+    # Source: TDK InvenSense ICM-42688-P datasheet, rev 1.9.
+    # Modern Pixhawk IMU (CubeOrange+).
+    # Gyro noise density: 2.8 mdps/√Hz ≈ 4.89e-5 rad/s/√Hz.
+    # Accel noise density: 60 µg/√Hz ≈ 5.89e-4 m/s²/√Hz.
+    # Gyro in-run stability: 3 °/h.  Accel in-run stability: 8 µg.
+    name="ICM42688P",
+    update_rate_hz=1000.0,
+    noise_density_acc=5.89e-4,
+    noise_density_gyr=4.89e-5,
+    bias_tau_acc_s=500.0,
+    bias_sigma_acc=7.85e-5,
+    bias_tau_gyr_s=500.0,
+    bias_sigma_gyr=1.45e-5,
+    scale_factor_acc=1e-3,
+    scale_factor_gyr=1e-3,
+)
+
+# ---------------------------------------------------------------------------
+# Additional barometer presets
+# ---------------------------------------------------------------------------
+
+LPS22HH = BarometerConfig(
+    # Source: STMicroelectronics LPS22HH datasheet, rev 6.
+    # Piezoresistive MEMS pressure sensor, 200 Hz ODR.
+    # Relative accuracy: ±0.025 hPa → ≈ 0.21 m altitude equiv.
+    # RMS noise: 0.43 Pa (~0.036 m) at 200 Hz.
+    name="LPS22HH",
+    update_rate_hz=200.0,
+    noise_sigma_m=0.036,
+    bias_tau_s=600.0,
+    bias_sigma_m=0.1,
+    resolution_m=0.00065,
+)
+
+ICM20948_BARO = BarometerConfig(
+    # Source: InvenSense ICM-20948 integrated baro specifications.
+    # Relative accuracy ±0.04 hPa → ≈ 0.33 m at sea level.
+    # RMS noise: ~0.08 hPa → ~0.67 m; 50 Hz update.
+    name="ICM20948_BARO",
+    update_rate_hz=50.0,
+    noise_sigma_m=0.67,
+    bias_tau_s=300.0,
+    bias_sigma_m=0.3,
+    resolution_m=0.002,
+)
+
+# ---------------------------------------------------------------------------
+# Additional radio presets
+# ---------------------------------------------------------------------------
+
+RADIO_FREESPACE = RadioConfig(
+    # Ideal free-space link (no shadowing, no NLOS).
+    # Useful as a baseline for channel-model comparison.
+    name="RADIO_FREESPACE",
+    update_rate_hz=100.0,
+    tx_power_dbm=20.0,
+    frequency_ghz=2.4,
+    noise_figure_db=6.0,
+    path_loss_exponent=2.0,
+    shadowing_sigma_db=0.0,
+    min_snr_db=5.0,
+    snr_transition_db=3.0,
+    base_latency_s=0.001,
+    jitter_sigma_s=0.0001,
+    nlos_excess_loss_db=0.0,
+    los_required=False,
+)
+
+RADIO_URBAN = RadioConfig(
+    # Urban non-line-of-sight channel at 2.4 GHz.
+    # Source: ITU-R P.1411, Cost 231 Walfish-Ikegami model typical values.
+    name="RADIO_URBAN",
+    update_rate_hz=100.0,
+    tx_power_dbm=20.0,
+    frequency_ghz=2.4,
+    noise_figure_db=6.0,
+    path_loss_exponent=3.5,
+    shadowing_sigma_db=8.0,
+    min_snr_db=10.0,
+    snr_transition_db=5.0,
+    base_latency_s=0.005,
+    jitter_sigma_s=0.002,
+    nlos_excess_loss_db=15.0,
+    los_required=False,
+)
+
+RADIO_INDOOR = RadioConfig(
+    # Indoor 2.4 GHz Wi-Fi propagation model.
+    # Source: ITU-R P.1238 for indoor environments.
+    name="RADIO_INDOOR",
+    update_rate_hz=100.0,
+    tx_power_dbm=15.0,
+    frequency_ghz=2.4,
+    noise_figure_db=6.0,
+    path_loss_exponent=3.0,
+    shadowing_sigma_db=5.0,
+    min_snr_db=8.0,
+    snr_transition_db=4.0,
+    base_latency_s=0.002,
+    jitter_sigma_s=0.0005,
+    nlos_excess_loss_db=8.0,
+    los_required=False,
+)
+
 
 _REGISTRY: dict[str, PresetConfig] = {
     # Cameras
@@ -1514,12 +1735,18 @@ _REGISTRY: dict[str, PresetConfig] = {
     "XSENS_MTI_3": XSENS_MTI_3,
     "BOSCH_BMI088": BOSCH_BMI088,
     "INVENSENSE_MPU9250": INVENSENSE_MPU9250,
+    "ADIS16470": ADIS16470,
+    "LSM6DSO": LSM6DSO,
+    "ICM42688P": ICM42688P,
     # GNSS
     "UBLOX_M8N": UBLOX_M8N,
     "UBLOX_F9P_RTK": UBLOX_F9P_RTK,
     "NOVATEL_OEM7": NOVATEL_OEM7,
     "TRIMBLE_BD992": TRIMBLE_BD992,
     "EMLID_REACH_RS2": EMLID_REACH_RS2,
+    "UBLOX_F9P_FLOAT": UBLOX_F9P_FLOAT,
+    "UBLOX_F9P_AUTONOMOUS": UBLOX_F9P_AUTONOMOUS,
+    "NOVATEL_OEM7_SBAS": NOVATEL_OEM7_SBAS,
     # Thermal cameras
     "FLIR_LEPTON_35": FLIR_LEPTON_35,
     "FLIR_BOSON_320": FLIR_BOSON_320,
@@ -1533,6 +1760,8 @@ _REGISTRY: dict[str, PresetConfig] = {
     "SPL06_001": SPL06_001,
     "BMP280": BMP280,
     "DPS310": DPS310,
+    "LPS22HH": LPS22HH,
+    "ICM20948_BARO": ICM20948_BARO,
     # Magnetometers
     "IST8310": IST8310,
     "HMC5883L": HMC5883L,
@@ -1547,6 +1776,10 @@ _REGISTRY: dict[str, PresetConfig] = {
     "QORVO_DWM3001C": QORVO_DWM3001C,
     "TI_IWR6843AOP": TI_IWR6843AOP,
     "NAVTECH_CTS350X": NAVTECH_CTS350X,
+    # Radio link
+    "RADIO_FREESPACE": RADIO_FREESPACE,
+    "RADIO_URBAN": RADIO_URBAN,
+    "RADIO_INDOOR": RADIO_INDOOR,
     # Ultrasonic sensing
     "HC_SR04_ARRAY4": HC_SR04_ARRAY4,
     "MAXBOTIX_MB1242_RING8": MAXBOTIX_MB1242_RING8,
@@ -1589,6 +1822,8 @@ _REGISTRY: dict[str, PresetConfig] = {
     "INTEL_D415": INTEL_D415,
     "INTEL_D435": INTEL_D435,
     "INTEL_L515": INTEL_L515,
+    "OAK_D_LITE": OAK_D_LITE,
+    "REALSENSE_D455": REALSENSE_D455,
     # Tactile arrays
     "FINGERTIP_TACTILE_4X4": FINGERTIP_TACTILE_4X4,
     "WRIST_TACTILE_8X2": WRIST_TACTILE_8X2,
@@ -1688,28 +1923,23 @@ def list_presets(kind: str | None = None) -> list[str]:
     return sorted(_PRESET_CATEGORIES[key])
 
 
-def get_preset(name: str) -> PresetConfig:
+def get_preset(name: str, **overrides) -> PresetConfig:
     """
-    Return a preset config by name (case-insensitive).
+    Return a preset config by name (case-insensitive), optionally with overrides.
 
     Parameters
     ----------
     name:
         Preset identifier, e.g. ``"VELODYNE_VLP16"`` or ``"velodyne_vlp16"``.
+    **overrides:
+        Keyword arguments to override on the preset.  The preset is first
+        retrieved, then ``model_copy(update=overrides)`` is applied so that
+        the original preset singleton is never mutated.
 
     Returns
     -------
     PresetConfig
-        One of :class:`~genesis.sensors.CameraConfig`,
-        :class:`~genesis.sensors.LidarConfig`,
-        :class:`~genesis.sensors.IMUConfig`,
-        :class:`~genesis.sensors.GNSSConfig`,
-        :class:`~genesis.sensors.ThermalCameraConfig`,
-        :class:`~genesis.sensors.EventCameraConfig`,
-        :class:`~genesis.sensors.BarometerConfig`,
-        :class:`~genesis.sensors.MagnetometerConfig`,
-        :class:`~genesis.sensors.AirspeedConfig`, or
-        :class:`~genesis.sensors.RangefinderConfig`.
+        A validated config instance.
 
     Raises
     ------
@@ -1721,14 +1951,23 @@ def get_preset(name: str) -> PresetConfig:
     ::
 
         from genesis.sensors.presets import get_preset
+
+        # Use a preset as-is
         cfg = get_preset("velodyne_vlp16")
         lidar = LidarModel.from_config(cfg)
+
+        # Override specific fields
+        fast_vlp = get_preset("velodyne_vlp16", update_rate_hz=20.0)
+        noisy_imu = get_preset("PIXHAWK_ICM20689", noise_density_acc=0.05)
     """
     key = name.upper()
     if key not in _REGISTRY:
         available = ", ".join(sorted(_REGISTRY))
         raise KeyError(f"Unknown sensor preset {name!r}.  Available: {available}")
-    return _REGISTRY[key]
+    preset = _REGISTRY[key]
+    if overrides:
+        return preset.model_copy(update=overrides)
+    return preset
 
 
 __all__ = [
@@ -1758,12 +1997,18 @@ __all__ = [
     "XSENS_MTI_3",
     "BOSCH_BMI088",
     "INVENSENSE_MPU9250",
+    "ADIS16470",
+    "LSM6DSO",
+    "ICM42688P",
     # GNSS presets
     "UBLOX_M8N",
     "UBLOX_F9P_RTK",
     "NOVATEL_OEM7",
     "TRIMBLE_BD992",
     "EMLID_REACH_RS2",
+    "UBLOX_F9P_FLOAT",
+    "UBLOX_F9P_AUTONOMOUS",
+    "NOVATEL_OEM7_SBAS",
     # Thermal presets
     "FLIR_LEPTON_35",
     "FLIR_BOSON_320",
@@ -1777,6 +2022,8 @@ __all__ = [
     "SPL06_001",
     "BMP280",
     "DPS310",
+    "LPS22HH",
+    "ICM20948_BARO",
     # Environmental presets
     "DS18B20_PROBE",
     "SHT31_HUMIDITY",
@@ -1787,6 +2034,9 @@ __all__ = [
     "QORVO_DWM3001C",
     "TI_IWR6843AOP",
     "NAVTECH_CTS350X",
+    "RADIO_FREESPACE",
+    "RADIO_URBAN",
+    "RADIO_INDOOR",
     # Ultrasonic presets
     "HC_SR04_ARRAY4",
     "MAXBOTIX_MB1242_RING8",
@@ -1833,6 +2083,8 @@ __all__ = [
     "INTEL_D415",
     "INTEL_D435",
     "INTEL_L515",
+    "OAK_D_LITE",
+    "REALSENSE_D455",
     # Tactile array presets
     "FINGERTIP_TACTILE_4X4",
     "WRIST_TACTILE_8X2",

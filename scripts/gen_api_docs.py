@@ -15,8 +15,6 @@ from __future__ import annotations
 import importlib
 import inspect
 import os
-import sys
-import textwrap
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -79,17 +77,12 @@ def _collect_public_names(mod_name: str) -> list[str]:
         return []
     if hasattr(mod, "__all__"):
         return list(mod.__all__)
-    return [
-        name
-        for name, obj in inspect.getmembers(mod)
-        if not name.startswith("_") and inspect.getmodule(obj) is mod
-    ]
+    return [name for name, obj in inspect.getmembers(mod) if not name.startswith("_") and inspect.getmodule(obj) is mod]
 
 
 def _write_module_page(mod_name: str, title: str) -> str:
     """Write a single API reference page and return its relative path."""
     fqn = _module_path(mod_name)
-    names = _collect_public_names(mod_name)
 
     lines = [
         f"# {title}",
