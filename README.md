@@ -97,25 +97,31 @@ pip install genesis-sensors
 ## 🚀 Quick start
 
 ```python
-from genesis_sensors import build_franka_demo
+import genesis as gs
+from genesis_sensors import make_drone_perception_rig
 
-bundle = build_franka_demo(show_viewer=False)
-bundle.rig.reset()
+gs.init(backend=gs.cpu, logging_level="warning")
+scene = gs.Scene(show_viewer=False)
+scene.add_entity(gs.morphs.Plane())
+drone = scene.add_entity(gs.morphs.Drone(file="urdf/drones/cf2x.urdf", pos=(0.0, 0.0, 0.7)))
+scene.build()
 
-for step in range(200):
-    bundle.controller(step)
-    bundle.scene.step()
-    obs = bundle.rig.step(float(bundle.scene.cur_t))
-    print(obs["joint_state"]["joint_pos_rad"][:3])
-
-# Or exercise a headless multimodal stack directly
-from genesis_sensors import make_synthetic_multimodal_rig, list_presets
-
-rig = make_synthetic_multimodal_rig(seed=0)
+rig = make_drone_perception_rig(drone, dt=0.02, seed=0)
 rig.reset()
-print(rig.step(0.0).keys())
-print(list_presets(kind="stereo"))
+
+for step in range(12):
+    scene.step()
+    obs = rig.step(step * 0.02)
+    print(obs["rgb"]["rgb"].shape, len(obs["lidar"]["points"]))
+
+# Or use a ready-made Genesis demo scene
+from genesis_sensors.scenes import build_franka_demo
+
+demo = build_franka_demo(show_viewer=False)
+demo.rig.reset()
 ```
+
+See `docs/examples.md` for the full `genesis-world` + `genesis_sensors` walkthroughs and the generated outputs embedded in the documentation.
 
 ---
 

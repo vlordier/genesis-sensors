@@ -46,6 +46,7 @@ plugins:
 nav:
   - Home: index.md
   - Overview: overview.md
+  - Examples: examples.md
   - Architecture: architecture.md
   - Sensor Models: sensor-models.md
   - API Reference:

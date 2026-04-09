@@ -16,6 +16,7 @@
 - `NamedContactSensor`: convenience wrapper for per-link contact observation in multi-sensor rigs
 - `make_synthetic_multimodal_rig()`: a headless way to exercise the broader upstream perception stack
 - `make_synthetic_sensor_state()`: reusable synthetic state generation for preset and scheduler examples
+- `docs/examples.md`: runnable `genesis-world` + `genesis_sensors` walkthroughs with the corresponding generated outputs embedded in the docs
 
 ## Current coverage
 
