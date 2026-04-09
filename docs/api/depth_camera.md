@@ -2,11 +2,11 @@
 
 ## Example output
 
-> Generated from `examples/generate_sensor_doc_assets.py` using `make_synthetic_sensor_state()`.
+> Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### Depth camera example plot
+### Depth camera snapshot
 
-![Depth camera example plot](../assets/sensors/depth_camera.svg)
+![Depth camera snapshot](../assets/sensors/depth_camera.svg)
 
 ::: genesis_sensors._runtime_sensors.depth_camera
     options:

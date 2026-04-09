@@ -2,11 +2,11 @@
 
 ## Example output
 
-> Generated from `examples/generate_sensor_doc_assets.py` using `make_synthetic_sensor_state()`.
+> Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### Stereo camera example plot
+### Stereo camera snapshot
 
-![Stereo camera example plot](../assets/sensors/stereo_camera.svg)
+![Stereo camera snapshot](../assets/sensors/stereo_camera.svg)
 
 ::: genesis_sensors._runtime_sensors.stereo_camera
     options:

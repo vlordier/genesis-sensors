@@ -2,15 +2,15 @@
 
 ## Example output
 
-> Generated from `examples/generate_sensor_doc_assets.py` using `make_synthetic_sensor_state()`.
+> Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
 ### UWB example plot
 
 ![UWB example plot](../assets/sensors/uwb_ranging.svg)
 
-### Radar example plot
+### Radar snapshot
 
-![Radar example plot](../assets/sensors/radar.svg)
+![Radar snapshot](../assets/sensors/radar.svg)
 
 ::: genesis_sensors._runtime_sensors.wireless
     options:

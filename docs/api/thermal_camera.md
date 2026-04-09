@@ -2,11 +2,11 @@
 
 ## Example output
 
-> Generated from `examples/generate_sensor_doc_assets.py` using `make_synthetic_sensor_state()`.
+> Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models and `make_synthetic_sensor_state()`.
 
-### Thermal camera example plot
+### Thermal camera snapshot
 
-![Thermal camera example plot](../assets/sensors/thermal_camera.svg)
+![Thermal camera snapshot](../assets/sensors/thermal_camera.svg)
 
 ::: genesis_sensors._runtime_sensors.thermal_camera
     options:
