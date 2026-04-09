@@ -124,10 +124,17 @@ class SensorState(TypedDict, total=False):
     # Environment
     obstruction: float  # 0–1 sky-hemisphere obstruction fraction
     weather: dict[str, float]  # e.g. {"rain_rate_mm_h": 5.0}
+    ambient_temp_c: float  # ambient air temperature (°C)
+    relative_humidity_pct: float  # ambient relative humidity (%)
+    illuminance_lux: float  # ambient light level (lux)
+    gas_ppm: float  # directly supplied gas concentration (ppm)
+    gas_background_ppm: float  # background gas concentration (ppm)
+    gas_sources: list[dict[str, Any]]  # optional plume source descriptors
 
-    # Airspeed
+    # Airspeed / wind
     airspeed_ms: float  # true airspeed (m/s); used directly when present
     wind: Float64Array  # shape (3,) world/body-frame wind vector (m/s)
+    wind_ms: Float64Array  # alias for wind vector (m/s)
 
     # Rangefinder
     range_m: float  # true perpendicular range to nearest surface (m)
@@ -210,6 +217,47 @@ class MagnetometerObservation(TypedDict):
 
     mag_field_ut: Float64Array  # shape (3,) — noisy magnetic field in body frame (µT)
     field_norm_ut: float  # scalar total field magnitude (µT)
+
+
+# ---------------------------------------------------------------------------
+# Environmental sensing models
+# ---------------------------------------------------------------------------
+
+
+class ThermometerObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.ThermometerModel`."""
+
+    temperature_c: float  # ambient temperature (°C)
+    temperature_f: float  # ambient temperature (°F)
+
+
+class HygrometerObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.HygrometerModel`."""
+
+    relative_humidity_pct: float  # measured relative humidity (%)
+    dew_point_c: float  # dew-point estimate (°C)
+
+
+class LightSensorObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.LightSensorModel`."""
+
+    illuminance_lux: float  # ambient illuminance (lux)
+    is_saturated: bool  # True when the reading clips at the configured maximum
+
+
+class GasObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.GasSensorModel`."""
+
+    concentration_ppm: float  # measured gas concentration (ppm)
+    alarm: bool  # True when concentration exceeds the configured threshold
+
+
+class AnemometerObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.AnemometerModel`."""
+
+    wind_vector_ms: Float64Array  # shape (3,) — measured wind vector (m/s)
+    wind_speed_ms: float  # scalar wind speed magnitude (m/s)
+    wind_direction_deg: float  # heading of the measured wind vector in the XY plane (deg)
 
 
 # ---------------------------------------------------------------------------
@@ -470,6 +518,7 @@ __all__ = [
     "SensorState",
     # Observation TypedDicts
     "AirspeedObservation",
+    "AnemometerObservation",
     "BarometerObservation",
     "BatteryObservation",
     "BoolArray",
@@ -479,10 +528,13 @@ __all__ = [
     "DepthCameraObservation",
     "EventCameraObservation",
     "ForceTorqueObservation",
+    "GasObservation",
     "GnssObservation",
+    "HygrometerObservation",
     "ImuObservation",
     "JointStateObservation",
     "LidarObservation",
+    "LightSensorObservation",
     "MagnetometerObservation",
     "OpticalFlowObservation",
     "RPMObservation",
@@ -491,5 +543,6 @@ __all__ = [
     "StereoCameraObservation",
     "TactileArrayObservation",
     "ThermalObservation",
+    "ThermometerObservation",
     "WheelOdometryObservation",
 ]

@@ -33,14 +33,23 @@ except ImportError as exc:  # pragma: no cover - exercised when upstream sensors
     SENSOR_BACKEND = "bundled"
     UPSTREAM_SENSORS_AVAILABLE = False
 
-# Re-export the selected backend's public symbols at module scope.
-for _name in getattr(_backend, "__all__", []):
-    if hasattr(_backend, _name):
-        globals()[_name] = getattr(_backend, _name)
+_bundled_backend = import_module("._runtime_sensors", __package__)
+_bundled_config_module = import_module("._runtime_sensors.config", __package__)
+_bundled_bridge_module = import_module("._runtime_sensors.genesis_bridge", __package__)
+_bundled_presets_module = import_module("._runtime_sensors.presets", __package__)
 
-for _module in (_config_module, _presets_module):
+# Re-export the selected backend's public symbols at module scope, then fill in
+# any symbols that only exist in the bundled extension layer.
+for _module in (
+    _backend,
+    _config_module,
+    _presets_module,
+    _bundled_backend,
+    _bundled_config_module,
+    _bundled_presets_module,
+):
     for _name in getattr(_module, "__all__", []):
-        if hasattr(_module, _name):
+        if hasattr(_module, _name) and _name not in globals():
             globals()[_name] = getattr(_module, _name)
 
 for _name in (
@@ -52,6 +61,8 @@ for _name in (
 ):
     if hasattr(_bridge_module, _name):
         globals()[_name] = getattr(_bridge_module, _name)
+    elif hasattr(_bundled_bridge_module, _name):
+        globals()[_name] = getattr(_bundled_bridge_module, _name)
 
 
 def has_upstream_sensors() -> bool:
@@ -81,6 +92,9 @@ __all__ = sorted(
     set(getattr(_backend, "__all__", []))
     | set(getattr(_config_module, "__all__", []))
     | set(getattr(_presets_module, "__all__", []))
+    | set(getattr(_bundled_backend, "__all__", []))
+    | set(getattr(_bundled_config_module, "__all__", []))
+    | set(getattr(_bundled_presets_module, "__all__", []))
     | {
         "SENSOR_BACKEND",
         "UPSTREAM_SENSORS_AVAILABLE",

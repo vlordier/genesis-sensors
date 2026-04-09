@@ -12,7 +12,9 @@ from ._compat import (
     ATI_MINI45,
     BUMPER_50HZ,
     DAVIS_346,
+    DAVIS_6410_ANEMOMETER,
     DIFF_DRIVE_ENCODER_50HZ,
+    DS18B20_PROBE,
     FLIR_BOSON_320,
     FRANKA_JOINT_ENCODER,
     FINGERTIP_TACTILE_4X4,
@@ -42,11 +44,19 @@ from ._compat import (
     OpticalFlowModel,
     RPMSensor,
     RadioLinkModel,
+    SGP30_AIR_QUALITY,
+    SHT31_HUMIDITY,
     RangefinderModel,
     SensorSuite,
     StereoCameraModel,
+    TSL2591_LIGHT,
     TactileArraySensor,
     ThermalCameraModel,
+    ThermometerModel,
+    HygrometerModel,
+    LightSensorModel,
+    GasSensorModel,
+    AnemometerModel,
     WheelOdometryModel,
     extract_joint_state,
     extract_link_contact_force_n,
@@ -110,7 +120,7 @@ class NamedContactSensor(ContactSensor):
         return super().step(sim_time, {"contact_force_n": force_n})
 
 
-def _seed_getter(base_seed: int | None, n_children: int = 16) -> Callable[[int], int | None]:
+def _seed_getter(base_seed: int | None, n_children: int = 32) -> Callable[[int], int | None]:
     """Derive deterministic child seeds so individual sensors stay decorrelated."""
     if base_seed is None:
         return lambda _: None
@@ -198,6 +208,21 @@ def _make_perception_state(
     range_image = np.clip(range_image, 0.0, 12.0).astype(np.float32)
     intensity_image = np.clip(1.1 - range_image / 12.0 + 0.05 * moving_obstacle, 0.0, 1.0).astype(np.float32)
 
+    obstruction = float(np.clip(0.15 + 0.3 * (0.5 + 0.5 * np.sin(0.18 * frame_idx)), 0.0, 0.85))
+    rain_rate = float(1.0 + 3.0 * (0.5 + 0.5 * np.sin(0.11 * frame_idx)))
+    cloud_cover = float(np.clip(0.20 + 0.45 * (0.5 + 0.5 * np.cos(0.09 * frame_idx)), 0.0, 0.95))
+    ambient_temp_c = float(22.0 - 0.35 * pos[2] + 2.2 * np.sin(0.12 * frame_idx))
+    relative_humidity_pct = float(np.clip(48.0 + 6.0 * rain_rate + 18.0 * cloud_cover, 18.0, 98.0))
+    illuminance_lux = float(np.clip(42_000.0 * (1.0 - 0.75 * cloud_cover) * (1.0 - 0.55 * obstruction), 80.0, 95_000.0))
+    wind_ms = np.array([1.3 + 0.35 * np.sin(0.08 * frame_idx), 0.25 * np.cos(0.16 * frame_idx), 0.0], dtype=np.float64)
+    gas_sources = [
+        {
+            "pos": np.array([pos[0] + 1.2, pos[1] + 0.3 * np.sin(phase), 0.0], dtype=np.float64),
+            "peak_ppm": 1200.0,
+            "sigma_m": 0.9,
+        }
+    ]
+
     return {
         "rgb": rgb_uint8,
         "rgb_right": rgb_right,
@@ -207,8 +232,21 @@ def _make_perception_state(
         "range_image": range_image,
         "intensity_image": intensity_image,
         "temperature_map": {1: 21.0 + 2.0 * speed, 2: 54.0 + 6.0 * np.cos(phase), 3: 12.0},
-        "obstruction": float(np.clip(0.15 + 0.3 * (0.5 + 0.5 * np.sin(0.18 * frame_idx)), 0.0, 0.85)),
-        "weather": {"rain_rate_mm_h": float(1.0 + 3.0 * (0.5 + 0.5 * np.sin(0.11 * frame_idx)))},
+        "obstruction": obstruction,
+        "weather": {
+            "rain_rate_mm_h": rain_rate,
+            "cloud_cover": cloud_cover,
+            "ambient_temp_c": ambient_temp_c,
+            "relative_humidity_pct": relative_humidity_pct,
+            "illuminance_lux": illuminance_lux,
+            "wind_speed_ms": float(np.linalg.norm(wind_ms[:2])),
+            "wind_direction_deg": float((np.degrees(np.arctan2(wind_ms[1], wind_ms[0])) + 360.0) % 360.0),
+        },
+        "ambient_temp_c": ambient_temp_c,
+        "relative_humidity_pct": relative_humidity_pct,
+        "illuminance_lux": illuminance_lux,
+        "wind_ms": wind_ms,
+        "gas_sources": gas_sources,
         "range_m": max(0.05, float(pos[2])),
     }
 
@@ -236,12 +274,17 @@ def _build_multimodal_suite(seed_for: Callable[[int], int | None]) -> tuple[Sens
         gnss=GNSSModel(update_rate_hz=5.0, noise_m=0.25, vel_noise_ms=0.02, seed=seed_for(7)),
         barometer=BarometerModel(update_rate_hz=50.0, seed=seed_for(8)),
         magnetometer=MagnetometerModel(update_rate_hz=100.0, seed=seed_for(9)),
-        airspeed=AirspeedModel(update_rate_hz=50.0, seed=seed_for(10)),
-        rangefinder=RangefinderModel(update_rate_hz=20.0, seed=seed_for(11)),
-        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(12)),
-        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(13)),
+        thermometer=ThermometerModel.from_config(DS18B20_PROBE.model_copy(update={"seed": seed_for(10)})),
+        hygrometer=HygrometerModel.from_config(SHT31_HUMIDITY.model_copy(update={"seed": seed_for(11)})),
+        light_sensor=LightSensorModel.from_config(TSL2591_LIGHT.model_copy(update={"seed": seed_for(12)})),
+        gas_sensor=GasSensorModel.from_config(SGP30_AIR_QUALITY.model_copy(update={"seed": seed_for(13)})),
+        anemometer=AnemometerModel.from_config(DAVIS_6410_ANEMOMETER.model_copy(update={"seed": seed_for(14)})),
+        airspeed=AirspeedModel(update_rate_hz=50.0, seed=seed_for(15)),
+        rangefinder=RangefinderModel(update_rate_hz=20.0, seed=seed_for(16)),
+        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(17)),
+        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(18)),
         wheel_odometry=WheelOdometryModel.from_config(
-            DIFF_DRIVE_ENCODER_50HZ.model_copy(update={"seed": seed_for(14)})
+            DIFF_DRIVE_ENCODER_50HZ.model_copy(update={"seed": seed_for(19)})
         ),
     )
     return suite, radio
@@ -271,10 +314,14 @@ def make_drone_navigation_rig(entity: Any, *, dt: float = 0.01, seed: int | None
         gnss=GNSSModel(update_rate_hz=5.0, noise_m=0.25, vel_noise_ms=0.02, seed=seed_for(1)),
         barometer=BarometerModel(update_rate_hz=50.0, seed=seed_for(2)),
         magnetometer=MagnetometerModel(update_rate_hz=100.0, seed=seed_for(3)),
-        airspeed=AirspeedModel(update_rate_hz=50.0, seed=seed_for(4)),
-        rangefinder=RangefinderModel(update_rate_hz=20.0, seed=seed_for(5)),
-        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(6)),
-        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(7)),
+        thermometer=ThermometerModel.from_config(DS18B20_PROBE.model_copy(update={"seed": seed_for(4)})),
+        hygrometer=HygrometerModel.from_config(SHT31_HUMIDITY.model_copy(update={"seed": seed_for(5)})),
+        light_sensor=LightSensorModel.from_config(TSL2591_LIGHT.model_copy(update={"seed": seed_for(6)})),
+        anemometer=AnemometerModel.from_config(DAVIS_6410_ANEMOMETER.model_copy(update={"seed": seed_for(7)})),
+        airspeed=AirspeedModel(update_rate_hz=50.0, seed=seed_for(8)),
+        rangefinder=RangefinderModel(update_rate_hz=20.0, seed=seed_for(9)),
+        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(10)),
+        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(11)),
     )
 
     def _state_fn() -> dict[str, Any]:

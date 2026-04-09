@@ -43,17 +43,49 @@ def test_synthetic_multimodal_rig_surfaces_more_upstream_sensors() -> None:
     obs0 = rig.step(0.0)
     obs1 = rig.step(0.05)
 
-    assert {"rgb", "events", "thermal", "lidar", "radio", "stereo", "wheel_odometry"}.issubset(set(rig.sensor_names()))
+    assert {
+        "rgb",
+        "events",
+        "thermal",
+        "lidar",
+        "radio",
+        "stereo",
+        "wheel_odometry",
+        "thermometer",
+        "hygrometer",
+        "light_sensor",
+        "gas_sensor",
+        "anemometer",
+    }.issubset(set(rig.sensor_names()))
     assert np.asarray(obs0["rgb"]["rgb"]).shape[-1] == 3
     assert np.asarray(obs0["thermal"]["temperature_c"]).ndim == 2
     assert "points" in obs0["lidar"]
     assert "queue_depth" in obs1["radio"]
     assert "linear_vel_ms" in obs1["wheel_odometry"]
+    assert "temperature_c" in obs0["thermometer"]
+    assert "relative_humidity_pct" in obs0["hygrometer"]
+    assert "illuminance_lux" in obs0["light_sensor"]
+    assert "concentration_ppm" in obs0["gas_sensor"]
+    assert "wind_speed_ms" in obs0["anemometer"]
 
 
 def test_synthetic_state_and_preset_helpers_expose_upstream_surface() -> None:
     state = make_synthetic_sensor_state(2)
 
-    assert {"rgb", "rgb_right", "depth", "seg", "range_image", "temperature_map"}.issubset(state)
+    assert {
+        "rgb",
+        "rgb_right",
+        "depth",
+        "seg",
+        "range_image",
+        "temperature_map",
+        "ambient_temp_c",
+        "relative_humidity_pct",
+        "illuminance_lux",
+        "gas_sources",
+    }.issubset(state)
     assert "ZED2_STEREO" in list_presets(kind="stereo")
+    assert "DS18B20_PROBE" in list_presets(kind="thermometer")
+    assert "DAVIS_6410_ANEMOMETER" in list_presets(kind="anemometer")
     assert get_preset("FLIR_BOSON_320").name == "FLIR_BOSON_320"
+    assert get_preset("TSL2591_LIGHT").name == "TSL2591_LIGHT"

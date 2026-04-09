@@ -380,6 +380,80 @@ class RangefinderConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Environmental sensing configs
+# ---------------------------------------------------------------------------
+
+
+class ThermometerConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.ThermometerModel`."""
+
+    name: str = "thermometer"
+    update_rate_hz: float = Field(default=4.0, gt=0, description="Measurement rate (Hz).")
+    noise_sigma_c: float = Field(default=0.08, ge=0.0, description="Gaussian temperature noise 1-σ (°C).")
+    bias_tau_s: float = Field(default=300.0, gt=0, description="Gauss-Markov bias correlation time (s).")
+    bias_sigma_c: float = Field(default=0.2, ge=0.0, description="Steady-state bias sigma (°C).")
+    response_tau_s: float = Field(default=2.0, gt=0, description="Thermal response time constant (s).")
+    seed: int | None = None
+
+
+class HygrometerConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.HygrometerModel`."""
+
+    name: str = "hygrometer"
+    update_rate_hz: float = Field(default=2.0, gt=0, description="Measurement rate (Hz).")
+    noise_sigma_pct: float = Field(default=1.5, ge=0.0, description="Gaussian relative humidity noise 1-σ (%RH).")
+    bias_tau_s: float = Field(default=400.0, gt=0, description="Gauss-Markov bias correlation time (s).")
+    bias_sigma_pct: float = Field(default=3.0, ge=0.0, description="Steady-state humidity bias sigma (%RH).")
+    response_tau_s: float = Field(default=4.0, gt=0, description="Humidity response time constant (s).")
+    seed: int | None = None
+
+
+class LightSensorConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.LightSensorModel`."""
+
+    name: str = "light_sensor"
+    update_rate_hz: float = Field(default=10.0, gt=0, description="Measurement rate (Hz).")
+    noise_sigma_ratio: float = Field(
+        default=0.04,
+        ge=0.0,
+        description="Relative Gaussian noise sigma as a fraction of the illuminance reading.",
+    )
+    min_lux: float = Field(default=0.0, ge=0.0, description="Minimum reportable illuminance (lux).")
+    max_lux: float = Field(default=120_000.0, gt=0.0, description="Maximum reportable illuminance (lux).")
+    response_tau_s: float = Field(default=0.4, gt=0, description="Photodiode response time constant (s).")
+    seed: int | None = None
+
+
+class GasSensorConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.GasSensorModel`."""
+
+    name: str = "gas_sensor"
+    update_rate_hz: float = Field(default=5.0, gt=0, description="Measurement rate (Hz).")
+    background_ppm: float = Field(default=420.0, ge=0.0, description="Background concentration (ppm).")
+    noise_sigma_ppm: float = Field(default=8.0, ge=0.0, description="Gaussian concentration noise 1-σ (ppm).")
+    response_tau_s: float = Field(default=3.0, gt=0, description="Sensor response time constant (s).")
+    alarm_threshold_ppm: float = Field(default=900.0, ge=0.0, description="Alarm threshold (ppm).")
+    max_ppm: float = Field(default=10_000.0, gt=0.0, description="Maximum reportable concentration (ppm).")
+    plume_sigma_m: float = Field(default=0.8, gt=0.0, description="Default lateral plume width when sources are used.")
+    seed: int | None = None
+
+
+class AnemometerConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.AnemometerModel`."""
+
+    name: str = "anemometer"
+    update_rate_hz: float = Field(default=10.0, gt=0, description="Measurement rate (Hz).")
+    noise_sigma_ms: float = Field(default=0.15, ge=0.0, description="Per-axis Gaussian wind noise 1-σ (m/s).")
+    direction_noise_deg: float = Field(default=2.0, ge=0.0, description="Heading noise 1-σ (degrees).")
+    measure_relative_wind: bool = Field(
+        default=False,
+        description="Measure relative airflow by subtracting platform velocity instead of ambient wind only.",
+    )
+    max_speed_ms: float = Field(default=80.0, gt=0.0, description="Maximum reportable wind speed (m/s).")
+    seed: int | None = None
+
+
+# ---------------------------------------------------------------------------
 # BarometerConfig
 # ---------------------------------------------------------------------------
 
@@ -809,6 +883,15 @@ class SensorSuiteConfig(BaseModel):
     imu: IMUConfig | None = Field(default_factory=IMUConfig, description="IMU (None = disabled).")
     barometer: BarometerConfig | None = Field(default=None, description="Barometer (None = disabled).")
     magnetometer: MagnetometerConfig | None = Field(default=None, description="Magnetometer (None = disabled).")
+    thermometer: ThermometerConfig | None = Field(
+        default=None, description="Ambient temperature sensor (None = disabled)."
+    )
+    hygrometer: HygrometerConfig | None = Field(default=None, description="Relative humidity sensor (None = disabled).")
+    light_sensor: LightSensorConfig | None = Field(
+        default=None, description="Ambient illuminance sensor (None = disabled)."
+    )
+    gas_sensor: GasSensorConfig | None = Field(default=None, description="Gas concentration sensor (None = disabled).")
+    anemometer: AnemometerConfig | None = Field(default=None, description="Wind sensor (None = disabled).")
     airspeed: AirspeedConfig | None = Field(default=None, description="Pitot airspeed sensor (None = disabled).")
     rangefinder: RangefinderConfig | None = Field(default=None, description="1-D rangefinder (None = disabled).")
     optical_flow: OpticalFlowConfig | None = Field(
@@ -853,6 +936,11 @@ class SensorSuiteConfig(BaseModel):
             imu=None,
             barometer=None,
             magnetometer=None,
+            thermometer=None,
+            hygrometer=None,
+            light_sensor=None,
+            gas_sensor=None,
+            anemometer=None,
             airspeed=None,
             rangefinder=None,
             optical_flow=None,
@@ -881,6 +969,11 @@ class SensorSuiteConfig(BaseModel):
             imu=None,
             barometer=None,
             magnetometer=None,
+            thermometer=None,
+            hygrometer=None,
+            light_sensor=None,
+            gas_sensor=None,
+            anemometer=None,
             airspeed=None,
             rangefinder=None,
             optical_flow=None,
@@ -909,6 +1002,11 @@ class SensorSuiteConfig(BaseModel):
             imu=IMUConfig(),
             barometer=BarometerConfig(),
             magnetometer=MagnetometerConfig(),
+            thermometer=ThermometerConfig(),
+            hygrometer=HygrometerConfig(),
+            light_sensor=LightSensorConfig(),
+            gas_sensor=GasSensorConfig(),
+            anemometer=AnemometerConfig(),
             airspeed=AirspeedConfig(),
             rangefinder=RangefinderConfig(),
             optical_flow=OpticalFlowConfig(),
@@ -926,6 +1024,7 @@ class SensorSuiteConfig(BaseModel):
 
 __all__ = [
     "AirspeedConfig",
+    "AnemometerConfig",
     "BarometerConfig",
     "BatteryConfig",
     "CameraConfig",
@@ -934,10 +1033,13 @@ __all__ = [
     "DepthCameraConfig",
     "EventCameraConfig",
     "ForceTorqueConfig",
+    "GasSensorConfig",
     "GNSSConfig",
+    "HygrometerConfig",
     "IMUConfig",
     "JointStateConfig",
     "LidarConfig",
+    "LightSensorConfig",
     "MagnetometerConfig",
     "OpticalFlowConfig",
     "RPMSensorConfig",
@@ -947,5 +1049,6 @@ __all__ = [
     "StereoCameraConfig",
     "TactileArrayConfig",
     "ThermalCameraConfig",
+    "ThermometerConfig",
     "WheelOdometryConfig",
 ]

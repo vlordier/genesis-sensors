@@ -123,10 +123,24 @@ def make_synthetic_sensor_state(
 
     obstruction = float(np.clip(0.15 + 0.3 * (0.5 + 0.5 * np.sin(0.18 * frame_idx)), 0.0, 0.85))
     rain_rate = float(1.0 + 3.0 * (0.5 + 0.5 * np.sin(0.11 * frame_idx)))
+    cloud_cover = float(np.clip(0.20 + 0.45 * (0.5 + 0.5 * np.cos(0.09 * frame_idx)), 0.0, 0.95))
+    ambient_temp_c = float(21.5 - 0.35 * pos[2] + 2.2 * np.sin(0.12 * frame_idx))
+    relative_humidity_pct = float(np.clip(48.0 + 6.0 * rain_rate + 18.0 * cloud_cover, 18.0, 98.0))
+    illuminance_lux = float(np.clip(42_000.0 * (1.0 - 0.75 * cloud_cover) * (1.0 - 0.55 * obstruction), 80.0, 95_000.0))
+    wind_ms = np.array([1.2, 0.2 * np.cos(sim_time), 0.0], dtype=np.float64)
+    gas_sources = [
+        {
+            "pos": np.array([pos[0] + 1.2, pos[1] + 0.25 * np.sin(phase), 0.0], dtype=np.float64),
+            "peak_ppm": 1200.0,
+            "sigma_m": 0.9,
+        }
+    ]
     if phase_name == "urban_canyon":
         obstruction = min(0.82, obstruction + 0.20)
+        illuminance_lux *= 0.55
     if phase_name == "rain_burst":
         rain_rate = max(rain_rate, 6.0)
+        relative_humidity_pct = min(98.0, relative_humidity_pct + 10.0)
 
     return {
         "rgb": rgb_uint8,
@@ -143,12 +157,24 @@ def make_synthetic_sensor_state(
         "ang_vel": ang_vel,
         "gravity_body": np.array([0.0, 0.0, 9.80665], dtype=np.float64),
         "obstruction": obstruction,
-        "weather": {"rain_rate_mm_h": rain_rate},
+        "weather": {
+            "rain_rate_mm_h": rain_rate,
+            "cloud_cover": cloud_cover,
+            "ambient_temp_c": ambient_temp_c,
+            "relative_humidity_pct": relative_humidity_pct,
+            "illuminance_lux": illuminance_lux,
+            "wind_speed_ms": float(np.linalg.norm(wind_ms[:2])),
+            "wind_direction_deg": float((np.degrees(np.arctan2(wind_ms[1], wind_ms[0])) + 360.0) % 360.0),
+        },
+        "ambient_temp_c": ambient_temp_c,
+        "relative_humidity_pct": relative_humidity_pct,
+        "illuminance_lux": illuminance_lux,
+        "gas_sources": gas_sources,
         "range_m": max(0.05, float(pos[2])),
         "current_a": float(np.clip(8.0 + 2.5 * speed, 0.0, 30.0)),
         "voltage_v": 14.8,
-        "wind": np.array([1.2, 0.2 * np.cos(sim_time), 0.0], dtype=np.float64),
-        "wind_ms": np.array([1.2, 0.2 * np.cos(sim_time), 0.0], dtype=np.float64),
+        "wind": wind_ms,
+        "wind_ms": wind_ms,
         "phase": phase_name,
         "fault_flags": [phase_name.replace("_", " ")] if phase_name not in {"takeoff", "cruise"} else [],
     }

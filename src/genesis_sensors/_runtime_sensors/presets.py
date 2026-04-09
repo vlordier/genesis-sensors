@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from .config import (
     AirspeedConfig,
+    AnemometerConfig,
     BarometerConfig,
     BatteryConfig,
     CameraConfig,
@@ -38,10 +39,13 @@ from .config import (
     DepthCameraConfig,
     EventCameraConfig,
     ForceTorqueConfig,
+    GasSensorConfig,
     GNSSConfig,
+    HygrometerConfig,
     IMUConfig,
     JointStateConfig,
     LidarConfig,
+    LightSensorConfig,
     MagnetometerConfig,
     OpticalFlowConfig,
     RadioConfig,
@@ -50,6 +54,7 @@ from .config import (
     StereoCameraConfig,
     TactileArrayConfig,
     ThermalCameraConfig,
+    ThermometerConfig,
     WheelOdometryConfig,
 )
 
@@ -67,6 +72,11 @@ PresetConfig = (
     | EventCameraConfig
     | BarometerConfig
     | MagnetometerConfig
+    | ThermometerConfig
+    | HygrometerConfig
+    | LightSensorConfig
+    | GasSensorConfig
+    | AnemometerConfig
     | AirspeedConfig
     | RangefinderConfig
     | RadioConfig
@@ -640,6 +650,68 @@ DPS310 = BarometerConfig(
     bias_tau_s=300.0,
     bias_sigma_m=4.0,
     resolution_m=0.0,
+)
+
+# ---------------------------------------------------------------------------
+# Environmental sensor presets
+# ---------------------------------------------------------------------------
+
+DS18B20_PROBE = ThermometerConfig(
+    # Source: Maxim DS18B20 datasheet
+    # Digital 1-wire probe; accuracy ±0.5 °C over the typical robotics range.
+    # Conversion time ≈ 750 ms at 12-bit resolution.
+    name="DS18B20_PROBE",
+    update_rate_hz=1.0,
+    noise_sigma_c=0.10,
+    bias_tau_s=1200.0,
+    bias_sigma_c=0.20,
+    response_tau_s=0.75,
+)
+
+SHT31_HUMIDITY = HygrometerConfig(
+    # Source: Sensirion SHT31 datasheet
+    # Relative humidity accuracy ±2 %RH with sub-second response.
+    name="SHT31_HUMIDITY",
+    update_rate_hz=2.0,
+    noise_sigma_pct=0.8,
+    bias_tau_s=900.0,
+    bias_sigma_pct=1.5,
+    response_tau_s=0.5,
+)
+
+TSL2591_LIGHT = LightSensorConfig(
+    # Source: AMS TSL2591 datasheet
+    # High-dynamic-range ambient light sensor, up to ~88 klux practical range.
+    name="TSL2591_LIGHT",
+    update_rate_hz=10.0,
+    noise_sigma_ratio=0.02,
+    min_lux=0.0,
+    max_lux=88_000.0,
+    response_tau_s=0.2,
+)
+
+SGP30_AIR_QUALITY = GasSensorConfig(
+    # Source: Sensirion SGP30 datasheet
+    # VOC / eCO2 air-quality sensor with ~12 s response and alarm-friendly ppm output.
+    name="SGP30_AIR_QUALITY",
+    update_rate_hz=1.0,
+    background_ppm=420.0,
+    noise_sigma_ppm=15.0,
+    response_tau_s=12.0,
+    alarm_threshold_ppm=1000.0,
+    max_ppm=60_000.0,
+    plume_sigma_m=1.2,
+)
+
+DAVIS_6410_ANEMOMETER = AnemometerConfig(
+    # Source: Davis Instruments 6410 anemometer specification sheet
+    # Cup anemometer / vane weather station head, widely used in outdoor robotics setups.
+    name="DAVIS_6410_ANEMOMETER",
+    update_rate_hz=4.0,
+    noise_sigma_ms=0.10,
+    direction_noise_deg=3.0,
+    measure_relative_wind=False,
+    max_speed_ms=89.0,
 )
 
 # ---------------------------------------------------------------------------
@@ -1253,6 +1325,12 @@ _REGISTRY: dict[str, PresetConfig] = {
     "IST8310": IST8310,
     "HMC5883L": HMC5883L,
     "RM3100": RM3100,
+    # Environmental sensors
+    "DS18B20_PROBE": DS18B20_PROBE,
+    "SHT31_HUMIDITY": SHT31_HUMIDITY,
+    "TSL2591_LIGHT": TSL2591_LIGHT,
+    "SGP30_AIR_QUALITY": SGP30_AIR_QUALITY,
+    "DAVIS_6410_ANEMOMETER": DAVIS_6410_ANEMOMETER,
     # Airspeed
     "SDP33": SDP33,
     "MS4525DO": MS4525DO,
@@ -1311,6 +1389,11 @@ _CONFIG_TYPE_TO_KIND: dict[type, str] = {
     EventCameraConfig: "event",
     BarometerConfig: "barometer",
     MagnetometerConfig: "magnetometer",
+    ThermometerConfig: "thermometer",
+    HygrometerConfig: "hygrometer",
+    LightSensorConfig: "light_sensor",
+    GasSensorConfig: "gas_sensor",
+    AnemometerConfig: "anemometer",
     AirspeedConfig: "airspeed",
     RangefinderConfig: "rangefinder",
     OpticalFlowConfig: "optical_flow",
@@ -1459,6 +1542,12 @@ __all__ = [
     "SPL06_001",
     "BMP280",
     "DPS310",
+    # Environmental presets
+    "DS18B20_PROBE",
+    "SHT31_HUMIDITY",
+    "TSL2591_LIGHT",
+    "SGP30_AIR_QUALITY",
+    "DAVIS_6410_ANEMOMETER",
     # Magnetometer presets
     "IST8310",
     "HMC5883L",

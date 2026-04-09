@@ -15,7 +15,7 @@ if str(SRC) not in sys.path:
 try:
     import rerun as rr
 except ImportError:  # pragma: no cover - optional dependency walkthrough
-    rr = None
+    rr = None  # type: ignore[assignment]
 
 import numpy as np
 
@@ -73,6 +73,11 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
     rangefinder = obs["rangefinder"]
     airspeed = obs["airspeed"]
     barometer = obs["barometer"]
+    thermometer = obs.get("thermometer", {})
+    hygrometer = obs.get("hygrometer", {})
+    light_sensor = obs.get("light_sensor", {})
+    gas_sensor = obs.get("gas_sensor", {})
+    anemometer = obs.get("anemometer", {})
     event_count = len(obs["events"]["events"])
 
     _log_vector("traces/imu/lin_acc_mps2", np.asarray(imu["lin_acc"]))
@@ -87,13 +92,20 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
     _log_scalar("traces/battery/voltage_v", float(battery.get("voltage_v", 0.0)))
     _log_scalar("traces/battery/current_a", float(battery.get("current_a", 0.0)))
     _log_scalar("traces/radio/queue_depth", int(radio.get("queue_depth", 0)))
+    _log_scalar("traces/weather/temperature_c", float(thermometer.get("temperature_c", 0.0)))
+    _log_scalar("traces/weather/humidity_pct", float(hygrometer.get("relative_humidity_pct", 0.0)))
+    _log_scalar("traces/weather/illuminance_lux", float(light_sensor.get("illuminance_lux", 0.0)))
+    _log_scalar("traces/weather/gas_ppm", float(gas_sensor.get("concentration_ppm", 0.0)))
+    _log_scalar("traces/weather/wind_speed_ms", float(anemometer.get("wind_speed_ms", 0.0)))
+    if "wind_vector_ms" in anemometer:
+        _log_vector("traces/weather/wind_vector_ms", np.asarray(anemometer["wind_vector_ms"]))
 
     rr.log(
         "status/summary",
         rr.TextDocument(
             f"frame={frame:03d} t={frame * dt:.2f}s\n"
-            f"events={event_count} range={float(rangefinder.get('range_m', 0.0)):.2f}m\n"
-            f"battery={float(battery.get('voltage_v', 0.0)):.2f}V fix={int(gnss.get('fix_quality', 0))}"
+            f"events={event_count} range={float(rangefinder.get('range_m', 0.0)):.2f}m temp={float(thermometer.get('temperature_c', 0.0)):.1f}C\n"
+            f"battery={float(battery.get('voltage_v', 0.0)):.2f}V fix={int(gnss.get('fix_quality', 0))} hum={float(hygrometer.get('relative_humidity_pct', 0.0)):.0f}%"
         ),
     )
 

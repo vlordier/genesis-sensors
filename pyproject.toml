@@ -124,6 +124,7 @@ output_format = "md"
 [tool.poe.tasks]
 test = { shell = "PYTHONPATH=src pytest tests -q" }
 fault_demo = { shell = "PYTHONPATH=src python examples/fault_tolerant_sensors.py --frames 8 --dropout 0.2" }
+environment_demo = { shell = "PYTHONPATH=src python examples/environmental_sensors.py --frames 8" }
 rerun_demo = { shell = "PYTHONPATH=src python examples/external_sensors_rerun.py --frames 60 --spawn" }
 rerun_save = { shell = "PYTHONPATH=src python examples/external_sensors_rerun.py --frames 60 --save /tmp/genesis-sensors-traces.rrd" }
 check = { shell = "pre-commit run --all-files && PYTHONPATH=src pytest tests -q" }

@@ -61,6 +61,7 @@ from .contact_sensor import ContactSensor
 from .current_sensor import CurrentSensor
 from .depth_camera import DepthCameraModel
 from .event_camera import EventCameraModel
+from .environmental import AnemometerModel, GasSensorModel, HygrometerModel, LightSensorModel, ThermometerModel
 from .force_torque import ForceTorqueSensorModel
 from .gnss import GNSSModel
 from .imu import IMUModel
@@ -143,6 +144,11 @@ class SensorSuite:
         imu: IMUModel | None = None,
         barometer: BarometerModel | None = None,
         magnetometer: MagnetometerModel | None = None,
+        thermometer: ThermometerModel | None = None,
+        hygrometer: HygrometerModel | None = None,
+        light_sensor: LightSensorModel | None = None,
+        gas_sensor: GasSensorModel | None = None,
+        anemometer: AnemometerModel | None = None,
         airspeed: AirspeedModel | None = None,
         rangefinder: RangefinderModel | None = None,
         optical_flow: OpticalFlowModel | None = None,
@@ -178,6 +184,16 @@ class SensorSuite:
             self._scheduler.add(barometer, name="barometer")
         if magnetometer is not None:
             self._scheduler.add(magnetometer, name="magnetometer")
+        if thermometer is not None:
+            self._scheduler.add(thermometer, name="thermometer")
+        if hygrometer is not None:
+            self._scheduler.add(hygrometer, name="hygrometer")
+        if light_sensor is not None:
+            self._scheduler.add(light_sensor, name="light_sensor")
+        if gas_sensor is not None:
+            self._scheduler.add(gas_sensor, name="gas_sensor")
+        if anemometer is not None:
+            self._scheduler.add(anemometer, name="anemometer")
         if airspeed is not None:
             self._scheduler.add(airspeed, name="airspeed")
         if rangefinder is not None:
@@ -224,6 +240,11 @@ class SensorSuite:
         imu_rate_hz: float = 200.0,
         baro_rate_hz: float = 50.0,
         mag_rate_hz: float = 100.0,
+        thermometer_rate_hz: float = 0.0,
+        hygrometer_rate_hz: float = 0.0,
+        light_sensor_rate_hz: float = 0.0,
+        gas_sensor_rate_hz: float = 0.0,
+        anemometer_rate_hz: float = 0.0,
         airspeed_rate_hz: float = 0.0,
         rangefinder_rate_hz: float = 0.0,
         optical_flow_rate_hz: float = 0.0,
@@ -277,7 +298,7 @@ class SensorSuite:
         """
         # Derive N independent, deterministic seeds via SeedSequence so that
         # close base seeds (e.g. 0 vs 1) don't produce correlated sensor noise.
-        _N_SENSORS = 22
+        _N_SENSORS = 27
         if seed is not None:
             child_seeds = np.random.SeedSequence(seed).spawn(_N_SENSORS)
             _seeds: list[int | None] = [int(cs.generate_state(1)[0]) for cs in child_seeds]
@@ -299,49 +320,66 @@ class SensorSuite:
             imu=IMUModel(update_rate_hz=imu_rate_hz, seed=_seed(6)) if imu_rate_hz > 0 else None,
             barometer=BarometerModel(update_rate_hz=baro_rate_hz, seed=_seed(7)) if baro_rate_hz > 0 else None,
             magnetometer=MagnetometerModel(update_rate_hz=mag_rate_hz, seed=_seed(8)) if mag_rate_hz > 0 else None,
-            airspeed=AirspeedModel(update_rate_hz=airspeed_rate_hz, seed=_seed(9)) if airspeed_rate_hz > 0 else None,
+            thermometer=(
+                ThermometerModel(update_rate_hz=thermometer_rate_hz, seed=_seed(9)) if thermometer_rate_hz > 0 else None
+            ),
+            hygrometer=(
+                HygrometerModel(update_rate_hz=hygrometer_rate_hz, seed=_seed(10)) if hygrometer_rate_hz > 0 else None
+            ),
+            light_sensor=(
+                LightSensorModel(update_rate_hz=light_sensor_rate_hz, seed=_seed(11))
+                if light_sensor_rate_hz > 0
+                else None
+            ),
+            gas_sensor=(
+                GasSensorModel(update_rate_hz=gas_sensor_rate_hz, seed=_seed(12)) if gas_sensor_rate_hz > 0 else None
+            ),
+            anemometer=(
+                AnemometerModel(update_rate_hz=anemometer_rate_hz, seed=_seed(13)) if anemometer_rate_hz > 0 else None
+            ),
+            airspeed=AirspeedModel(update_rate_hz=airspeed_rate_hz, seed=_seed(14)) if airspeed_rate_hz > 0 else None,
             rangefinder=(
-                RangefinderModel(update_rate_hz=rangefinder_rate_hz, seed=_seed(10))
+                RangefinderModel(update_rate_hz=rangefinder_rate_hz, seed=_seed(15))
                 if rangefinder_rate_hz > 0
                 else None
             ),
             optical_flow=(
-                OpticalFlowModel(update_rate_hz=optical_flow_rate_hz, seed=_seed(11))
+                OpticalFlowModel(update_rate_hz=optical_flow_rate_hz, seed=_seed(16))
                 if optical_flow_rate_hz > 0
                 else None
             ),
-            battery=(BatteryModel(update_rate_hz=battery_rate_hz, seed=_seed(12)) if battery_rate_hz > 0 else None),
+            battery=(BatteryModel(update_rate_hz=battery_rate_hz, seed=_seed(17)) if battery_rate_hz > 0 else None),
             stereo_camera=(
-                StereoCameraModel(update_rate_hz=stereo_rate_hz, seed=_seed(13)) if stereo_rate_hz > 0 else None
+                StereoCameraModel(update_rate_hz=stereo_rate_hz, seed=_seed(18)) if stereo_rate_hz > 0 else None
             ),
             wheel_odometry=(
-                WheelOdometryModel(update_rate_hz=wheel_odometry_rate_hz, seed=_seed(14))
+                WheelOdometryModel(update_rate_hz=wheel_odometry_rate_hz, seed=_seed(19))
                 if wheel_odometry_rate_hz > 0
                 else None
             ),
             force_torque=(
-                ForceTorqueSensorModel(update_rate_hz=force_torque_rate_hz, seed=_seed(15))
+                ForceTorqueSensorModel(update_rate_hz=force_torque_rate_hz, seed=_seed(20))
                 if force_torque_rate_hz > 0
                 else None
             ),
             joint_state=(
-                JointStateSensor(update_rate_hz=joint_state_rate_hz, seed=_seed(16))
+                JointStateSensor(update_rate_hz=joint_state_rate_hz, seed=_seed(21))
                 if joint_state_rate_hz > 0
                 else None
             ),
-            contact=(ContactSensor(update_rate_hz=contact_rate_hz, seed=_seed(17)) if contact_rate_hz > 0 else None),
+            contact=(ContactSensor(update_rate_hz=contact_rate_hz, seed=_seed(22)) if contact_rate_hz > 0 else None),
             depth_camera=(
-                DepthCameraModel(update_rate_hz=depth_camera_rate_hz, seed=_seed(18))
+                DepthCameraModel(update_rate_hz=depth_camera_rate_hz, seed=_seed(23))
                 if depth_camera_rate_hz > 0
                 else None
             ),
             tactile_array=(
-                TactileArraySensor(update_rate_hz=tactile_array_rate_hz, seed=_seed(19))
+                TactileArraySensor(update_rate_hz=tactile_array_rate_hz, seed=_seed(24))
                 if tactile_array_rate_hz > 0
                 else None
             ),
-            current=(CurrentSensor(update_rate_hz=current_rate_hz, seed=_seed(20)) if current_rate_hz > 0 else None),
-            rpm=(RPMSensor(update_rate_hz=rpm_rate_hz, seed=_seed(21)) if rpm_rate_hz > 0 else None),
+            current=(CurrentSensor(update_rate_hz=current_rate_hz, seed=_seed(25)) if current_rate_hz > 0 else None),
+            rpm=(RPMSensor(update_rate_hz=rpm_rate_hz, seed=_seed(26)) if rpm_rate_hz > 0 else None),
         )
 
     @classmethod
@@ -373,6 +411,13 @@ class SensorSuite:
             magnetometer=(
                 MagnetometerModel.from_config(config.magnetometer) if config.magnetometer is not None else None
             ),
+            thermometer=(ThermometerModel.from_config(config.thermometer) if config.thermometer is not None else None),
+            hygrometer=(HygrometerModel.from_config(config.hygrometer) if config.hygrometer is not None else None),
+            light_sensor=(
+                LightSensorModel.from_config(config.light_sensor) if config.light_sensor is not None else None
+            ),
+            gas_sensor=(GasSensorModel.from_config(config.gas_sensor) if config.gas_sensor is not None else None),
+            anemometer=(AnemometerModel.from_config(config.anemometer) if config.anemometer is not None else None),
             airspeed=AirspeedModel.from_config(config.airspeed) if config.airspeed is not None else None,
             rangefinder=(RangefinderModel.from_config(config.rangefinder) if config.rangefinder is not None else None),
             optical_flow=(

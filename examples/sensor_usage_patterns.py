@@ -7,13 +7,17 @@ import numpy as np
 
 from genesis_sensors import (
     AirspeedModel,
+    AnemometerModel,
     BarometerModel,
     BatteryModel,
     CameraModel,
     EventCameraModel,
+    GasSensorModel,
     GNSSModel,
+    HygrometerModel,
     IMUModel,
     LidarModel,
+    LightSensorModel,
     MagnetometerModel,
     OpticalFlowModel,
     RadioLinkModel,
@@ -22,11 +26,12 @@ from genesis_sensors import (
     SensorSuite,
     StereoCameraModel,
     ThermalCameraModel,
+    ThermometerModel,
     WheelOdometryModel,
     get_preset,
     list_presets,
 )
-from genesis_sensors.config import (
+from genesis_sensors import (
     CameraConfig,
     EventCameraConfig,
     GNSSConfig,
@@ -58,6 +63,11 @@ def demo_direct_usage(seed: int) -> None:
     rangefinder = RangefinderModel(update_rate_hz=20.0, seed=seed)
     flow = OpticalFlowModel(update_rate_hz=100.0, seed=seed)
     battery = BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed)
+    thermometer = ThermometerModel(seed=seed)
+    hygrometer = HygrometerModel(seed=seed)
+    light_sensor = LightSensorModel(seed=seed)
+    gas_sensor = GasSensorModel(seed=seed)
+    anemometer = AnemometerModel(seed=seed)
 
     cam_obs = cam.step(0.0, state1)
     event_cam.step(0.0, state0)
@@ -72,6 +82,11 @@ def demo_direct_usage(seed: int) -> None:
     range_obs = rangefinder.step(0.0, state1)
     flow_obs = flow.step(0.0, state1)
     bat_obs = battery.step(0.0, state1)
+    temp_obs = thermometer.step(0.0, state1)
+    humidity_obs = hygrometer.step(0.0, state1)
+    light_obs = light_sensor.step(0.0, state1)
+    gas_obs = gas_sensor.step(0.0, state1)
+    wind_obs = anemometer.step(0.0, state1)
 
     print("\n=== 1) Direct model stepping ===")
     print(
@@ -85,6 +100,11 @@ def demo_direct_usage(seed: int) -> None:
     print(
         f"airspeed={float(airspeed_obs['airspeed_ms']):.2f}m/s range={float(range_obs['range_m']):.2f}m "
         f"flow_quality={int(flow_obs['quality'])} bat_soc={float(bat_obs['soc']) * 100:.1f}%"
+    )
+    print(
+        f"temp={float(temp_obs['temperature_c']):.1f}C humidity={float(humidity_obs['relative_humidity_pct']):.1f}% "
+        f"lux={float(light_obs['illuminance_lux']):.0f} gas={float(gas_obs['concentration_ppm']):.0f}ppm "
+        f"wind={float(wind_obs['wind_speed_ms']):.2f}m/s"
     )
 
 
@@ -124,6 +144,9 @@ def demo_preset_usage(seed: int) -> None:
     print(f"camera presets: {', '.join(list_presets(kind='camera')[:5])}")
     print(f"stereo presets: {', '.join(list_presets(kind='stereo'))}")
     print(f"thermal presets: {', '.join(list_presets(kind='thermal'))}")
+    print(
+        f"environmental presets: {', '.join(list_presets(kind='thermometer'))}, {', '.join(list_presets(kind='anemometer'))}"
+    )
     print(
         f"ZED2_STEREO valid_frac={float(np.mean(stereo_obs['valid_mask'])):.1%} "
         f"VELODYNE_VLP16 points={len(lidar_obs['points'])} FLIR_BOSON_320 peak={float(np.max(thermal_obs['temperature_c'])):.1f}C"
@@ -173,6 +196,11 @@ def demo_suite_usage(frames: int, dt: float, seed: int) -> None:
         optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed + 11),
         battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed + 12),
         radio=RadioLinkModel(update_rate_hz=60.0, seed=seed + 13),
+        thermometer=ThermometerModel(seed=seed + 14),
+        hygrometer=HygrometerModel(seed=seed + 15),
+        light_sensor=LightSensorModel(seed=seed + 16),
+        gas_sensor=GasSensorModel(seed=seed + 17),
+        anemometer=AnemometerModel(seed=seed + 18),
         wheel_odometry=WheelOdometryModel.from_config(wheel_cfg),
     )
     suite.reset()
@@ -193,7 +221,8 @@ def demo_suite_usage(frames: int, dt: float, seed: int) -> None:
         if frame_idx in {0, frames // 2, frames - 1}:
             print(
                 f"frame={frame_idx:03d} rgb={np.asarray(obs['rgb']['rgb']).shape} "
-                f"stereo_valid={float(np.mean(obs['stereo']['valid_mask'])):.1%} radio_queue={int(obs['radio']['queue_depth'])}"
+                f"stereo_valid={float(np.mean(obs['stereo']['valid_mask'])):.1%} radio_queue={int(obs['radio']['queue_depth'])} "
+                f"temp={float(obs['thermometer']['temperature_c']):.1f}C hum={float(obs['hygrometer']['relative_humidity_pct']):.0f}%"
             )
 
 
