@@ -43,6 +43,7 @@ from .config import (
     GNSSConfig,
     HygrometerConfig,
     IMUConfig,
+    ImagingSonarConfig,
     JointStateConfig,
     LidarConfig,
     LightSensorConfig,
@@ -58,6 +59,7 @@ from .config import (
     ThermometerConfig,
     UWBRangeConfig,
     UltrasonicArrayConfig,
+    SideScanSonarConfig,
     WheelOdometryConfig,
 )
 
@@ -86,6 +88,8 @@ PresetConfig = (
     | UWBRangeConfig
     | RadarConfig
     | UltrasonicArrayConfig
+    | ImagingSonarConfig
+    | SideScanSonarConfig
     | OpticalFlowConfig
     | BatteryConfig
     | WheelOdometryConfig
@@ -840,6 +844,55 @@ MAXBOTIX_MB1242_RING8 = UltrasonicArrayConfig(
 )
 
 # ---------------------------------------------------------------------------
+# Imaging sonar / side-scan presets
+# ---------------------------------------------------------------------------
+
+BLUEVIEW_P900_130 = ImagingSonarConfig(
+    # Source: Teledyne BlueView P900-130 forward-looking sonar datasheet.
+    name="BLUEVIEW_P900_130",
+    update_rate_hz=10.0,
+    azimuth_bins=130,
+    range_bins=256,
+    azimuth_fov_deg=130.0,
+    min_range_m=0.75,
+    max_range_m=100.0,
+    range_noise_sigma_m=0.04,
+    azimuth_noise_deg=0.7,
+    speckle_sigma=0.03,
+    attenuation_db_per_m=0.08,
+    false_alarm_rate=0.02,
+)
+
+TRITECH_GEMINI_720IK = ImagingSonarConfig(
+    # Source: Tritech Gemini 720ik multibeam imaging sonar overview.
+    name="TRITECH_GEMINI_720IK",
+    update_rate_hz=15.0,
+    azimuth_bins=120,
+    range_bins=200,
+    azimuth_fov_deg=120.0,
+    min_range_m=0.5,
+    max_range_m=60.0,
+    range_noise_sigma_m=0.03,
+    azimuth_noise_deg=0.5,
+    speckle_sigma=0.025,
+    attenuation_db_per_m=0.07,
+    false_alarm_rate=0.01,
+)
+
+EDGETECH_4125 = SideScanSonarConfig(
+    # Source: EdgeTech 4125 dual-frequency side-scan sonar brochure.
+    name="EDGETECH_4125",
+    update_rate_hz=5.0,
+    range_bins=256,
+    min_range_m=1.0,
+    max_range_m=200.0,
+    range_noise_sigma_m=0.08,
+    speckle_sigma=0.03,
+    attenuation_db_per_m=0.06,
+    false_alarm_rate=0.03,
+)
+
+# ---------------------------------------------------------------------------
 # Magnetometer presets
 # ---------------------------------------------------------------------------
 
@@ -1465,6 +1518,10 @@ _REGISTRY: dict[str, PresetConfig] = {
     # Ultrasonic sensing
     "HC_SR04_ARRAY4": HC_SR04_ARRAY4,
     "MAXBOTIX_MB1242_RING8": MAXBOTIX_MB1242_RING8,
+    # Sonar imaging
+    "BLUEVIEW_P900_130": BLUEVIEW_P900_130,
+    "TRITECH_GEMINI_720IK": TRITECH_GEMINI_720IK,
+    "EDGETECH_4125": EDGETECH_4125,
     # Airspeed
     "SDP33": SDP33,
     "MS4525DO": MS4525DO,
@@ -1531,6 +1588,8 @@ _CONFIG_TYPE_TO_KIND: dict[type, str] = {
     UWBRangeConfig: "uwb",
     RadarConfig: "radar",
     UltrasonicArrayConfig: "ultrasonic",
+    ImagingSonarConfig: "imaging_sonar",
+    SideScanSonarConfig: "side_scan_sonar",
     AirspeedConfig: "airspeed",
     RangefinderConfig: "rangefinder",
     OpticalFlowConfig: "optical_flow",
@@ -1694,6 +1753,10 @@ __all__ = [
     # Ultrasonic presets
     "HC_SR04_ARRAY4",
     "MAXBOTIX_MB1242_RING8",
+    # Sonar presets
+    "BLUEVIEW_P900_130",
+    "TRITECH_GEMINI_720IK",
+    "EDGETECH_4125",
     # Magnetometer presets
     "IST8310",
     "HMC5883L",

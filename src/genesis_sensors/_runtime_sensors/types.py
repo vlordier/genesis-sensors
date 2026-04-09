@@ -135,6 +135,8 @@ class SensorState(TypedDict, total=False):
     uwb_anchors: list[dict[str, Any]] | dict[str, Any]  # UWB anchor descriptors or id->position map
     radar_targets: list[dict[str, Any]]  # radar target descriptors with positions / velocities / RCS
     ultrasonic_ranges_m: list[float] | dict[str, float]  # short-range sonar / ultrasonic beam distances (m)
+    sonar_targets: list[dict[str, Any]]  # acoustic reflector targets for imaging / side-scan sonar models
+    water_turbidity_ntu: float  # water turbidity / suspended particles (NTU)
 
     # Airspeed / wind
     airspeed_ms: float  # true airspeed (m/s); used directly when present
@@ -209,6 +211,26 @@ class UltrasonicObservation(TypedDict):
     valid_mask: BoolArray  # shape (N,) — valid / not dropped measurements
     echo_strength: FloatArray  # shape (N,) — heuristic echo confidence / intensity [0, 1]
     nearest_range_m: float  # nearest valid obstacle distance (m), or no_hit_value when none are valid
+
+
+class ImagingSonarObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.ImagingSonarModel`."""
+
+    intensity_image: FloatArray  # shape (range_bins, azimuth_bins) — acoustic image intensity [0, 1]
+    range_axis_m: FloatArray  # shape (range_bins,) — range coordinate per row (m)
+    azimuth_axis_deg: FloatArray  # shape (azimuth_bins,) — azimuth coordinate per column (deg)
+    n_returns: int  # number of in-view targets contributing returns this scan
+    strongest_return_m: float  # range of the strongest observed return (m)
+
+
+class SideScanSonarObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.SideScanSonarModel`."""
+
+    port_intensity: FloatArray  # shape (range_bins,) — port-side waterfall intensity profile
+    starboard_intensity: FloatArray  # shape (range_bins,) — starboard-side waterfall intensity profile
+    slant_range_axis_m: FloatArray  # shape (range_bins,) — slant-range coordinate (m)
+    port_hits: int  # number of port-side target hits
+    starboard_hits: int  # number of starboard-side target hits
 
 
 # ---------------------------------------------------------------------------
@@ -567,6 +589,7 @@ __all__ = [
     "GnssObservation",
     "HygrometerObservation",
     "ImuObservation",
+    "ImagingSonarObservation",
     "JointStateObservation",
     "LidarObservation",
     "LightSensorObservation",
@@ -576,10 +599,12 @@ __all__ = [
     "RadarObservation",
     "RadioObservation",
     "RangefinderObservation",
+    "SideScanSonarObservation",
     "StereoCameraObservation",
     "TactileArrayObservation",
     "ThermalObservation",
     "ThermometerObservation",
+    "UltrasonicObservation",
     "UWBObservation",
     "WheelOdometryObservation",
 ]

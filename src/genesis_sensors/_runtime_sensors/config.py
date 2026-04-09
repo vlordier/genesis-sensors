@@ -465,6 +465,51 @@ class UltrasonicArrayConfig(BaseModel):
         return self
 
 
+class ImagingSonarConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.ImagingSonarModel`."""
+
+    name: str = "imaging_sonar"
+    update_rate_hz: float = Field(default=8.0, gt=0, description="Ping / frame rate (Hz).")
+    azimuth_bins: int = Field(default=96, ge=1, description="Number of azimuth columns in the acoustic image.")
+    range_bins: int = Field(default=128, ge=1, description="Number of range bins / rows in the acoustic image.")
+    azimuth_fov_deg: float = Field(default=120.0, gt=0.0, le=360.0, description="Horizontal field of view (deg).")
+    min_range_m: float = Field(default=0.5, ge=0.0, description="Minimum measurable range (m).")
+    max_range_m: float = Field(default=30.0, gt=0.0, description="Maximum measurable range (m).")
+    range_noise_sigma_m: float = Field(default=0.05, ge=0.0, description="Gaussian range noise 1-σ (m).")
+    azimuth_noise_deg: float = Field(default=1.0, ge=0.0, description="Gaussian azimuth noise 1-σ (deg).")
+    speckle_sigma: float = Field(default=0.04, ge=0.0, description="Additive speckle-like intensity noise amplitude.")
+    attenuation_db_per_m: float = Field(default=0.12, ge=0.0, description="Water-column attenuation coefficient.")
+    false_alarm_rate: float = Field(default=0.02, ge=0.0, description="Poisson clutter blobs per frame.")
+    seed: int | None = None
+
+    @model_validator(mode="after")
+    def _range_ordered(self) -> "ImagingSonarConfig":
+        if self.min_range_m >= self.max_range_m:
+            raise ValueError(f"min_range_m ({self.min_range_m}) must be less than max_range_m ({self.max_range_m})")
+        return self
+
+
+class SideScanSonarConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.SideScanSonarModel`."""
+
+    name: str = "side_scan"
+    update_rate_hz: float = Field(default=4.0, gt=0, description="Ping / line rate (Hz).")
+    range_bins: int = Field(default=128, ge=1, description="Number of slant-range bins per side.")
+    min_range_m: float = Field(default=0.5, ge=0.0, description="Minimum measurable range (m).")
+    max_range_m: float = Field(default=40.0, gt=0.0, description="Maximum measurable range (m).")
+    range_noise_sigma_m: float = Field(default=0.06, ge=0.0, description="Gaussian slant-range noise 1-σ (m).")
+    speckle_sigma: float = Field(default=0.04, ge=0.0, description="Additive speckle-like strip noise amplitude.")
+    attenuation_db_per_m: float = Field(default=0.10, ge=0.0, description="Water-column attenuation coefficient.")
+    false_alarm_rate: float = Field(default=0.02, ge=0.0, description="Poisson clutter spikes per ping.")
+    seed: int | None = None
+
+    @model_validator(mode="after")
+    def _range_ordered(self) -> "SideScanSonarConfig":
+        if self.min_range_m >= self.max_range_m:
+            raise ValueError(f"min_range_m ({self.min_range_m}) must be less than max_range_m ({self.max_range_m})")
+        return self
+
+
 # ---------------------------------------------------------------------------
 # Environmental sensing configs
 # ---------------------------------------------------------------------------
@@ -985,6 +1030,12 @@ class SensorSuiteConfig(BaseModel):
     ultrasonic: UltrasonicArrayConfig | None = Field(
         default=None, description="Ultrasonic proximity array (None = disabled)."
     )
+    imaging_sonar: ImagingSonarConfig | None = Field(
+        default=None, description="Forward-looking imaging sonar (None = disabled)."
+    )
+    side_scan: SideScanSonarConfig | None = Field(
+        default=None, description="Side-scan sonar strip imager (None = disabled)."
+    )
     optical_flow: OpticalFlowConfig | None = Field(
         default=None, description="Downward-facing optical flow sensor (None = disabled)."
     )
@@ -1037,6 +1088,8 @@ class SensorSuiteConfig(BaseModel):
             airspeed=None,
             rangefinder=None,
             ultrasonic=None,
+            imaging_sonar=None,
+            side_scan=None,
             optical_flow=None,
             battery=None,
             wheel_odometry=None,
@@ -1073,6 +1126,8 @@ class SensorSuiteConfig(BaseModel):
             airspeed=None,
             rangefinder=None,
             ultrasonic=None,
+            imaging_sonar=None,
+            side_scan=None,
             optical_flow=None,
             battery=None,
             wheel_odometry=None,
@@ -1109,6 +1164,8 @@ class SensorSuiteConfig(BaseModel):
             airspeed=AirspeedConfig(),
             rangefinder=RangefinderConfig(),
             ultrasonic=UltrasonicArrayConfig(),
+            imaging_sonar=ImagingSonarConfig(),
+            side_scan=SideScanSonarConfig(),
             optical_flow=OpticalFlowConfig(),
             battery=BatteryConfig(),
             wheel_odometry=WheelOdometryConfig(),
@@ -1137,6 +1194,7 @@ __all__ = [
     "GNSSConfig",
     "HygrometerConfig",
     "IMUConfig",
+    "ImagingSonarConfig",
     "JointStateConfig",
     "LidarConfig",
     "LightSensorConfig",
@@ -1147,8 +1205,9 @@ __all__ = [
     "RadioConfig",
     "RangefinderConfig",
     "SensorSuiteConfig",
-    "UltrasonicArrayConfig",
+    "SideScanSonarConfig",
     "StereoCameraConfig",
+    "UltrasonicArrayConfig",
     "TactileArrayConfig",
     "ThermalCameraConfig",
     "ThermometerConfig",

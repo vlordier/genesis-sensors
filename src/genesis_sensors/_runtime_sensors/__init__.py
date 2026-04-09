@@ -98,6 +98,7 @@ from .config import (
     GNSSConfig,
     HygrometerConfig,
     IMUConfig,
+    ImagingSonarConfig,
     JointStateConfig,
     LidarConfig,
     LightSensorConfig,
@@ -108,6 +109,7 @@ from .config import (
     RangefinderConfig,
     RPMSensorConfig,
     SensorSuiteConfig,
+    SideScanSonarConfig,
     StereoCameraConfig,
     TactileArrayConfig,
     ThermalCameraConfig,
@@ -147,7 +149,10 @@ from .presets import (
     DS18B20_PROBE,
     DPS310,
     EMLID_REACH_RS2,
+    BLUEVIEW_P900_130,
+    EDGETECH_4125,
     FINGERTIP_TACTILE_200HZ,
+    TRITECH_GEMINI_720IK,
     FINGERTIP_TACTILE_4X4,
     FLIR_BOSON_320,
     FLIR_LEPTON_35,
@@ -221,6 +226,7 @@ from .presets import (
 from .scheduler import SensorScheduler
 from .stereo_camera import StereoCameraModel
 from .suite import SensorSuite
+from .sonar import ImagingSonarModel, SideScanSonarModel
 from .thermal_camera import ThermalCameraModel
 from .ultrasonic import UltrasonicArrayModel
 from .wireless import RadarModel, UWBRangingModel
@@ -242,6 +248,7 @@ from .types import (
     GasObservation,
     GnssObservation,
     HygrometerObservation,
+    ImagingSonarObservation,
     ImuObservation,
     Int32Array,
     JammerZone,
@@ -256,6 +263,7 @@ from .types import (
     RangefinderObservation,
     RPMObservation,
     SensorState,
+    SideScanSonarObservation,
     StereoCameraObservation,
     TactileArrayObservation,
     ThermalObservation,
@@ -326,6 +334,10 @@ __all__ = [
     # Preset constants — ultrasonic
     "HC_SR04_ARRAY4",
     "MAXBOTIX_MB1242_RING8",
+    # Preset constants — sonar
+    "BLUEVIEW_P900_130",
+    "EDGETECH_4125",
+    "TRITECH_GEMINI_720IK",
     # Preset constants — magnetometer
     "HMC5883L",
     "IST8310",
@@ -397,6 +409,7 @@ __all__ = [
     "GnssFixQuality",
     "HygrometerModel",
     "IMUModel",
+    "ImagingSonarModel",
     "JointStateSensor",
     "LidarModel",
     "LidarPoint",
@@ -410,6 +423,7 @@ __all__ = [
     "ScheduledPacket",
     "SensorScheduler",
     "SensorSuite",
+    "SideScanSonarModel",
     "StereoCameraModel",
     "TactileArraySensor",
     "ThermalCameraModel",
@@ -432,6 +446,7 @@ __all__ = [
     "GNSSConfig",
     "HygrometerConfig",
     "IMUConfig",
+    "ImagingSonarConfig",
     "JointStateConfig",
     "LidarConfig",
     "LightSensorConfig",
@@ -442,6 +457,7 @@ __all__ = [
     "RangefinderConfig",
     "RPMSensorConfig",
     "SensorSuiteConfig",
+    "SideScanSonarConfig",
     "StereoCameraConfig",
     "TactileArrayConfig",
     "ThermalCameraConfig",
@@ -467,6 +483,7 @@ __all__ = [
     "GasObservation",
     "GnssObservation",
     "HygrometerObservation",
+    "ImagingSonarObservation",
     "ImuObservation",
     "Int32Array",
     "JammerZone",
@@ -481,6 +498,7 @@ __all__ = [
     "RangefinderObservation",
     "RPMObservation",
     "SensorInput",
+    "SideScanSonarObservation",
     "SensorObservation",
     "SensorState",
     "StereoCameraObservation",

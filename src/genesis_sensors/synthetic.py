@@ -161,6 +161,27 @@ def make_synthetic_sensor_state(
         "left": max(0.08, 0.65 + 0.15 * np.cos(0.32 * sim_time + 0.2)),
         "right": max(0.08, 1.35 + 0.25 * np.sin(0.28 * sim_time + 0.6)),
     }
+    sonar_targets = [
+        {
+            "id": "dock_pylon",
+            "pos": pos + np.array([6.0, 0.5 * np.sin(0.4 * sim_time), -0.4], dtype=np.float64),
+            "strength": 1.0,
+            "extent_deg": 3.0,
+        },
+        {
+            "id": "reef_port",
+            "pos": pos + np.array([8.0, 3.0 + 0.3 * np.cos(0.3 * sim_time), -0.8], dtype=np.float64),
+            "strength": 0.85,
+            "extent_deg": 4.5,
+        },
+        {
+            "id": "wreck_starboard",
+            "pos": pos + np.array([7.5, -4.5 + 0.4 * np.sin(0.25 * sim_time), -1.0], dtype=np.float64),
+            "strength": 0.9,
+            "extent_deg": 5.0,
+        },
+    ]
+    water_turbidity_ntu = float(np.clip(3.0 + 6.0 * rain_rate + 2.0 * obstruction, 0.5, 40.0))
     if phase_name == "urban_canyon":
         obstruction = min(0.82, obstruction + 0.20)
         illuminance_lux *= 0.55
@@ -202,6 +223,8 @@ def make_synthetic_sensor_state(
         "uwb_anchors": uwb_anchors,
         "radar_targets": radar_targets,
         "ultrasonic_ranges_m": ultrasonic_ranges,
+        "sonar_targets": sonar_targets,
+        "water_turbidity_ntu": water_turbidity_ntu,
         "range_m": max(0.05, float(pos[2])),
         "current_a": float(np.clip(8.0 + 2.5 * speed, 0.0, 30.0)),
         "voltage_v": 14.8,

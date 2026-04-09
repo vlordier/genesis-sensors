@@ -218,12 +218,16 @@ class UltrasonicArrayModel(BaseSensor[UltrasonicObservation]):
             measured = float(np.clip(measured, self.min_range_m, self.max_range_m))
 
             if self.beam_width_deg > 0.0 and self.beam_span_deg > 0.0:
-                angular_scale = 1.0 - min(abs(float(beam_angles[idx])) / max(self.beam_span_deg / 2.0, 1e-6), 1.0) * 0.35
+                angular_scale = (
+                    1.0 - min(abs(float(beam_angles[idx])) / max(self.beam_span_deg / 2.0, 1e-6), 1.0) * 0.35
+                )
             else:
                 angular_scale = 1.0
             humidity_scale = float(np.clip(1.0 - 0.0015 * humidity_pct, 0.65, 1.0))
             strength = float(
-                np.clip(math.exp(-2.2 * measured / max(self.max_range_m, 1e-6)) * angular_scale * humidity_scale, 0.0, 1.0)
+                np.clip(
+                    math.exp(-2.2 * measured / max(self.max_range_m, 1e-6)) * angular_scale * humidity_scale, 0.0, 1.0
+                )
             )
 
             measured_ranges.append(measured)

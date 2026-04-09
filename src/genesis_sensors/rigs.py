@@ -10,11 +10,13 @@ import numpy as np
 
 from ._compat import (
     ATI_MINI45,
+    BLUEVIEW_P900_130,
     BUMPER_50HZ,
     DAVIS_346,
     DAVIS_6410_ANEMOMETER,
     DIFF_DRIVE_ENCODER_50HZ,
     DS18B20_PROBE,
+    EDGETECH_4125,
     FLIR_BOSON_320,
     FRANKA_JOINT_ENCODER,
     FINGERTIP_TACTILE_4X4,
@@ -41,6 +43,7 @@ from ._compat import (
     ForceTorqueSensorModel,
     GNSSModel,
     IMUModel,
+    ImagingSonarModel,
     JointStateSensor,
     LidarModel,
     MagnetometerModel,
@@ -52,6 +55,7 @@ from ._compat import (
     SHT31_HUMIDITY,
     RangefinderModel,
     SensorSuite,
+    SideScanSonarModel,
     StereoCameraModel,
     TSL2591_LIGHT,
     TactileArraySensor,
@@ -254,6 +258,27 @@ def _make_perception_state(
         "left": max(0.08, 0.60 + 0.14 * np.cos(0.28 * sim_time + 0.2)),
         "right": max(0.08, 1.25 + 0.20 * np.sin(0.31 * sim_time + 0.4)),
     }
+    sonar_targets = [
+        {
+            "id": "dock_pylon",
+            "pos": pos + np.array([5.0, 0.4 * np.sin(0.4 * sim_time), -0.3], dtype=np.float64),
+            "strength": 1.0,
+            "extent_deg": 3.0,
+        },
+        {
+            "id": "reef_port",
+            "pos": pos + np.array([7.0, 2.8 + 0.3 * np.cos(0.3 * sim_time), -0.8], dtype=np.float64),
+            "strength": 0.85,
+            "extent_deg": 4.0,
+        },
+        {
+            "id": "wreck_starboard",
+            "pos": pos + np.array([6.5, -3.8 + 0.4 * np.sin(0.25 * sim_time), -1.0], dtype=np.float64),
+            "strength": 0.9,
+            "extent_deg": 4.5,
+        },
+    ]
+    water_turbidity_ntu = float(np.clip(3.0 + 6.0 * rain_rate + 2.0 * obstruction, 0.5, 40.0))
 
     return {
         "rgb": rgb_uint8,
@@ -282,6 +307,8 @@ def _make_perception_state(
         "uwb_anchors": uwb_anchors,
         "radar_targets": radar_targets,
         "ultrasonic_ranges_m": ultrasonic_ranges,
+        "sonar_targets": sonar_targets,
+        "water_turbidity_ntu": water_turbidity_ntu,
         "range_m": max(0.05, float(pos[2])),
     }
 
@@ -319,7 +346,9 @@ def _build_multimodal_suite(seed_for: Callable[[int], int | None]) -> tuple[Sens
         airspeed=AirspeedModel(update_rate_hz=50.0, seed=seed_for(17)),
         rangefinder=RangefinderModel(update_rate_hz=20.0, seed=seed_for(18)),
         ultrasonic=UltrasonicArrayModel.from_config(HC_SR04_ARRAY4.model_copy(update={"seed": seed_for(19)})),
-        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(20)),
+        imaging_sonar=ImagingSonarModel.from_config(BLUEVIEW_P900_130.model_copy(update={"seed": seed_for(20)})),
+        side_scan=SideScanSonarModel.from_config(EDGETECH_4125.model_copy(update={"seed": seed_for(21)})),
+        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(22)),
         battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(21)),
         wheel_odometry=WheelOdometryModel.from_config(
             DIFF_DRIVE_ENCODER_50HZ.model_copy(update={"seed": seed_for(22)})

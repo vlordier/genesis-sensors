@@ -54,6 +54,8 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
     rr.log("sensors/camera/rgb", rr.Image(np.asarray(obs["rgb"]["rgb"])))
     rr.log("sensors/thermal/temperature", rr.Image(_normalize_image(np.asarray(obs["thermal"]["temperature_c"]))))
     rr.log("sensors/lidar/range_image", rr.Image(_normalize_image(np.asarray(obs["lidar"]["range_image"]))))
+    if "imaging_sonar" in obs:
+        rr.log("sensors/sonar/imaging", rr.Image(_normalize_image(np.asarray(obs["imaging_sonar"]["intensity_image"]))))
 
     lidar_points = np.asarray(obs["lidar"]["points"], dtype=np.float32)
     if lidar_points.size:
@@ -70,6 +72,8 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
     battery = obs["battery"]
     radio = obs["radio"]
     ultrasonic = obs.get("ultrasonic", {})
+    imaging_sonar = obs.get("imaging_sonar", {})
+    side_scan = obs.get("side_scan", {})
     uwb = obs.get("uwb", {})
     radar = obs.get("radar", {})
     flow = obs["optical_flow"]
@@ -97,6 +101,9 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
     _log_scalar("traces/radio/queue_depth", int(radio.get("queue_depth", 0)))
     _log_scalar("traces/ultrasonic/nearest_range_m", float(ultrasonic.get("nearest_range_m", 0.0)))
     _log_scalar("traces/ultrasonic/valid_beams", int(np.sum(np.asarray(ultrasonic.get("valid_mask", []), dtype=bool))))
+    _log_scalar("traces/sonar/imaging_returns", int(imaging_sonar.get("n_returns", 0)))
+    _log_scalar("traces/sonar/port_hits", int(side_scan.get("port_hits", 0)))
+    _log_scalar("traces/sonar/starboard_hits", int(side_scan.get("starboard_hits", 0)))
     _log_scalar("traces/uwb/anchor_count", len(uwb.get("ranges_m", {})))
     if "position_estimate" in uwb:
         _log_vector("traces/uwb/position_estimate_m", np.asarray(uwb["position_estimate"]))
@@ -113,13 +120,20 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
     if radar_points.size:
         rr.log("sensors/radar/detections", rr.Points3D(radar_points, radii=0.12))
 
+    if side_scan:
+        port = np.asarray(side_scan.get("port_intensity", []), dtype=np.float32)
+        starboard = np.asarray(side_scan.get("starboard_intensity", []), dtype=np.float32)
+        if port.size and starboard.size:
+            rr.log("sensors/sonar/side_scan", rr.Image(_normalize_image(np.stack([port, starboard], axis=0))))
+
     rr.log(
         "status/summary",
         rr.TextDocument(
             f"frame={frame:03d} t={frame * dt:.2f}s\n"
             f"events={event_count} range={float(rangefinder.get('range_m', 0.0)):.2f}m temp={float(thermometer.get('temperature_c', 0.0)):.1f}C\n"
             f"battery={float(battery.get('voltage_v', 0.0)):.2f}V fix={int(gnss.get('fix_quality', 0))} hum={float(hygrometer.get('relative_humidity_pct', 0.0)):.0f}%\n"
-            f"ultra={float(ultrasonic.get('nearest_range_m', 0.0)):.2f}m uwb={len(uwb.get('ranges_m', {}))} anchors radar={int(radar.get('n_detections', 0))} detections"
+            f"ultra={float(ultrasonic.get('nearest_range_m', 0.0)):.2f}m sonar={int(imaging_sonar.get('n_returns', 0))} returns "
+            f"uwb={len(uwb.get('ranges_m', {}))} anchors radar={int(radar.get('n_detections', 0))} detections"
         ),
     )
 

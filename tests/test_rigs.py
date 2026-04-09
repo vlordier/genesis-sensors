@@ -59,6 +59,8 @@ def test_synthetic_multimodal_rig_surfaces_more_upstream_sensors() -> None:
         "uwb",
         "radar",
         "ultrasonic",
+        "imaging_sonar",
+        "side_scan",
     }.issubset(set(rig.sensor_names()))
     assert np.asarray(obs0["rgb"]["rgb"]).shape[-1] == 3
     assert np.asarray(obs0["thermal"]["temperature_c"]).ndim == 2
@@ -73,6 +75,8 @@ def test_synthetic_multimodal_rig_surfaces_more_upstream_sensors() -> None:
     assert "position_estimate" in obs0["uwb"]
     assert "n_detections" in obs0["radar"]
     assert "nearest_range_m" in obs0["ultrasonic"]
+    assert "intensity_image" in obs0["imaging_sonar"]
+    assert "port_intensity" in obs0["side_scan"]
 
 
 def test_synthetic_state_and_preset_helpers_expose_upstream_surface() -> None:
@@ -92,6 +96,8 @@ def test_synthetic_state_and_preset_helpers_expose_upstream_surface() -> None:
         "uwb_anchors",
         "radar_targets",
         "ultrasonic_ranges_m",
+        "sonar_targets",
+        "water_turbidity_ntu",
     }.issubset(state)
     assert "ZED2_STEREO" in list_presets(kind="stereo")
     assert "DS18B20_PROBE" in list_presets(kind="thermometer")
@@ -99,5 +105,7 @@ def test_synthetic_state_and_preset_helpers_expose_upstream_surface() -> None:
     assert "QORVO_DWM3001C" in list_presets(kind="uwb")
     assert "TI_IWR6843AOP" in list_presets(kind="radar")
     assert "HC_SR04_ARRAY4" in list_presets(kind="ultrasonic")
+    assert "BLUEVIEW_P900_130" in list_presets(kind="imaging_sonar")
+    assert "EDGETECH_4125" in list_presets(kind="side_scan_sonar")
     assert get_preset("FLIR_BOSON_320").name == "FLIR_BOSON_320"
     assert get_preset("TSL2591_LIGHT").name == "TSL2591_LIGHT"
