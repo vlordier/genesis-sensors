@@ -98,6 +98,7 @@ class UltrasonicArrayModel(BaseSensor[UltrasonicObservation]):
 
         self.n_beams = int(n_beams)
         self.beam_span_deg = float(max(0.0, beam_span_deg))
+        self._custom_beam_angles = beam_angles_deg is not None
         if beam_angles_deg is None:
             self.beam_angles_deg = _default_angles(self.n_beams, self.beam_span_deg)
         else:
@@ -139,7 +140,7 @@ class UltrasonicArrayModel(BaseSensor[UltrasonicObservation]):
             update_rate_hz=self.update_rate_hz,
             n_beams=self.n_beams,
             beam_span_deg=self.beam_span_deg,
-            beam_angles_deg=self.beam_angles_deg.tolist(),
+            beam_angles_deg=self.beam_angles_deg.tolist() if self._custom_beam_angles else None,
             min_range_m=self.min_range_m,
             max_range_m=self.max_range_m,
             noise_floor_m=self.noise_floor_m,

@@ -43,6 +43,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
 
+from ._gauss_markov import GaussMarkovProcess
 from .base import BaseSensor
 from .types import Float64Array, ImuObservation
 
@@ -151,13 +152,21 @@ class IMUModel(BaseSensor):
         self._sigma_acc: float = self.noise_density_acc / math.sqrt(dt)
         self._sigma_gyr: float = self.noise_density_gyr / math.sqrt(dt)
 
-        # Gauss-Markov decay and drive-noise for accelerometer bias
-        self._alpha_acc: float = math.exp(-dt / self.bias_tau_acc_s)
-        self._drive_sigma_acc: float = self.bias_sigma_acc * math.sqrt(1.0 - self._alpha_acc**2)
-
-        # Gauss-Markov decay and drive-noise for gyroscope bias
-        self._alpha_gyr: float = math.exp(-dt / self.bias_tau_gyr_s)
-        self._drive_sigma_gyr: float = self.bias_sigma_gyr * math.sqrt(1.0 - self._alpha_gyr**2)
+        # Gauss-Markov bias processes for accelerometer and gyroscope
+        self._bias_process_acc = GaussMarkovProcess(
+            tau_s=self.bias_tau_acc_s,
+            sigma=self.bias_sigma_acc,
+            dt=dt,
+            rng=self._rng,
+            shape=(3,),
+        )
+        self._bias_process_gyr = GaussMarkovProcess(
+            tau_s=self.bias_tau_gyr_s,
+            sigma=self.bias_sigma_gyr,
+            dt=dt,
+            rng=self._rng,
+            shape=(3,),
+        )
 
         # Pre-compute (1 + scale_factor) for fast scalar multiply in step()
         self._gain_acc: float = 1.0 + self.scale_factor_acc
@@ -173,12 +182,6 @@ class IMUModel(BaseSensor):
             np.full(3, self._gain_gyr - self.cross_axis_sensitivity_gyr)
         )
 
-        # Mutable state: initialise bias from the steady-state distribution
-        # N(0, bias_sigma) so the model is physically realistic from t=0.  A
-        # cold-start at zero would artificially suppress bias for the first
-        # several hundred seconds (one bias_tau correlation time).
-        self._bias_acc: Float64Array = self._rng.normal(0.0, self.bias_sigma_acc, 3).astype(np.float64)
-        self._bias_gyr: Float64Array = self._rng.normal(0.0, self.bias_sigma_gyr, 3).astype(np.float64)
         self._last_obs: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
@@ -218,12 +221,12 @@ class IMUModel(BaseSensor):
     @property
     def bias_acc(self) -> Float64Array:
         """Current accelerometer bias vector (m/s²).  Copy to prevent mutation."""
-        return self._bias_acc.copy()
+        return np.asarray(self._bias_process_acc.value, dtype=np.float64).copy()
 
     @property
     def bias_gyr(self) -> Float64Array:
         """Current gyroscope bias vector (rad/s).  Copy to prevent mutation."""
-        return self._bias_gyr.copy()
+        return np.asarray(self._bias_process_gyr.value, dtype=np.float64).copy()
 
     # ------------------------------------------------------------------
     # BaseSensor interface
@@ -232,8 +235,8 @@ class IMUModel(BaseSensor):
     def reset(self, env_id: int = 0) -> None:
         # Draw fresh steady-state biases each episode so that each rollout
         # experiences independent, realistic initial conditions.
-        self._bias_acc = self._rng.normal(0.0, self.bias_sigma_acc, 3).astype(np.float64)
-        self._bias_gyr = self._rng.normal(0.0, self.bias_sigma_gyr, 3).astype(np.float64)
+        self._bias_process_acc.reset(self.bias_sigma_acc)
+        self._bias_process_gyr.reset(self.bias_sigma_gyr)
         self._last_obs = {}
         self._last_update_time = -1.0
 
@@ -281,14 +284,14 @@ class IMUModel(BaseSensor):
         # ------------------------------------------------------------------
         # Gauss-Markov bias drift
         # ------------------------------------------------------------------
-        self._bias_acc = self._alpha_acc * self._bias_acc + self._rng.normal(0.0, self._drive_sigma_acc, 3)
-        self._bias_gyr = self._alpha_gyr * self._bias_gyr + self._rng.normal(0.0, self._drive_sigma_gyr, 3)
+        bias_acc = self._bias_process_acc.step()
+        bias_gyr = self._bias_process_gyr.step()
 
         # ------------------------------------------------------------------
         # White noise (angle/velocity random walk)
         # ------------------------------------------------------------------
-        noisy_acc: Float64Array = true_acc + self._bias_acc + self._rng.normal(0.0, self._sigma_acc, 3)
-        noisy_gyr: Float64Array = true_gyr + self._bias_gyr + self._rng.normal(0.0, self._sigma_gyr, 3)
+        noisy_acc: Float64Array = true_acc + bias_acc + self._rng.normal(0.0, self._sigma_acc, 3)
+        noisy_gyr: Float64Array = true_gyr + bias_gyr + self._rng.normal(0.0, self._sigma_gyr, 3)
 
         obs: ImuObservation = {
             "lin_acc": noisy_acc,

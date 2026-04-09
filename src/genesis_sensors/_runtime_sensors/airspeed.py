@@ -42,6 +42,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
 
+from ._gauss_markov import GaussMarkovProcess
 from .base import BaseSensor
 from .types import AirspeedObservation
 
@@ -148,13 +149,13 @@ class AirspeedModel(BaseSensor):
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
 
-        # Gauss-Markov coefficients
         dt = 1.0 / self.update_rate_hz
-        self._alpha: float = math.exp(-dt / self.bias_tau_s)
-        self._drive_sigma: float = self.bias_sigma_ms * math.sqrt(1.0 - self._alpha**2)
-
-        # Initialise bias from steady-state distribution
-        self._bias_ms: float = float(self._rng.normal(0.0, self.bias_sigma_ms))
+        self._bias_process = GaussMarkovProcess(
+            tau_s=self.bias_tau_s,
+            sigma=self.bias_sigma_ms,
+            dt=dt,
+            rng=self._rng,
+        )
         self._last_obs: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
@@ -189,14 +190,14 @@ class AirspeedModel(BaseSensor):
     @property
     def bias_ms(self) -> float:
         """Current airspeed bias (m/s).  Useful for debugging."""
-        return self._bias_ms
+        return float(self._bias_process.value)
 
     # ------------------------------------------------------------------
     # BaseSensor interface
     # ------------------------------------------------------------------
 
     def reset(self, env_id: int = 0) -> None:
-        self._bias_ms = float(self._rng.normal(0.0, self.bias_sigma_ms))
+        self._bias_process.reset(self.bias_sigma_ms)
         self._last_obs = {}
         self._last_update_time = -1.0
 
@@ -256,7 +257,7 @@ class AirspeedModel(BaseSensor):
         # ------------------------------------------------------------------
         # 3. Bias drift (Gauss-Markov) — always advances regardless of blockage
         # ------------------------------------------------------------------
-        self._bias_ms = self._alpha * self._bias_ms + float(self._rng.normal(0.0, self._drive_sigma))
+        bias_ms = float(self._bias_process.step())
 
         # ------------------------------------------------------------------
         # 4. Tube blockage — random rare event; clamps output to 0 after drift
@@ -272,7 +273,7 @@ class AirspeedModel(BaseSensor):
         # ------------------------------------------------------------------
         white_ms = float(self._rng.normal(0.0, self.noise_sigma_ms))
 
-        noisy_ias = ias_ms + self._bias_ms + white_ms
+        noisy_ias = ias_ms + bias_ms + white_ms
 
         # ------------------------------------------------------------------
         # 6. Dead-band and saturation clamps

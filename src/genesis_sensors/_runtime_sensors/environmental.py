@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Final, cast
 
 import numpy as np
 
+from ._gauss_markov import GaussMarkovProcess
 from .base import BaseSensor, SensorInput, SensorObservation
 from .types import (
     AnemometerObservation,
@@ -79,8 +80,12 @@ class ThermometerModel(BaseSensor[ThermometerObservation]):
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
         self._dt = 1.0 / self.update_rate_hz
-        self._alpha_bias = math.exp(-self._dt / self.bias_tau_s)
-        self._drive_sigma = self.bias_sigma_c * math.sqrt(1.0 - self._alpha_bias**2)
+        self._bias_process = GaussMarkovProcess(
+            tau_s=self.bias_tau_s,
+            sigma=self.bias_sigma_c,
+            dt=self._dt,
+            rng=self._rng,
+        )
         self._response_alpha = min(1.0, self._dt / self.response_tau_s)
         self._bias_c = float(self._rng.normal(0.0, self.bias_sigma_c))
         self._temp_state_c: float | None = None
@@ -104,7 +109,7 @@ class ThermometerModel(BaseSensor[ThermometerObservation]):
         )
 
     def reset(self, env_id: int = 0) -> None:
-        self._bias_c = float(self._rng.normal(0.0, self.bias_sigma_c))
+        self._bias_process.reset(self.bias_sigma_c)
         self._temp_state_c = None
         self._last_obs = {}
         self._last_update_time = -1.0
@@ -120,8 +125,8 @@ class ThermometerModel(BaseSensor[ThermometerObservation]):
         else:
             self._temp_state_c += self._response_alpha * (true_temp_c - self._temp_state_c)
 
-        self._bias_c = self._alpha_bias * self._bias_c + float(self._rng.normal(0.0, self._drive_sigma))
-        measured_c = self._temp_state_c + self._bias_c + float(self._rng.normal(0.0, self.noise_sigma_c))
+        bias_c = float(self._bias_process.step())
+        measured_c = self._temp_state_c + bias_c + float(self._rng.normal(0.0, self.noise_sigma_c))
         obs: ThermometerObservation = {
             "temperature_c": float(measured_c),
             "temperature_f": float(measured_c * 9.0 / 5.0 + 32.0),
@@ -155,8 +160,12 @@ class HygrometerModel(BaseSensor[HygrometerObservation]):
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
         self._dt = 1.0 / self.update_rate_hz
-        self._alpha_bias = math.exp(-self._dt / self.bias_tau_s)
-        self._drive_sigma = self.bias_sigma_pct * math.sqrt(1.0 - self._alpha_bias**2)
+        self._bias_process = GaussMarkovProcess(
+            tau_s=self.bias_tau_s,
+            sigma=self.bias_sigma_pct,
+            dt=self._dt,
+            rng=self._rng,
+        )
         self._response_alpha = min(1.0, self._dt / self.response_tau_s)
         self._bias_pct = float(self._rng.normal(0.0, self.bias_sigma_pct))
         self._rh_state_pct: float | None = None
@@ -180,7 +189,7 @@ class HygrometerModel(BaseSensor[HygrometerObservation]):
         )
 
     def reset(self, env_id: int = 0) -> None:
-        self._bias_pct = float(self._rng.normal(0.0, self.bias_sigma_pct))
+        self._bias_process.reset(self.bias_sigma_pct)
         self._rh_state_pct = None
         self._last_obs = {}
         self._last_update_time = -1.0
@@ -201,9 +210,9 @@ class HygrometerModel(BaseSensor[HygrometerObservation]):
         else:
             self._rh_state_pct += self._response_alpha * (true_rh - self._rh_state_pct)
 
-        self._bias_pct = self._alpha_bias * self._bias_pct + float(self._rng.normal(0.0, self._drive_sigma))
+        bias_pct = float(self._bias_process.step())
         measured_rh = float(
-            np.clip(self._rh_state_pct + self._bias_pct + self._rng.normal(0.0, self.noise_sigma_pct), 0.0, 100.0)
+            np.clip(self._rh_state_pct + bias_pct + self._rng.normal(0.0, self.noise_sigma_pct), 0.0, 100.0)
         )
         temp_c = _weather_value(state, "ambient_temp_c", 21.0)
         obs: HygrometerObservation = {

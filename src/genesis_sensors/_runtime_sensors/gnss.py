@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
 
+from ._gauss_markov import GaussMarkovProcess
 from .base import BaseSensor
 from .types import Float64Array, GnssObservation, JammerZone
 
@@ -145,9 +146,13 @@ class GNSSModel(BaseSensor):
         # Pre-computed Gauss-Markov coefficients (constant for fixed update rate)
         # ------------------------------------------------------------------
         self._dt: float = 1.0 / self.update_rate_hz
-        self._alpha: float = math.exp(-self._dt / self.bias_tau_s)
-        # Steady-state noise injection per step: sigma * sqrt(1 - alpha^2)
-        self._drive_sigma: float = self.bias_sigma_m * math.sqrt(1.0 - self._alpha**2)
+        self._bias_process = GaussMarkovProcess(
+            tau_s=self.bias_tau_s,
+            sigma=self.bias_sigma_m,
+            dt=self._dt,
+            rng=self._rng,
+            shape=(3,),
+        )
 
         # Pre-convert jammer zone centres to numpy arrays to avoid repeated
         # np.asarray() calls inside the hot step() loop.
@@ -158,7 +163,6 @@ class GNSSModel(BaseSensor):
 
         # Initialise from steady-state distribution so position bias is
         # physically realistic from t=0 instead of ramping up from zero.
-        self._bias: Float64Array = self._rng.normal(0.0, self.bias_sigma_m, 3).astype(np.float64)
         self._last_obs: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
@@ -197,14 +201,15 @@ class GNSSModel(BaseSensor):
     @property
     def bias(self) -> Float64Array:
         """Current position bias vector (metres, world frame)."""
-        return self._bias.copy()
+        v = self._bias_process.value
+        return np.asarray(v, dtype=np.float64).copy()
 
     # ------------------------------------------------------------------
     # BaseSensor interface
     # ------------------------------------------------------------------
 
     def reset(self, env_id: int = 0) -> None:
-        self._bias = self._rng.normal(0.0, self.bias_sigma_m, 3).astype(np.float64)
+        self._bias_process.reset(self.bias_sigma_m)
         self._last_obs = {}
         self._last_update_time = -1.0
 
@@ -260,9 +265,8 @@ class GNSSModel(BaseSensor):
                 self._mark_updated(sim_time)
                 return result
 
-        # Update bias random walk (Gauss-Markov) using pre-computed coefficients
-        alpha = self._alpha
-        self._bias = alpha * self._bias + self._rng.normal(0.0, self._drive_sigma, 3)
+        # Update bias random walk (Gauss-Markov) using the shared process
+        bias = self._bias_process.step()
 
         # Position error: white noise + Gauss-Markov bias + multipath
         white: Float64Array = self._rng.normal(0.0, self.noise_m, 3)
@@ -271,7 +275,7 @@ class GNSSModel(BaseSensor):
             multipath: Float64Array = self._rng.normal(0.0, self.multipath_sigma_m * obstruction, 3)
         else:
             multipath = np.zeros(3, dtype=np.float64)
-        noisy_pos: Float64Array = true_pos + self._bias + white + multipath
+        noisy_pos: Float64Array = true_pos + bias + white + multipath
 
         # Velocity error
         noisy_vel: Float64Array = true_vel + self._rng.normal(0.0, self.vel_noise_ms, 3)

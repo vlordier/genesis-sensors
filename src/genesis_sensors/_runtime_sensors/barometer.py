@@ -28,11 +28,11 @@ Usage
 
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
 
+from ._gauss_markov import GaussMarkovProcess
 from .base import BaseSensor
 from .types import BarometerObservation
 
@@ -130,14 +130,13 @@ class BarometerModel(BaseSensor):
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
 
-        # Pre-compute Gauss-Markov decay and drive-noise coefficients
         dt = 1.0 / self.update_rate_hz
-        self._alpha: float = math.exp(-dt / self.bias_tau_s)
-        self._drive_sigma: float = self.bias_sigma_m * math.sqrt(1.0 - self._alpha**2)
-
-        # Initialise bias from the steady-state distribution so accuracy
-        # degradation is realistic from the first sample.
-        self._bias_m: float = float(self._rng.normal(0.0, self.bias_sigma_m))
+        self._bias_process = GaussMarkovProcess(
+            tau_s=self.bias_tau_s,
+            sigma=self.bias_sigma_m,
+            dt=dt,
+            rng=self._rng,
+        )
         self._last_obs: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
@@ -171,7 +170,7 @@ class BarometerModel(BaseSensor):
     @property
     def bias_m(self) -> float:
         """Current altitude bias (m).  Useful for debugging or ground truth."""
-        return self._bias_m
+        return float(self._bias_process.value)
 
     # ------------------------------------------------------------------
     # BaseSensor interface
@@ -180,7 +179,7 @@ class BarometerModel(BaseSensor):
     def reset(self, env_id: int = 0) -> None:
         # Draw a fresh steady-state bias each episode; this represents the
         # (unknown) initial pressure sensor offset at power-on.
-        self._bias_m = float(self._rng.normal(0.0, self.bias_sigma_m))
+        self._bias_process.reset(self.bias_sigma_m)
         self._last_obs = {}
         self._last_update_time = -1.0
 
@@ -200,12 +199,12 @@ class BarometerModel(BaseSensor):
         true_alt_m = float(np.asarray(pos, dtype=np.float64)[2]) + self.ground_alt_m
 
         # Gauss-Markov bias drift (temperature-induced pressure creep)
-        self._bias_m = self._alpha * self._bias_m + float(self._rng.normal(0.0, self._drive_sigma))
+        bias_m = float(self._bias_process.step())
 
         # White noise
         white_m = float(self._rng.normal(0.0, self.noise_sigma_m))
 
-        noisy_alt = true_alt_m + self._bias_m + white_m
+        noisy_alt = true_alt_m + bias_m + white_m
 
         # Quantise if a resolution is specified
         if self.resolution_m > 0.0:

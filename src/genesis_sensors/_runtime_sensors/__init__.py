@@ -78,6 +78,7 @@ See the following runnable examples for progressively deeper dives:
 """
 
 from . import presets
+from ._gauss_markov import GaussMarkovProcess
 from .acoustic_navigation import AcousticCurrentProfilerModel, DVLModel
 from .airspeed import AirspeedModel
 from .barometer import BarometerModel
@@ -401,6 +402,8 @@ __all__ = [
     "list_presets",
     # Preset type alias
     "PresetConfig",
+    # Utilities
+    "GaussMarkovProcess",
     # Sensor classes
     "AcousticCurrentProfilerModel",
     "AirspeedModel",

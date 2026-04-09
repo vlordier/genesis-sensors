@@ -86,6 +86,58 @@ if TYPE_CHECKING:
     from .base import BaseSensor
     from .config import SensorSuiteConfig
 
+# ---------------------------------------------------------------------------
+# Registry that maps *constructor kwarg name* → *(display_name, model_class,
+# rate_param, default_rate, config_attr)*.
+#
+# This single table drives ``__init__``, ``default()``, and ``from_config()``
+# so that adding a new sensor type is a one-line change.
+# ---------------------------------------------------------------------------
+_SENSOR_SLOTS: tuple[tuple[str, str, type, str, float, str], ...] = (
+    # (kwarg,             display,           model_class,                  rate_param,              default_rate, cfg_attr)
+    ("rgb_camera", "rgb", CameraModel, "rgb_rate_hz", 30.0, "rgb"),
+    ("event_camera", "events", EventCameraModel, "event_rate_hz", 1000.0, "event"),
+    ("thermal_camera", "thermal", ThermalCameraModel, "thermal_rate_hz", 9.0, "thermal"),
+    ("lidar", "lidar", LidarModel, "lidar_rate_hz", 10.0, "lidar"),
+    ("gnss", "gnss", GNSSModel, "gnss_rate_hz", 10.0, "gnss"),
+    ("radio", "radio", RadioLinkModel, "radio_rate_hz", 100.0, "radio"),
+    ("uwb", "uwb", UWBRangingModel, "uwb_rate_hz", 0.0, "uwb"),
+    ("radar", "radar", RadarModel, "radar_rate_hz", 0.0, "radar"),
+    ("imu", "imu", IMUModel, "imu_rate_hz", 200.0, "imu"),
+    ("barometer", "barometer", BarometerModel, "baro_rate_hz", 50.0, "barometer"),
+    ("magnetometer", "magnetometer", MagnetometerModel, "mag_rate_hz", 100.0, "magnetometer"),
+    ("thermometer", "thermometer", ThermometerModel, "thermometer_rate_hz", 0.0, "thermometer"),
+    ("hygrometer", "hygrometer", HygrometerModel, "hygrometer_rate_hz", 0.0, "hygrometer"),
+    ("light_sensor", "light_sensor", LightSensorModel, "light_sensor_rate_hz", 0.0, "light_sensor"),
+    ("gas_sensor", "gas_sensor", GasSensorModel, "gas_sensor_rate_hz", 0.0, "gas_sensor"),
+    ("anemometer", "anemometer", AnemometerModel, "anemometer_rate_hz", 0.0, "anemometer"),
+    ("airspeed", "airspeed", AirspeedModel, "airspeed_rate_hz", 0.0, "airspeed"),
+    ("rangefinder", "rangefinder", RangefinderModel, "rangefinder_rate_hz", 0.0, "rangefinder"),
+    ("ultrasonic", "ultrasonic", UltrasonicArrayModel, "ultrasonic_rate_hz", 0.0, "ultrasonic"),
+    ("imaging_sonar", "imaging_sonar", ImagingSonarModel, "imaging_sonar_rate_hz", 0.0, "imaging_sonar"),
+    ("side_scan", "side_scan", SideScanSonarModel, "side_scan_rate_hz", 0.0, "side_scan"),
+    ("dvl", "dvl", DVLModel, "dvl_rate_hz", 0.0, "dvl"),
+    (
+        "current_profiler",
+        "current_profiler",
+        AcousticCurrentProfilerModel,
+        "current_profiler_rate_hz",
+        0.0,
+        "current_profiler",
+    ),
+    ("optical_flow", "optical_flow", OpticalFlowModel, "optical_flow_rate_hz", 0.0, "optical_flow"),
+    ("battery", "battery", BatteryModel, "battery_rate_hz", 0.0, "battery"),
+    ("stereo_camera", "stereo", StereoCameraModel, "stereo_rate_hz", 0.0, "stereo_camera"),
+    ("wheel_odometry", "wheel_odometry", WheelOdometryModel, "wheel_odometry_rate_hz", 0.0, "wheel_odometry"),
+    ("force_torque", "force_torque", ForceTorqueSensorModel, "force_torque_rate_hz", 0.0, "force_torque"),
+    ("joint_state", "joint_state", JointStateSensor, "joint_state_rate_hz", 0.0, "joint_state"),
+    ("contact", "contact", ContactSensor, "contact_rate_hz", 0.0, "contact"),
+    ("depth_camera", "depth_camera", DepthCameraModel, "depth_camera_rate_hz", 0.0, "depth_camera"),
+    ("tactile_array", "tactile_array", TactileArraySensor, "tactile_array_rate_hz", 0.0, "tactile_array"),
+    ("current", "current", CurrentSensor, "current_rate_hz", 0.0, "current"),
+    ("rpm", "rpm", RPMSensor, "rpm_rate_hz", 0.0, "rpm"),
+)
+
 
 class SensorSuite:
     """
@@ -177,74 +229,47 @@ class SensorSuite:
     ) -> None:
         self._scheduler = SensorScheduler()
 
-        if rgb_camera is not None:
-            self._scheduler.add(rgb_camera, name="rgb")
-        if event_camera is not None:
-            self._scheduler.add(event_camera, name="events")
-        if thermal_camera is not None:
-            self._scheduler.add(thermal_camera, name="thermal")
-        if lidar is not None:
-            self._scheduler.add(lidar, name="lidar")
-        if gnss is not None:
-            self._scheduler.add(gnss, name="gnss")
-        if radio is not None:
-            self._scheduler.add(radio, name="radio")
-        if uwb is not None:
-            self._scheduler.add(uwb, name="uwb")
-        if radar is not None:
-            self._scheduler.add(radar, name="radar")
-        if imu is not None:
-            self._scheduler.add(imu, name="imu")
-        if barometer is not None:
-            self._scheduler.add(barometer, name="barometer")
-        if magnetometer is not None:
-            self._scheduler.add(magnetometer, name="magnetometer")
-        if thermometer is not None:
-            self._scheduler.add(thermometer, name="thermometer")
-        if hygrometer is not None:
-            self._scheduler.add(hygrometer, name="hygrometer")
-        if light_sensor is not None:
-            self._scheduler.add(light_sensor, name="light_sensor")
-        if gas_sensor is not None:
-            self._scheduler.add(gas_sensor, name="gas_sensor")
-        if anemometer is not None:
-            self._scheduler.add(anemometer, name="anemometer")
-        if airspeed is not None:
-            self._scheduler.add(airspeed, name="airspeed")
-        if rangefinder is not None:
-            self._scheduler.add(rangefinder, name="rangefinder")
-        if ultrasonic is not None:
-            self._scheduler.add(ultrasonic, name="ultrasonic")
-        if imaging_sonar is not None:
-            self._scheduler.add(imaging_sonar, name="imaging_sonar")
-        if side_scan is not None:
-            self._scheduler.add(side_scan, name="side_scan")
-        if dvl is not None:
-            self._scheduler.add(dvl, name="dvl")
-        if current_profiler is not None:
-            self._scheduler.add(current_profiler, name="current_profiler")
-        if optical_flow is not None:
-            self._scheduler.add(optical_flow, name="optical_flow")
-        if battery is not None:
-            self._scheduler.add(battery, name="battery")
-        if stereo_camera is not None:
-            self._scheduler.add(stereo_camera, name="stereo")
-        if wheel_odometry is not None:
-            self._scheduler.add(wheel_odometry, name="wheel_odometry")
-        if force_torque is not None:
-            self._scheduler.add(force_torque, name="force_torque")
-        if joint_state is not None:
-            self._scheduler.add(joint_state, name="joint_state")
-        if contact is not None:
-            self._scheduler.add(contact, name="contact")
-        if depth_camera is not None:
-            self._scheduler.add(depth_camera, name="depth_camera")
-        if tactile_array is not None:
-            self._scheduler.add(tactile_array, name="tactile_array")
-        if current is not None:
-            self._scheduler.add(current, name="current")
-        if rpm is not None:
-            self._scheduler.add(rpm, name="rpm")
+        # Register each non-None sensor under its canonical display name.
+        _locals = {
+            "rgb_camera": rgb_camera,
+            "event_camera": event_camera,
+            "thermal_camera": thermal_camera,
+            "lidar": lidar,
+            "gnss": gnss,
+            "radio": radio,
+            "uwb": uwb,
+            "radar": radar,
+            "imu": imu,
+            "barometer": barometer,
+            "magnetometer": magnetometer,
+            "thermometer": thermometer,
+            "hygrometer": hygrometer,
+            "light_sensor": light_sensor,
+            "gas_sensor": gas_sensor,
+            "anemometer": anemometer,
+            "airspeed": airspeed,
+            "rangefinder": rangefinder,
+            "ultrasonic": ultrasonic,
+            "imaging_sonar": imaging_sonar,
+            "side_scan": side_scan,
+            "dvl": dvl,
+            "current_profiler": current_profiler,
+            "optical_flow": optical_flow,
+            "battery": battery,
+            "stereo_camera": stereo_camera,
+            "wheel_odometry": wheel_odometry,
+            "force_torque": force_torque,
+            "joint_state": joint_state,
+            "contact": contact,
+            "depth_camera": depth_camera,
+            "tactile_array": tactile_array,
+            "current": current,
+            "rpm": rpm,
+        }
+        for kwarg, display, _cls, _rate, _dflt, _cfg in _SENSOR_SLOTS:
+            sensor = _locals.get(kwarg)
+            if sensor is not None:
+                self._scheduler.add(sensor, name=display)
 
         for name, sensor in extra_sensors or []:
             self._scheduler.add(sensor, name=name)
@@ -330,112 +355,58 @@ class SensorSuite:
         """
         # Derive N independent, deterministic seeds via SeedSequence so that
         # close base seeds (e.g. 0 vs 1) don't produce correlated sensor noise.
-        _N_SENSORS = 34
+        n_slots = len(_SENSOR_SLOTS)
         if seed is not None:
-            child_seeds = np.random.SeedSequence(seed).spawn(_N_SENSORS)
+            child_seeds = np.random.SeedSequence(seed).spawn(n_slots)
             _seeds: list[int | None] = [int(cs.generate_state(1)[0]) for cs in child_seeds]
         else:
-            _seeds = [None] * _N_SENSORS
+            _seeds = [None] * n_slots
 
-        def _seed(offset: int) -> int | None:
-            return _seeds[offset]
+        # Build sensors from the registry using matched rates and seeds.
+        rate_overrides = {
+            "rgb_rate_hz": rgb_rate_hz,
+            "event_rate_hz": event_rate_hz,
+            "thermal_rate_hz": thermal_rate_hz,
+            "lidar_rate_hz": lidar_rate_hz,
+            "gnss_rate_hz": gnss_rate_hz,
+            "radio_rate_hz": radio_rate_hz,
+            "uwb_rate_hz": uwb_rate_hz,
+            "radar_rate_hz": radar_rate_hz,
+            "imu_rate_hz": imu_rate_hz,
+            "baro_rate_hz": baro_rate_hz,
+            "mag_rate_hz": mag_rate_hz,
+            "thermometer_rate_hz": thermometer_rate_hz,
+            "hygrometer_rate_hz": hygrometer_rate_hz,
+            "light_sensor_rate_hz": light_sensor_rate_hz,
+            "gas_sensor_rate_hz": gas_sensor_rate_hz,
+            "anemometer_rate_hz": anemometer_rate_hz,
+            "airspeed_rate_hz": airspeed_rate_hz,
+            "rangefinder_rate_hz": rangefinder_rate_hz,
+            "ultrasonic_rate_hz": ultrasonic_rate_hz,
+            "imaging_sonar_rate_hz": imaging_sonar_rate_hz,
+            "side_scan_rate_hz": side_scan_rate_hz,
+            "dvl_rate_hz": dvl_rate_hz,
+            "current_profiler_rate_hz": current_profiler_rate_hz,
+            "optical_flow_rate_hz": optical_flow_rate_hz,
+            "battery_rate_hz": battery_rate_hz,
+            "stereo_rate_hz": stereo_rate_hz,
+            "wheel_odometry_rate_hz": wheel_odometry_rate_hz,
+            "force_torque_rate_hz": force_torque_rate_hz,
+            "joint_state_rate_hz": joint_state_rate_hz,
+            "contact_rate_hz": contact_rate_hz,
+            "depth_camera_rate_hz": depth_camera_rate_hz,
+            "tactile_array_rate_hz": tactile_array_rate_hz,
+            "current_rate_hz": current_rate_hz,
+            "rpm_rate_hz": rpm_rate_hz,
+        }
 
-        return cls(
-            rgb_camera=CameraModel(update_rate_hz=rgb_rate_hz, seed=_seed(0)) if rgb_rate_hz > 0 else None,
-            event_camera=EventCameraModel(update_rate_hz=event_rate_hz, seed=_seed(1)) if event_rate_hz > 0 else None,
-            thermal_camera=(
-                ThermalCameraModel(update_rate_hz=thermal_rate_hz, seed=_seed(2)) if thermal_rate_hz > 0 else None
-            ),
-            lidar=LidarModel(update_rate_hz=lidar_rate_hz, seed=_seed(3)) if lidar_rate_hz > 0 else None,
-            gnss=GNSSModel(update_rate_hz=gnss_rate_hz, seed=_seed(4)) if gnss_rate_hz > 0 else None,
-            radio=RadioLinkModel(update_rate_hz=radio_rate_hz, seed=_seed(5)) if radio_rate_hz > 0 else None,
-            uwb=UWBRangingModel(update_rate_hz=uwb_rate_hz, seed=_seed(6)) if uwb_rate_hz > 0 else None,
-            radar=RadarModel(update_rate_hz=radar_rate_hz, seed=_seed(7)) if radar_rate_hz > 0 else None,
-            imu=IMUModel(update_rate_hz=imu_rate_hz, seed=_seed(8)) if imu_rate_hz > 0 else None,
-            barometer=BarometerModel(update_rate_hz=baro_rate_hz, seed=_seed(9)) if baro_rate_hz > 0 else None,
-            magnetometer=MagnetometerModel(update_rate_hz=mag_rate_hz, seed=_seed(10)) if mag_rate_hz > 0 else None,
-            thermometer=(
-                ThermometerModel(update_rate_hz=thermometer_rate_hz, seed=_seed(11))
-                if thermometer_rate_hz > 0
-                else None
-            ),
-            hygrometer=(
-                HygrometerModel(update_rate_hz=hygrometer_rate_hz, seed=_seed(12)) if hygrometer_rate_hz > 0 else None
-            ),
-            light_sensor=(
-                LightSensorModel(update_rate_hz=light_sensor_rate_hz, seed=_seed(13))
-                if light_sensor_rate_hz > 0
-                else None
-            ),
-            gas_sensor=(
-                GasSensorModel(update_rate_hz=gas_sensor_rate_hz, seed=_seed(14)) if gas_sensor_rate_hz > 0 else None
-            ),
-            anemometer=(
-                AnemometerModel(update_rate_hz=anemometer_rate_hz, seed=_seed(15)) if anemometer_rate_hz > 0 else None
-            ),
-            airspeed=AirspeedModel(update_rate_hz=airspeed_rate_hz, seed=_seed(16)) if airspeed_rate_hz > 0 else None,
-            rangefinder=(
-                RangefinderModel(update_rate_hz=rangefinder_rate_hz, seed=_seed(17))
-                if rangefinder_rate_hz > 0
-                else None
-            ),
-            ultrasonic=(
-                UltrasonicArrayModel(update_rate_hz=ultrasonic_rate_hz, seed=_seed(18))
-                if ultrasonic_rate_hz > 0
-                else None
-            ),
-            imaging_sonar=(
-                ImagingSonarModel(update_rate_hz=imaging_sonar_rate_hz, seed=_seed(19))
-                if imaging_sonar_rate_hz > 0
-                else None
-            ),
-            side_scan=(
-                SideScanSonarModel(update_rate_hz=side_scan_rate_hz, seed=_seed(20)) if side_scan_rate_hz > 0 else None
-            ),
-            dvl=(DVLModel(update_rate_hz=dvl_rate_hz, seed=_seed(21)) if dvl_rate_hz > 0 else None),
-            current_profiler=(
-                AcousticCurrentProfilerModel(update_rate_hz=current_profiler_rate_hz, seed=_seed(22))
-                if current_profiler_rate_hz > 0
-                else None
-            ),
-            optical_flow=(
-                OpticalFlowModel(update_rate_hz=optical_flow_rate_hz, seed=_seed(23))
-                if optical_flow_rate_hz > 0
-                else None
-            ),
-            battery=(BatteryModel(update_rate_hz=battery_rate_hz, seed=_seed(24)) if battery_rate_hz > 0 else None),
-            stereo_camera=(
-                StereoCameraModel(update_rate_hz=stereo_rate_hz, seed=_seed(25)) if stereo_rate_hz > 0 else None
-            ),
-            wheel_odometry=(
-                WheelOdometryModel(update_rate_hz=wheel_odometry_rate_hz, seed=_seed(26))
-                if wheel_odometry_rate_hz > 0
-                else None
-            ),
-            force_torque=(
-                ForceTorqueSensorModel(update_rate_hz=force_torque_rate_hz, seed=_seed(27))
-                if force_torque_rate_hz > 0
-                else None
-            ),
-            joint_state=(
-                JointStateSensor(update_rate_hz=joint_state_rate_hz, seed=_seed(28))
-                if joint_state_rate_hz > 0
-                else None
-            ),
-            contact=(ContactSensor(update_rate_hz=contact_rate_hz, seed=_seed(29)) if contact_rate_hz > 0 else None),
-            depth_camera=(
-                DepthCameraModel(update_rate_hz=depth_camera_rate_hz, seed=_seed(30))
-                if depth_camera_rate_hz > 0
-                else None
-            ),
-            tactile_array=(
-                TactileArraySensor(update_rate_hz=tactile_array_rate_hz, seed=_seed(31))
-                if tactile_array_rate_hz > 0
-                else None
-            ),
-            current=(CurrentSensor(update_rate_hz=current_rate_hz, seed=_seed(32)) if current_rate_hz > 0 else None),
-            rpm=(RPMSensor(update_rate_hz=rpm_rate_hz, seed=_seed(33)) if rpm_rate_hz > 0 else None),
-        )
+        kwargs: dict[str, Any] = {}
+        for idx, (_kwarg, _display, model_cls, rate_param, _dflt, _cfg) in enumerate(_SENSOR_SLOTS):
+            rate = rate_overrides[rate_param]
+            if rate > 0:
+                kwargs[_kwarg] = model_cls(update_rate_hz=rate, seed=_seeds[idx])
+
+        return cls(**kwargs)
 
     @classmethod
     def from_config(cls, config: "SensorSuiteConfig") -> SensorSuite:
@@ -454,64 +425,13 @@ class SensorSuite:
             )
             suite = SensorSuite.from_config(cfg)
         """
-        return cls(
-            rgb_camera=CameraModel.from_config(config.rgb) if config.rgb is not None else None,
-            event_camera=(EventCameraModel.from_config(config.event) if config.event is not None else None),
-            thermal_camera=(ThermalCameraModel.from_config(config.thermal) if config.thermal is not None else None),
-            lidar=LidarModel.from_config(config.lidar) if config.lidar is not None else None,
-            gnss=GNSSModel.from_config(config.gnss) if config.gnss is not None else None,
-            radio=RadioLinkModel.from_config(config.radio) if config.radio is not None else None,
-            uwb=UWBRangingModel.from_config(config.uwb) if config.uwb is not None else None,
-            radar=RadarModel.from_config(config.radar) if config.radar is not None else None,
-            imu=IMUModel.from_config(config.imu) if config.imu is not None else None,
-            barometer=BarometerModel.from_config(config.barometer) if config.barometer is not None else None,
-            magnetometer=(
-                MagnetometerModel.from_config(config.magnetometer) if config.magnetometer is not None else None
-            ),
-            thermometer=(ThermometerModel.from_config(config.thermometer) if config.thermometer is not None else None),
-            hygrometer=(HygrometerModel.from_config(config.hygrometer) if config.hygrometer is not None else None),
-            light_sensor=(
-                LightSensorModel.from_config(config.light_sensor) if config.light_sensor is not None else None
-            ),
-            gas_sensor=(GasSensorModel.from_config(config.gas_sensor) if config.gas_sensor is not None else None),
-            anemometer=(AnemometerModel.from_config(config.anemometer) if config.anemometer is not None else None),
-            airspeed=AirspeedModel.from_config(config.airspeed) if config.airspeed is not None else None,
-            rangefinder=(RangefinderModel.from_config(config.rangefinder) if config.rangefinder is not None else None),
-            ultrasonic=(UltrasonicArrayModel.from_config(config.ultrasonic) if config.ultrasonic is not None else None),
-            imaging_sonar=(
-                ImagingSonarModel.from_config(config.imaging_sonar) if config.imaging_sonar is not None else None
-            ),
-            side_scan=(SideScanSonarModel.from_config(config.side_scan) if config.side_scan is not None else None),
-            dvl=(DVLModel.from_config(config.dvl) if config.dvl is not None else None),
-            current_profiler=(
-                AcousticCurrentProfilerModel.from_config(config.current_profiler)
-                if config.current_profiler is not None
-                else None
-            ),
-            optical_flow=(
-                OpticalFlowModel.from_config(config.optical_flow) if config.optical_flow is not None else None
-            ),
-            battery=(BatteryModel.from_config(config.battery) if config.battery is not None else None),
-            stereo_camera=(
-                StereoCameraModel.from_config(config.stereo_camera) if config.stereo_camera is not None else None
-            ),
-            wheel_odometry=(
-                WheelOdometryModel.from_config(config.wheel_odometry) if config.wheel_odometry is not None else None
-            ),
-            force_torque=(
-                ForceTorqueSensorModel.from_config(config.force_torque) if config.force_torque is not None else None
-            ),
-            joint_state=(JointStateSensor.from_config(config.joint_state) if config.joint_state is not None else None),
-            contact=(ContactSensor.from_config(config.contact) if config.contact is not None else None),
-            depth_camera=(
-                DepthCameraModel.from_config(config.depth_camera) if config.depth_camera is not None else None
-            ),
-            tactile_array=(
-                TactileArraySensor.from_config(config.tactile_array) if config.tactile_array is not None else None
-            ),
-            current=(CurrentSensor.from_config(config.current) if config.current is not None else None),
-            rpm=(RPMSensor.from_config(config.rpm) if config.rpm is not None else None),
-        )
+        kwargs: dict[str, Any] = {}
+        for kwarg, _display, model_cls, _rate, _dflt, cfg_attr in _SENSOR_SLOTS:
+            cfg = getattr(config, cfg_attr, None)
+            if cfg is not None:
+                kwargs[kwarg] = model_cls.from_config(cfg)
+
+        return cls(**kwargs)
 
     # ------------------------------------------------------------------
     # Sensor lifecycle
