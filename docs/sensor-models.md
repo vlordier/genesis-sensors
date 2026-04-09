@@ -80,7 +80,7 @@ $$\omega_\text{meas} = (1 + s_\omega) \, R_\text{cross} \, \omega_\text{true} + 
 !!! example "Generated example"
     <figure class="generated-example">
       <img src="assets/sensors/imu.svg" alt="Generated IMU output" loading="lazy" />
-      <figcaption>Noisy accelerometer and gyroscope traces produced by <code>IMUModel</code> on the synthetic trajectory.</figcaption>
+      <figcaption>Noisy accelerometer and gyroscope traces produced by <code>IMUModel</code> on the Genesis perception demo trajectory.</figcaption>
     </figure>
 
 ### GNSS (Global Navigation Satellite System)

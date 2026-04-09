@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import importlib.util
+import sys
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -117,3 +121,33 @@ def test_synthetic_state_and_preset_helpers_expose_upstream_surface() -> None:
     assert "TELEDYNE_WORKHORSE_600" in list_presets(kind="current_profiler")
     assert get_preset("FLIR_BOSON_320").name == "FLIR_BOSON_320"
     assert get_preset("TSL2591_LIGHT").name == "TSL2591_LIGHT"
+
+
+def _load_doc_assets_module():
+    module_name = "_test_generate_sensor_doc_assets"
+    module_path = Path(__file__).resolve().parents[1] / "examples" / "generate_sensor_doc_assets.py"
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_doc_asset_specs_are_all_backed_by_genesis_demos() -> None:
+    doc_assets = _load_doc_assets_module()
+
+    assert set(doc_assets._build_specs()) <= set(doc_assets.DEMO_SENSOR_KEYS)
+
+
+def test_generate_assets_requires_genesis_capture(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    doc_assets = _load_doc_assets_module()
+
+    monkeypatch.setattr(
+        doc_assets,
+        "_collect_genesis_captures",
+        lambda specs, *, frames, dt, seed, only: {},
+    )
+
+    with pytest.raises(RuntimeError, match="Genesis-backed capture"):
+        doc_assets.generate_assets(tmp_path, frames=2, dt=0.05, seed=0, only={"imu"})

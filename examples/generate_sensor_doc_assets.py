@@ -46,7 +46,7 @@ from genesis_sensors import (
     WheelOdometryModel,
 )
 from genesis_sensors.scenes import build_franka_demo, build_perception_demo
-from genesis_sensors.synthetic import GNSS_ORIGIN_LLH, make_synthetic_sensor_state
+from genesis_sensors.synthetic import GNSS_ORIGIN_LLH
 
 SVG_COLORS = ("#2563eb", "#dc2626", "#059669", "#d97706")
 
@@ -286,37 +286,6 @@ def _extract_array_features(arr: np.ndarray, prefix: str) -> dict[str, float]:
     return features
 
 
-def _collect_history(sensor: Any, frames: int, dt: float) -> tuple[dict[str, list[float]], dict[str, Any]]:
-    history: dict[str, list[float]] = {}
-    sensor.reset()
-    last_obs: dict[str, Any] = {}
-    best_obs: dict[str, Any] = {}
-
-    for frame_idx in range(frames):
-        sim_time = frame_idx * dt
-        state = make_synthetic_sensor_state(frame_idx, dt=dt, total_frames=max(frames, 2))
-        if isinstance(sensor, RadioLinkModel):
-            sensor.transmit(
-                packet={"frame": frame_idx},
-                src_pos=np.asarray(state["pos"], dtype=np.float64),
-                dst_pos=np.array([0.0, 0.0, 1.0], dtype=np.float64),
-                sim_time=sim_time,
-            )
-        obs = sensor.step(sim_time, state)
-        if isinstance(obs, dict):
-            last_obs = obs
-            if any(_observation_has_signal(value) for value in obs.values()):
-                best_obs = obs
-        features = _extract_features(obs)
-
-        all_keys = set(history) | set(features)
-        for key in all_keys:
-            history.setdefault(key, [])
-            history[key].append(float(features.get(key, np.nan)))
-
-    return history, (best_obs or last_obs)
-
-
 def _collect_demo_capture(
     build_demo: Callable[..., Any], *, label: str, frames: int, dt: float, seed: int
 ) -> DemoCapture:
@@ -379,17 +348,14 @@ def _collect_genesis_captures(
 
     for demo_idx, demo_name in enumerate(sorted(requested_demos)):
         label, builder = DEMO_BUILDERS[demo_name]
-        try:
-            captures[demo_name] = _collect_demo_capture(
-                builder,
-                label=label,
-                frames=frames,
-                dt=dt,
-                seed=seed + 10_000 * (demo_idx + 1),
-            )
-            print(f"captured {label.lower()} observations")
-        except Exception as exc:  # pragma: no cover - best-effort Genesis docs generation
-            print(f"warning: {label.lower()} capture failed ({type(exc).__name__}: {exc}); using fallback inputs")
+        captures[demo_name] = _collect_demo_capture(
+            builder,
+            label=label,
+            frames=frames,
+            dt=dt,
+            seed=seed + 10_000 * (demo_idx + 1),
+        )
+        print(f"captured {label.lower()} observations")
 
     return captures
 
@@ -759,42 +725,43 @@ def _write_placeholder(path: Path, title: str, message: str) -> None:
 def generate_assets(output_dir: Path, frames: int, dt: float, seed: int, only: set[str] | None = None) -> list[Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     specs = _build_specs()
+    requested_slugs = [slug for slug in specs if not only or slug in only]
+    missing_bindings = sorted(set(requested_slugs) - set(DEMO_SENSOR_KEYS))
+    if missing_bindings:
+        missing = ", ".join(missing_bindings)
+        raise RuntimeError(f"Genesis demo bindings are missing for: {missing}")
+
     captures = _collect_genesis_captures(specs, frames=frames, dt=dt, seed=seed, only=only)
     written: list[Path] = []
 
-    for idx, (slug, spec) in enumerate(specs.items()):
+    for slug, spec in specs.items():
         if only and slug not in only:
             continue
+
+        demo_name, sensor_name = DEMO_SENSOR_KEYS[slug]
+        capture = captures.get(demo_name)
+        if capture is None:
+            raise RuntimeError(f"Genesis-backed capture missing for '{slug}' (demo='{demo_name}')")
+
+        history = capture.history_by_sensor.get(sensor_name, {})
+        obs = dict(capture.observations.get(sensor_name, {}))
+        if not history and not obs:
+            raise RuntimeError(
+                f"Genesis-backed capture for '{slug}' did not produce any observation payloads (sensor='{sensor_name}')"
+            )
+
+        provenance = f"Generated from {frames} {capture.label} timesteps (dt={dt:.2f}s) via examples/generate_sensor_doc_assets.py"
         out_path = output_dir / f"{slug}.svg"
-        try:
-            history: dict[str, list[float]] = {}
-            obs: dict[str, Any] = {}
-            provenance = f"Generated from {frames} fallback standalone timesteps (dt={dt:.2f}s) via examples/generate_sensor_doc_assets.py"
 
-            demo_binding = DEMO_SENSOR_KEYS.get(slug)
-            if demo_binding is not None:
-                demo_name, sensor_name = demo_binding
-                capture = captures.get(demo_name)
-                if capture is not None:
-                    history = capture.history_by_sensor.get(sensor_name, {})
-                    obs = dict(capture.observations.get(sensor_name, {}))
-                    if history or obs:
-                        provenance = f"Generated from {frames} {capture.label} timesteps (dt={dt:.2f}s) via examples/generate_sensor_doc_assets.py"
-
-            if not history and not obs:
-                sensor = spec.factory(seed + idx)
-                history, obs = _collect_history(sensor, frames=frames, dt=dt)
-
-            if spec.snapshot_kind:
-                panels = _snapshot_panels(spec.snapshot_kind, obs)
-                if panels:
-                    _write_snapshot_svg(out_path, spec.title, panels, provenance)
-                else:
-                    _write_svg_plot(out_path, spec.title, history, provenance)
+        if spec.snapshot_kind:
+            panels = _snapshot_panels(spec.snapshot_kind, obs)
+            if panels:
+                _write_snapshot_svg(out_path, spec.title, panels, provenance)
             else:
                 _write_svg_plot(out_path, spec.title, history, provenance)
-        except Exception as exc:  # pragma: no cover - best-effort docs asset generation
-            _write_placeholder(out_path, spec.title, f"Example generation failed: {type(exc).__name__}: {exc}")
+        else:
+            _write_svg_plot(out_path, spec.title, history, provenance)
+
         written.append(out_path)
         print(f"wrote {out_path}")
 
