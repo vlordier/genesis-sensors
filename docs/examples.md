@@ -4,6 +4,25 @@ These are end-to-end examples using **`genesis-world`** (`import genesis as gs`)
 **`genesis_sensors`**. The plots and snapshots shown below are generated from the same
 Genesis-backed demo scenes used by the documentation asset pipeline.
 
+> **How to read this page:** Genesis provides the scene, poses, contacts, and rendered arrays.
+> `genesis_sensors` then applies the sensor-specific modeling layers (noise, bias, clipping,
+> dropout, and modality-specific effects). The outputs below are simulated observations from a live
+> Genesis scene, not hardware logs.
+
+## Which example should I start with?
+
+| Example | Best for | Main outputs |
+| --- | --- | --- |
+| `examples/perception_demo.py` | drone / perception stack smoke test | RGB, LiDAR, thermal, radio, GNSS, IMU |
+| `examples/franka_demo.py` | manipulation / wrist sensing | force-torque, depth, tactile, current, joint state |
+| `make_drone_perception_rig(...)` | attaching sensors to your own `gs.Scene` | whichever sensors you enable |
+
+## Before you run these
+
+- install `genesis-world`, `torch`, and `genesis-sensors`
+- use `show_viewer=False` for a fast headless smoke test
+- the snippets below are intentionally short; increase `--steps` for longer traces
+
 ---
 
 ## Drone perception stack

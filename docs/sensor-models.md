@@ -10,6 +10,29 @@ and how configuration parameters map to physical behaviour.
 > Each sensor section below includes a **Generated example** panel showing the
 > emitted output directly in the documentation.
 
+## What this page is for
+
+Use this page when you want to:
+
+- understand why a sensor output looks the way it does
+- map a config field to its physical effect
+- compare sensor families without diving straight into the API reference
+
+## Provenance and limits
+
+| Layer | Source / responsibility |
+| --- | --- |
+| scene geometry, poses, contacts, rendered RGB/depth/range | Genesis |
+| sensor corruption, noise, bias, clipping, dropout, thermal/radio effects | `genesis_sensors` runtime models |
+| generated example panels in this page | produced from Genesis demo runs and then passed through the runtime models |
+| not claimed here | hardware validation, calibration data, or recorded real-world logs |
+
+To regenerate the figures locally:
+
+```bash
+PYTHONPATH=src python examples/generate_sensor_doc_assets.py --output-dir docs/assets/sensors
+```
+
 ---
 
 ## General Pipeline
