@@ -153,8 +153,10 @@ def test_config_roundtrip(model_name: str, config_name: str) -> None:
 # Preset → sensor validation tests
 # ────────────────────────────────────────────────────────────────────
 
+
 def _all_preset_names() -> list[str]:
     from genesis_sensors._runtime_sensors.presets import _REGISTRY
+
     return sorted(_REGISTRY.keys())
 
 

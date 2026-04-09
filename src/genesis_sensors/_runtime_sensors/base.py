@@ -81,9 +81,13 @@ class BaseSensor(ABC, Generic[ObservationT]):
             distortion, timing artefacts, …).
         """
 
-    @abstractmethod
     def get_observation(self) -> ObservationT | SensorObservation:
-        """Return the most recent sensor observation without re-computing it."""
+        """Return the most recent sensor observation without re-computing it.
+
+        Returns an empty dict if ``step()`` has not yet been called.
+        Subclasses may override this to return a richer default.
+        """
+        return getattr(self, "_last_obs", {})
 
     # ------------------------------------------------------------------
     # Scheduling helpers

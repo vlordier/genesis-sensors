@@ -87,7 +87,6 @@ class ThermometerModel(BaseSensor[ThermometerObservation]):
             rng=self._rng,
         )
         self._response_alpha = min(1.0, self._dt / self.response_tau_s)
-        self._bias_c = float(self._rng.normal(0.0, self.bias_sigma_c))
         self._temp_state_c: float | None = None
         self._last_obs: ThermometerObservation | SensorObservation = {}
 
@@ -167,7 +166,6 @@ class HygrometerModel(BaseSensor[HygrometerObservation]):
             rng=self._rng,
         )
         self._response_alpha = min(1.0, self._dt / self.response_tau_s)
-        self._bias_pct = float(self._rng.normal(0.0, self.bias_sigma_pct))
         self._rh_state_pct: float | None = None
         self._last_obs: HygrometerObservation | SensorObservation = {}
 

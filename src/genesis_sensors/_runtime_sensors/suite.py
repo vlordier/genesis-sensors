@@ -53,6 +53,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from ._gauss_markov import GaussMarkovProcess
 from .acoustic_navigation import AcousticCurrentProfilerModel, DVLModel
 from .airspeed import AirspeedModel
 from .barometer import BarometerModel
@@ -471,6 +472,35 @@ class SensorSuite:
     def sensor_names(self) -> list[str]:
         """Return all registered sensor names."""
         return self._scheduler.sensor_names()
+
+    def set_seed(self, base_seed: int) -> None:
+        """Re-seed every registered sensor deterministically.
+
+        Each sensor receives an independent child seed derived via
+        :class:`numpy.random.SeedSequence` so that streams are
+        statistically uncorrelated.
+
+        Parameters
+        ----------
+        base_seed:
+            Integer seed from which all per-sensor seeds are derived.
+        """
+        names = self._scheduler.sensor_names()
+        child_seeds = np.random.SeedSequence(base_seed).spawn(len(names))
+        for name, cs in zip(names, child_seeds):
+            sensor = self._scheduler.get_sensor(name)
+            new_seed = int(cs.generate_state(1)[0])
+            new_rng = np.random.default_rng(new_seed)
+            if hasattr(sensor, "_rng"):
+                sensor._rng = new_rng
+            if hasattr(sensor, "_seed"):
+                sensor._seed = new_seed
+            # Also update any GaussMarkovProcess instances that hold
+            # their own reference to the sensor's rng.
+            for attr_name in dir(sensor):
+                attr = getattr(sensor, attr_name, None)
+                if isinstance(attr, GaussMarkovProcess):
+                    attr._rng = new_rng
 
     @property
     def scheduler(self) -> SensorScheduler:

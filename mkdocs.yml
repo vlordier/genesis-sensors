@@ -8,16 +8,101 @@ theme:
   features:
     - navigation.tabs
     - navigation.sections
+    - navigation.expand
     - content.code.copy
+    - toc.integrate
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: numpy
+            show_root_heading: true
+            show_source: false
+            members_order: source
+            show_category_heading: true
+            merge_init_into_class: true
+            show_if_no_docstring: false
+            inherited_members: false
+            separate_signature: true
+            show_signature_annotations: true
+
 nav:
   - Home: index.md
   - Overview: overview.md
+  - Architecture: architecture.md
+  - API Reference:
+      - api/index.md
+      - Core:
+          - Base Sensor: api/base.md
+          - Scheduler: api/scheduler.md
+          - Sensor Suite: api/suite.md
+          - Configuration: api/config.md
+          - Observation Types: api/types.md
+          - Presets: api/presets.md
+          - Gauss-Markov Process: api/gauss_markov.md
+      - Navigation:
+          - IMU: api/imu.md
+          - GNSS / GPS: api/gnss.md
+          - Barometer: api/barometer.md
+          - Magnetometer: api/magnetometer.md
+          - Airspeed: api/airspeed.md
+          - Optical Flow: api/optical_flow.md
+          - Wheel Odometry: api/wheel_odometry.md
+      - Vision:
+          - RGB Camera: api/camera_model.md
+          - Stereo Camera: api/stereo_camera.md
+          - Depth Camera: api/depth_camera.md
+          - Thermal Camera: api/thermal_camera.md
+          - Event Camera: api/event_camera.md
+          - LiDAR: api/lidar.md
+      - Range Sensing:
+          - Rangefinder: api/rangefinder.md
+          - Ultrasonic Array: api/ultrasonic.md
+          - Sonar: api/sonar.md
+          - DVL & Current Profiler: api/acoustic_navigation.md
+      - Environmental:
+          - Environmental Sensors: api/environmental.md
+          - Battery: api/battery.md
+      - Communication:
+          - UWB & Radar: api/wireless.md
+          - Radio Link: api/radio.md
+      - Manipulation:
+          - Force / Torque: api/force_torque.md
+          - Joint State: api/joint_state.md
+          - Contact Sensor: api/contact_sensor.md
+          - Tactile Array: api/tactile_array.md
+          - Current Sensor: api/current_sensor.md
+          - RPM Sensor: api/rpm_sensor.md
   - Contributing: contributing.md
   - Release Guide: release.md
+
 markdown_extensions:
   - admonition
   - toc:
       permalink: true
   - tables
-  - pymdownx.highlight
+  - pymdownx.highlight:
+      anchor_linenums: true
   - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
