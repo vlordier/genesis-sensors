@@ -2,13 +2,13 @@
   <rect width="100%" height="100%" fill="#ffffff" />
   <rect x="14" y="14" width="732" height="252" rx="12" fill="#f8fafc" stroke="#cbd5e1" />
   <text x="28" y="38" font-size="20" font-weight="700" fill="#0f172a">Hygrometer</text>
-  <text x="28" y="258" font-size="12" fill="#475569">Generated from 24 synthetic timesteps (dt=0.05s) via examples/generate_sensor_doc_assets.py</text>
+  <text x="28" y="258" font-size="12" fill="#475569">Generated from 24 Genesis perception demo timesteps (dt=0.05s) via examples/generate_sensor_doc_assets.py</text>
   <text x="28" y="54" font-size="12" fill="#475569">Representative scalar summaries extracted from the sensor observation dict</text>
   <line x1="56" y1="56.0" x2="516" y2="56.0" stroke="#e5e7eb" /><line x1="56" y1="98.5" x2="516" y2="98.5" stroke="#e5e7eb" /><line x1="56" y1="141.0" x2="516" y2="141.0" stroke="#e5e7eb" /><line x1="56" y1="183.5" x2="516" y2="183.5" stroke="#e5e7eb" /><line x1="56" y1="226.0" x2="516" y2="226.0" stroke="#e5e7eb" />
   <line x1="56" y1="56" x2="56" y2="226" stroke="#94a3b8" stroke-width="1.5" />
   <line x1="56" y1="226" x2="516" y2="226" stroke="#94a3b8" stroke-width="1.5" />
-  <text x="18" y="64" font-size="11" fill="#64748b">90.8</text>
-  <text x="18" y="226" font-size="11" fill="#64748b">16.6</text>
-  <polyline fill="none" stroke="#2563eb" stroke-width="2.5" points="56.0,87.9 76.0,87.1 96.0,85.9 116.0,80.6 136.0,80.3 156.0,80.9 176.0,79.1 196.0,76.2 216.0,75.7 236.0,72.4 256.0,74.2 276.0,78.5 296.0,75.4 316.0,77.5 336.0,75.0 356.0,80.2 376.0,73.9 396.0,56.6 416.0,61.8 436.0,56.0 456.0,66.2 476.0,86.1 496.0,86.5 516.0,92.4" /><polyline fill="none" stroke="#dc2626" stroke-width="2.5" points="56.0,226.0 76.0,225.3 96.0,224.4 116.0,222.8 136.0,222.2 156.0,221.8 176.0,221.0 196.0,220.0 216.0,219.5 236.0,218.6 256.0,218.7 276.0,219.4 296.0,218.6 316.0,219.0 336.0,218.5 356.0,219.7 376.0,218.6 396.0,215.6 416.0,216.8 436.0,216.1 456.0,218.4 476.0,222.8 496.0,223.4 516.0,225.1" />
-  <rect x="548" y="54" width="12" height="12" rx="2" fill="#2563eb" /><text x="568" y="64" font-size="12" fill="#111827">relative humidity pct: 74.8</text><rect x="548" y="78" width="12" height="12" rx="2" fill="#dc2626" /><text x="568" y="88" font-size="12" fill="#111827">dew point c: 16.9</text>
+  <text x="18" y="64" font-size="11" fill="#64748b">81.5</text>
+  <text x="18" y="226" font-size="11" fill="#64748b">17.4</text>
+  <polyline fill="none" stroke="#2563eb" stroke-width="2.5" points="56.0,69.2 76.0,69.2 96.0,69.2 116.0,69.2 136.0,69.2 156.0,69.2 176.0,69.2 196.0,69.2 216.0,69.2 236.0,69.2 256.0,56.0 276.0,56.0 296.0,56.0 316.0,56.0 336.0,56.0 356.0,56.0 376.0,56.0 396.0,56.0 416.0,56.0 436.0,56.0 456.0,62.9 476.0,62.9 496.0,62.9 516.0,62.9" /><polyline fill="none" stroke="#dc2626" stroke-width="2.5" points="56.0,226.0 76.0,226.0 96.0,226.0 116.0,226.0 136.0,226.0 156.0,226.0 176.0,226.0 196.0,226.0 216.0,226.0 236.0,226.0 256.0,218.0 276.0,218.0 296.0,218.0 316.0,218.0 336.0,218.0 356.0,218.0 376.0,218.0 396.0,218.0 416.0,218.0 436.0,218.0 456.0,220.8 476.0,220.8 496.0,220.8 516.0,220.8" />
+  <rect x="548" y="54" width="12" height="12" rx="2" fill="#2563eb" /><text x="568" y="64" font-size="12" fill="#111827">relative humidity pct: 78.9</text><rect x="548" y="78" width="12" height="12" rx="2" fill="#dc2626" /><text x="568" y="88" font-size="12" fill="#111827">dew point c: 19.4</text>
 </svg>

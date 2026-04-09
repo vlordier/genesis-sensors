@@ -45,6 +45,7 @@ from genesis_sensors import (
     UWBRangingModel,
     WheelOdometryModel,
 )
+from genesis_sensors.scenes import build_franka_demo, build_perception_demo
 from genesis_sensors.synthetic import GNSS_ORIGIN_LLH, make_synthetic_sensor_state
 
 SVG_COLORS = ("#2563eb", "#dc2626", "#059669", "#d97706")
@@ -55,6 +56,56 @@ class ExampleSpec:
     title: str
     factory: Callable[[int], Any]
     snapshot_kind: str | None = None
+
+
+@dataclass(frozen=True)
+class DemoCapture:
+    label: str
+    history_by_sensor: dict[str, dict[str, list[float]]]
+    observations: dict[str, dict[str, Any]]
+
+
+DEMO_BUILDERS: dict[str, tuple[str, Callable[..., Any]]] = {
+    "perception": ("Genesis perception demo", build_perception_demo),
+    "franka": ("Genesis Franka demo", build_franka_demo),
+}
+
+DEMO_SENSOR_KEYS: dict[str, tuple[str, str]] = {
+    "imu": ("perception", "imu"),
+    "gnss": ("perception", "gnss"),
+    "barometer": ("perception", "barometer"),
+    "magnetometer": ("perception", "magnetometer"),
+    "airspeed": ("perception", "airspeed"),
+    "optical_flow": ("perception", "optical_flow"),
+    "wheel_odometry": ("perception", "wheel_odometry"),
+    "camera_model": ("perception", "rgb"),
+    "stereo_camera": ("perception", "stereo"),
+    "depth_camera": ("franka", "depth_camera"),
+    "thermal_camera": ("perception", "thermal"),
+    "event_camera": ("perception", "events"),
+    "lidar": ("perception", "lidar"),
+    "rangefinder": ("perception", "rangefinder"),
+    "ultrasonic": ("perception", "ultrasonic"),
+    "imaging_sonar": ("perception", "imaging_sonar"),
+    "side_scan_sonar": ("perception", "side_scan"),
+    "dvl": ("perception", "dvl"),
+    "acoustic_current_profiler": ("perception", "current_profiler"),
+    "thermometer": ("perception", "thermometer"),
+    "hygrometer": ("perception", "hygrometer"),
+    "light_sensor": ("perception", "light_sensor"),
+    "gas_sensor": ("perception", "gas_sensor"),
+    "anemometer": ("perception", "anemometer"),
+    "battery": ("perception", "battery"),
+    "radio": ("perception", "radio"),
+    "uwb_ranging": ("perception", "uwb"),
+    "radar": ("perception", "radar"),
+    "force_torque": ("franka", "force_torque"),
+    "joint_state": ("franka", "joint_state"),
+    "contact_sensor": ("franka", "contact"),
+    "tactile_array": ("franka", "tactile_array"),
+    "current_sensor": ("franka", "current"),
+    "rpm_sensor": ("franka", "rpm"),
+}
 
 
 def _build_specs() -> dict[str, ExampleSpec]:
@@ -264,6 +315,83 @@ def _collect_history(sensor: Any, frames: int, dt: float) -> tuple[dict[str, lis
             history[key].append(float(features.get(key, np.nan)))
 
     return history, (best_obs or last_obs)
+
+
+def _collect_demo_capture(
+    build_demo: Callable[..., Any], *, label: str, frames: int, dt: float, seed: int
+) -> DemoCapture:
+    import genesis as gs
+
+    demo = None
+    history_by_sensor: dict[str, dict[str, list[float]]] = {}
+    last_obs: dict[str, dict[str, Any]] = {}
+    best_obs: dict[str, dict[str, Any]] = {}
+
+    try:
+        gs.destroy()
+        demo = build_demo(dt=dt, show_viewer=False, use_gpu=False, seed=seed)
+        demo.rig.reset()
+
+        for frame_idx in range(frames):
+            sim_time = frame_idx * dt
+            if demo.controller is not None:
+                demo.controller(frame_idx)
+            demo.scene.step()
+            obs_map = demo.rig.step(sim_time)
+
+            for sensor_name, obs in obs_map.items():
+                if isinstance(obs, dict):
+                    last_obs[sensor_name] = obs
+                    if any(_observation_has_signal(value) for value in obs.values()):
+                        best_obs[sensor_name] = obs
+                features = _extract_features(obs)
+                history = history_by_sensor.setdefault(sensor_name, {})
+                all_keys = set(history) | set(features)
+                for key in all_keys:
+                    history.setdefault(key, [])
+                    history[key].append(float(features.get(key, np.nan)))
+
+        observations = {
+            name: dict(best_obs.get(name) or last_obs.get(name, {})) for name in set(history_by_sensor) | set(last_obs)
+        }
+        return DemoCapture(label=label, history_by_sensor=history_by_sensor, observations=observations)
+    finally:
+        if demo is not None:
+            try:
+                demo.scene.destroy()
+            except Exception:
+                pass
+        try:
+            gs.destroy()
+        except Exception:
+            pass
+
+
+def _collect_genesis_captures(
+    specs: dict[str, ExampleSpec], *, frames: int, dt: float, seed: int, only: set[str] | None
+) -> dict[str, DemoCapture]:
+    requested_demos = {
+        demo_name
+        for slug, (demo_name, _sensor_name) in DEMO_SENSOR_KEYS.items()
+        if slug in specs and (not only or slug in only)
+    }
+    captures: dict[str, DemoCapture] = {}
+
+    for demo_idx, demo_name in enumerate(sorted(requested_demos)):
+        label, builder = DEMO_BUILDERS[demo_name]
+        try:
+            captures[demo_name] = _collect_demo_capture(
+                builder,
+                label=label,
+                frames=frames,
+                dt=dt,
+                seed=seed + 10_000 * (demo_idx + 1),
+            )
+            print(f"captured {label.lower()} observations")
+        except Exception as exc:  # pragma: no cover - best-effort Genesis docs generation
+            print(f"warning: {label.lower()} capture failed ({type(exc).__name__}: {exc}); using fallback inputs")
+
+    return captures
 
 
 def _observation_has_signal(value: Any) -> bool:
@@ -518,7 +646,7 @@ def _image_rects(rgb: np.ndarray, x0: float, y0: float, scale: float) -> str:
     return "".join(rects)
 
 
-def _write_snapshot_svg(path: Path, title: str, panels: list[tuple[str, np.ndarray]], frames: int, dt: float) -> None:
+def _write_snapshot_svg(path: Path, title: str, panels: list[tuple[str, np.ndarray]], provenance: str) -> None:
     if not panels:
         _write_placeholder(path, title, "No image-like observation payload was available for this sensor.")
         return
@@ -537,7 +665,7 @@ def _write_snapshot_svg(path: Path, title: str, panels: list[tuple[str, np.ndarr
         '  <rect width="100%" height="100%" fill="#ffffff" />',
         f'  <rect x="12" y="12" width="{width - 24}" height="{height - 24}" rx="12" fill="#f8fafc" stroke="#cbd5e1" />',
         f'  <text x="24" y="38" font-size="20" font-weight="700" fill="#0f172a">{html.escape(title)}</text>',
-        '  <text x="24" y="56" font-size="12" fill="#475569">Actual snapshot rendered from the real sensor observation array</text>',
+        '  <text x="24" y="56" font-size="12" fill="#475569">Snapshot rendered from a Genesis-driven sensor observation array</text>',
     ]
 
     cursor_x = left
@@ -552,14 +680,12 @@ def _write_snapshot_svg(path: Path, title: str, panels: list[tuple[str, np.ndarr
         parts.append(_image_rects(panel, cursor_x, top, scale))
         cursor_x += panel_w * scale + panel_gap
 
-    parts.append(
-        f'  <text x="24" y="{height - 18}" font-size="12" fill="#475569">Generated from {frames} synthetic timesteps (dt={dt:.2f}s) via examples/generate_sensor_doc_assets.py</text>'
-    )
+    parts.append(f'  <text x="24" y="{height - 18}" font-size="12" fill="#475569">{html.escape(provenance)}</text>')
     parts.append("</svg>\n")
     path.write_text("\n".join(parts), encoding="utf-8")
 
 
-def _write_svg_plot(path: Path, title: str, history: dict[str, list[float]], frames: int, dt: float) -> None:
+def _write_svg_plot(path: Path, title: str, history: dict[str, list[float]], provenance: str) -> None:
     width = 760
     height = 280
     plot_x = 56
@@ -604,7 +730,7 @@ def _write_svg_plot(path: Path, title: str, history: dict[str, list[float]], fra
   <rect width="100%" height="100%" fill="#ffffff" />
   <rect x="14" y="14" width="732" height="252" rx="12" fill="#f8fafc" stroke="#cbd5e1" />
   <text x="28" y="38" font-size="20" font-weight="700" fill="#0f172a">{html.escape(title)}</text>
-  <text x="28" y="258" font-size="12" fill="#475569">Generated from {frames} synthetic timesteps (dt={dt:.2f}s) via examples/generate_sensor_doc_assets.py</text>
+  <text x="28" y="258" font-size="12" fill="#475569">{html.escape(provenance)}</text>
   <text x="28" y="54" font-size="12" fill="#475569">Representative scalar summaries extracted from the sensor observation dict</text>
   {"".join(grid_lines)}
   <line x1="{plot_x}" y1="{plot_y}" x2="{plot_x}" y2="{plot_y + plot_h}" stroke="#94a3b8" stroke-width="1.5" />
@@ -633,6 +759,7 @@ def _write_placeholder(path: Path, title: str, message: str) -> None:
 def generate_assets(output_dir: Path, frames: int, dt: float, seed: int, only: set[str] | None = None) -> list[Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     specs = _build_specs()
+    captures = _collect_genesis_captures(specs, frames=frames, dt=dt, seed=seed, only=only)
     written: list[Path] = []
 
     for idx, (slug, spec) in enumerate(specs.items()):
@@ -640,16 +767,32 @@ def generate_assets(output_dir: Path, frames: int, dt: float, seed: int, only: s
             continue
         out_path = output_dir / f"{slug}.svg"
         try:
-            sensor = spec.factory(seed + idx)
-            history, obs = _collect_history(sensor, frames=frames, dt=dt)
+            history: dict[str, list[float]] = {}
+            obs: dict[str, Any] = {}
+            provenance = f"Generated from {frames} fallback standalone timesteps (dt={dt:.2f}s) via examples/generate_sensor_doc_assets.py"
+
+            demo_binding = DEMO_SENSOR_KEYS.get(slug)
+            if demo_binding is not None:
+                demo_name, sensor_name = demo_binding
+                capture = captures.get(demo_name)
+                if capture is not None:
+                    history = capture.history_by_sensor.get(sensor_name, {})
+                    obs = dict(capture.observations.get(sensor_name, {}))
+                    if history or obs:
+                        provenance = f"Generated from {frames} {capture.label} timesteps (dt={dt:.2f}s) via examples/generate_sensor_doc_assets.py"
+
+            if not history and not obs:
+                sensor = spec.factory(seed + idx)
+                history, obs = _collect_history(sensor, frames=frames, dt=dt)
+
             if spec.snapshot_kind:
                 panels = _snapshot_panels(spec.snapshot_kind, obs)
                 if panels:
-                    _write_snapshot_svg(out_path, spec.title, panels, frames, dt)
+                    _write_snapshot_svg(out_path, spec.title, panels, provenance)
                 else:
-                    _write_svg_plot(out_path, spec.title, history, frames, dt)
+                    _write_svg_plot(out_path, spec.title, history, provenance)
             else:
-                _write_svg_plot(out_path, spec.title, history, frames, dt)
+                _write_svg_plot(out_path, spec.title, history, provenance)
         except Exception as exc:  # pragma: no cover - best-effort docs asset generation
             _write_placeholder(out_path, spec.title, f"Example generation failed: {type(exc).__name__}: {exc}")
         written.append(out_path)
@@ -659,7 +802,7 @@ def generate_assets(output_dir: Path, frames: int, dt: float, seed: int, only: s
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate docs-ready SVG plots for the Genesis sensor pages")
+    parser = argparse.ArgumentParser(description="Generate docs-ready SVG plots from Genesis-driven sensor examples")
     parser.add_argument("--output-dir", type=Path, default=Path("docs/assets/sensors"))
     parser.add_argument("--frames", type=int, default=24)
     parser.add_argument("--dt", type=float, default=0.05)
