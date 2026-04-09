@@ -137,6 +137,8 @@ class SensorState(TypedDict, total=False):
     ultrasonic_ranges_m: list[float] | dict[str, float]  # short-range sonar / ultrasonic beam distances (m)
     sonar_targets: list[dict[str, Any]]  # acoustic reflector targets for imaging / side-scan sonar models
     water_turbidity_ntu: float  # water turbidity / suspended particles (NTU)
+    water_current_ms: Float64Array  # ambient water-current vector (m/s)
+    current_layers: list[dict[str, Any]]  # optional current-profile descriptors with depth and velocity
 
     # Airspeed / wind
     airspeed_ms: float  # true airspeed (m/s); used directly when present
@@ -231,6 +233,29 @@ class SideScanSonarObservation(TypedDict):
     slant_range_axis_m: FloatArray  # shape (range_bins,) — slant-range coordinate (m)
     port_hits: int  # number of port-side target hits
     starboard_hits: int  # number of starboard-side target hits
+
+
+class DVLObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.DVLModel`."""
+
+    velocity_body_ms: FloatArray  # shape (3,) — measured platform velocity relative to bottom / water (m/s)
+    water_track_velocity_ms: FloatArray  # shape (3,) — measured velocity relative to the water mass (m/s)
+    beam_ranges_m: FloatArray  # shape (N,) — slant ranges from each DVL beam (m)
+    altitude_m: float  # inferred altitude above the seabed (m)
+    speed_ms: float  # norm of the reported platform velocity (m/s)
+    bottom_lock: bool  # True when the DVL has a valid bottom-track solution
+    quality: int  # heuristic 0–255 quality / confidence metric
+
+
+class AcousticCurrentProfilerObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.AcousticCurrentProfilerModel`."""
+
+    depth_bins_m: FloatArray  # shape (N,) — centre depth of each sampled water-column bin (m)
+    current_profile_ms: FloatArray  # shape (N, 3) — estimated current vector per depth bin (m/s)
+    speed_profile_ms: FloatArray  # shape (N,) — current speed magnitude per bin (m/s)
+    mean_current_ms: FloatArray  # shape (3,) — mean current vector across valid bins (m/s)
+    valid_mask: BoolArray  # shape (N,) — bins with a valid acoustic estimate
+    n_valid_bins: int  # number of valid depth bins in the current profile
 
 
 # ---------------------------------------------------------------------------
@@ -574,6 +599,7 @@ __all__ = [
     # Input state
     "SensorState",
     # Observation TypedDicts
+    "AcousticCurrentProfilerObservation",
     "AirspeedObservation",
     "AnemometerObservation",
     "BarometerObservation",
@@ -582,6 +608,7 @@ __all__ = [
     "CameraObservation",
     "ContactObservation",
     "CurrentObservation",
+    "DVLObservation",
     "DepthCameraObservation",
     "EventCameraObservation",
     "ForceTorqueObservation",

@@ -128,6 +128,15 @@ def make_synthetic_sensor_state(
     relative_humidity_pct = float(np.clip(48.0 + 6.0 * rain_rate + 18.0 * cloud_cover, 18.0, 98.0))
     illuminance_lux = float(np.clip(42_000.0 * (1.0 - 0.75 * cloud_cover) * (1.0 - 0.55 * obstruction), 80.0, 95_000.0))
     wind_ms = np.array([1.2, 0.2 * np.cos(sim_time), 0.0], dtype=np.float64)
+    water_current_ms = np.array(
+        [0.35 + 0.08 * np.sin(0.21 * frame_idx), -0.12 + 0.05 * np.cos(0.17 * frame_idx), 0.0],
+        dtype=np.float64,
+    )
+    current_layers = [
+        {"depth_m": 1.5, "vel": water_current_ms + np.array([-0.04, 0.02, 0.0], dtype=np.float64)},
+        {"depth_m": 4.0, "vel": water_current_ms + np.array([0.03, -0.01, 0.0], dtype=np.float64)},
+        {"depth_m": 8.0, "vel": water_current_ms + np.array([0.10, -0.04, 0.0], dtype=np.float64)},
+    ]
     gas_sources = [
         {
             "pos": np.array([pos[0] + 1.2, pos[1] + 0.25 * np.sin(phase), 0.0], dtype=np.float64),
@@ -230,6 +239,8 @@ def make_synthetic_sensor_state(
         "voltage_v": 14.8,
         "wind": wind_ms,
         "wind_ms": wind_ms,
+        "water_current_ms": water_current_ms,
+        "current_layers": current_layers,
         "phase": phase_name,
         "fault_flags": [phase_name.replace("_", " ")] if phase_name not in {"takeoff", "cruise"} else [],
     }

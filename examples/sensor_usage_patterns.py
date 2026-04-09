@@ -6,12 +6,14 @@ from typing import cast
 import numpy as np
 
 from genesis_sensors import (
+    AcousticCurrentProfilerModel,
     AirspeedModel,
     AnemometerModel,
     BarometerModel,
     BatteryModel,
     CameraModel,
     EventCameraModel,
+    DVLModel,
     GasSensorModel,
     GNSSModel,
     HygrometerModel,
@@ -69,6 +71,8 @@ def demo_direct_usage(seed: int) -> None:
     ultrasonic = UltrasonicArrayModel(update_rate_hz=15.0, seed=seed)
     imaging_sonar = ImagingSonarModel(update_rate_hz=8.0, seed=seed)
     side_scan = SideScanSonarModel(update_rate_hz=4.0, seed=seed)
+    dvl = DVLModel(update_rate_hz=5.0, seed=seed)
+    current_profiler = AcousticCurrentProfilerModel(update_rate_hz=2.0, seed=seed)
     flow = OpticalFlowModel(update_rate_hz=100.0, seed=seed)
     battery = BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed)
     radio = RadioLinkModel(update_rate_hz=60.0, seed=seed)
@@ -94,6 +98,8 @@ def demo_direct_usage(seed: int) -> None:
     ultrasonic_obs = ultrasonic.step(0.0, state1)
     imaging_sonar_obs = imaging_sonar.step(0.0, state1)
     side_scan_obs = side_scan.step(0.0, state1)
+    dvl_obs = dvl.step(0.0, state1)
+    current_profile_obs = current_profiler.step(0.0, state1)
     flow_obs = flow.step(0.0, state1)
     bat_obs = battery.step(0.0, state1)
     radio_obs = radio.step(0.0, state1)
@@ -121,7 +127,8 @@ def demo_direct_usage(seed: int) -> None:
     print(
         f"uwb_ranges={len(uwb_obs['ranges_m'])} radar_detections={int(radar_obs['n_detections'])} "
         f"ultrasonic_nearest={float(ultrasonic_obs['nearest_range_m']):.2f}m sonar_returns={int(imaging_sonar_obs['n_returns'])} "
-        f"side_scan_hits={int(side_scan_obs['port_hits']) + int(side_scan_obs['starboard_hits'])} radio_delivered={len(radio_obs['delivered'])}"
+        f"side_scan_hits={int(side_scan_obs['port_hits']) + int(side_scan_obs['starboard_hits'])} dvl_speed={float(dvl_obs['speed_ms']):.2f}m/s "
+        f"current_bins={int(current_profile_obs['n_valid_bins'])} radio_delivered={len(radio_obs['delivered'])}"
     )
     print(
         f"temp={float(temp_obs['temperature_c']):.1f}C humidity={float(humidity_obs['relative_humidity_pct']):.1f}% "
@@ -175,6 +182,9 @@ def demo_preset_usage(seed: int) -> None:
         f"sonar presets: {', '.join(list_presets(kind='imaging_sonar'))}, {', '.join(list_presets(kind='side_scan_sonar'))}"
     )
     print(
+        f"underwater nav presets: {', '.join(list_presets(kind='dvl'))}, {', '.join(list_presets(kind='current_profiler'))}"
+    )
+    print(
         f"ZED2_STEREO valid_frac={float(np.mean(stereo_obs['valid_mask'])):.1%} "
         f"VELODYNE_VLP16 points={len(lidar_obs['points'])} FLIR_BOSON_320 peak={float(np.max(thermal_obs['temperature_c'])):.1f}C"
     )
@@ -223,9 +233,11 @@ def demo_suite_usage(frames: int, dt: float, seed: int) -> None:
         ultrasonic=UltrasonicArrayModel(update_rate_hz=15.0, seed=seed + 11),
         imaging_sonar=ImagingSonarModel(update_rate_hz=8.0, seed=seed + 12),
         side_scan=SideScanSonarModel(update_rate_hz=4.0, seed=seed + 13),
-        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed + 14),
-        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed + 13),
-        radio=RadioLinkModel(update_rate_hz=60.0, seed=seed + 14),
+        dvl=DVLModel(update_rate_hz=5.0, seed=seed + 14),
+        current_profiler=AcousticCurrentProfilerModel(update_rate_hz=2.0, seed=seed + 15),
+        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed + 16),
+        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed + 17),
+        radio=RadioLinkModel(update_rate_hz=60.0, seed=seed + 18),
         uwb=UWBRangingModel(update_rate_hz=20.0, seed=seed + 15),
         radar=RadarModel(update_rate_hz=20.0, seed=seed + 16),
         thermometer=ThermometerModel(seed=seed + 17),
@@ -255,7 +267,8 @@ def demo_suite_usage(frames: int, dt: float, seed: int) -> None:
                 f"frame={frame_idx:03d} rgb={np.asarray(obs['rgb']['rgb']).shape} "
                 f"stereo_valid={float(np.mean(obs['stereo']['valid_mask'])):.1%} radio_queue={int(obs['radio']['queue_depth'])} "
                 f"uwb={len(obs['uwb']['ranges_m'])} radar={int(obs['radar']['n_detections'])} "
-                f"ultra={float(obs['ultrasonic']['nearest_range_m']):.2f}m "
+                f"ultra={float(obs['ultrasonic']['nearest_range_m']):.2f}m dvl={float(obs.get('dvl', {}).get('speed_ms', 0.0)):.2f}m/s "
+                f"current_bins={int(obs.get('current_profiler', {}).get('n_valid_bins', 0))} "
                 f"temp={float(obs['thermometer']['temperature_c']):.1f}C hum={float(obs['hygrometer']['relative_humidity_pct']):.0f}%"
             )
 

@@ -74,6 +74,8 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
     ultrasonic = obs.get("ultrasonic", {})
     imaging_sonar = obs.get("imaging_sonar", {})
     side_scan = obs.get("side_scan", {})
+    dvl = obs.get("dvl", {})
+    current_profiler = obs.get("current_profiler", {})
     uwb = obs.get("uwb", {})
     radar = obs.get("radar", {})
     flow = obs["optical_flow"]
@@ -104,6 +106,13 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
     _log_scalar("traces/sonar/imaging_returns", int(imaging_sonar.get("n_returns", 0)))
     _log_scalar("traces/sonar/port_hits", int(side_scan.get("port_hits", 0)))
     _log_scalar("traces/sonar/starboard_hits", int(side_scan.get("starboard_hits", 0)))
+    _log_scalar("traces/dvl/speed_ms", float(dvl.get("speed_ms", 0.0)))
+    _log_scalar("traces/dvl/altitude_m", float(dvl.get("altitude_m", 0.0)))
+    if "velocity_body_ms" in dvl:
+        _log_vector("traces/dvl/velocity_body_ms", np.asarray(dvl["velocity_body_ms"]))
+    _log_scalar("traces/current_profiler/valid_bins", int(current_profiler.get("n_valid_bins", 0)))
+    if "mean_current_ms" in current_profiler:
+        _log_vector("traces/current_profiler/mean_current_ms", np.asarray(current_profiler["mean_current_ms"]))
     _log_scalar("traces/uwb/anchor_count", len(uwb.get("ranges_m", {})))
     if "position_estimate" in uwb:
         _log_vector("traces/uwb/position_estimate_m", np.asarray(uwb["position_estimate"]))
@@ -126,6 +135,11 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
         if port.size and starboard.size:
             rr.log("sensors/sonar/side_scan", rr.Image(_normalize_image(np.stack([port, starboard], axis=0))))
 
+    if current_profiler:
+        speed_profile = np.asarray(current_profiler.get("speed_profile_ms", []), dtype=np.float32)
+        if speed_profile.size:
+            rr.log("sensors/current_profiler/speed_profile", rr.Image(_normalize_image(speed_profile[None, :])))
+
     rr.log(
         "status/summary",
         rr.TextDocument(
@@ -133,6 +147,7 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
             f"events={event_count} range={float(rangefinder.get('range_m', 0.0)):.2f}m temp={float(thermometer.get('temperature_c', 0.0)):.1f}C\n"
             f"battery={float(battery.get('voltage_v', 0.0)):.2f}V fix={int(gnss.get('fix_quality', 0))} hum={float(hygrometer.get('relative_humidity_pct', 0.0)):.0f}%\n"
             f"ultra={float(ultrasonic.get('nearest_range_m', 0.0)):.2f}m sonar={int(imaging_sonar.get('n_returns', 0))} returns "
+            f"dvl={float(dvl.get('speed_ms', 0.0)):.2f}m/s current_bins={int(current_profiler.get('n_valid_bins', 0))} "
             f"uwb={len(uwb.get('ranges_m', {}))} anchors radar={int(radar.get('n_detections', 0))} detections"
         ),
     )

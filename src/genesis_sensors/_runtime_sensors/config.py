@@ -510,6 +510,58 @@ class SideScanSonarConfig(BaseModel):
         return self
 
 
+class DVLConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.DVLModel`."""
+
+    name: str = "dvl"
+    update_rate_hz: float = Field(default=5.0, gt=0, description="Bottom-track update rate (Hz).")
+    n_beams: int = Field(default=4, ge=1, description="Number of DVL transducer beams.")
+    beam_angle_deg: float = Field(default=30.0, ge=0.0, lt=90.0, description="Off-nadir beam angle (deg).")
+    min_altitude_m: float = Field(default=0.2, ge=0.0, description="Minimum valid altitude above bottom (m).")
+    max_altitude_m: float = Field(default=80.0, gt=0.0, description="Maximum bottom-lock altitude (m).")
+    velocity_noise_sigma_ms: float = Field(default=0.01, ge=0.0, description="Gaussian velocity noise 1-σ (m/s).")
+    range_noise_sigma_m: float = Field(default=0.02, ge=0.0, description="Gaussian beam-range noise 1-σ (m).")
+    dropout_prob: float = Field(
+        default=0.01, ge=0.0, le=1.0, description="Probability of losing bottom lock on a ping."
+    )
+    water_track_blend: float = Field(
+        default=0.20, ge=0.0, le=1.0, description="Blend factor for water-track fallback when bottom lock is lost."
+    )
+    seed: int | None = None
+
+    @model_validator(mode="after")
+    def _range_ordered(self) -> "DVLConfig":
+        if self.min_altitude_m >= self.max_altitude_m:
+            raise ValueError(
+                f"min_altitude_m ({self.min_altitude_m}) must be less than max_altitude_m ({self.max_altitude_m})"
+            )
+        return self
+
+
+class AcousticCurrentProfilerConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.AcousticCurrentProfilerModel`."""
+
+    name: str = "current_profiler"
+    update_rate_hz: float = Field(default=2.0, gt=0, description="Water-column profile rate (Hz).")
+    n_cells: int = Field(default=8, ge=1, description="Number of depth bins / cells in the current profile.")
+    min_depth_m: float = Field(default=1.0, ge=0.0, description="Near-field depth of the first cell (m).")
+    max_depth_m: float = Field(default=20.0, gt=0.0, description="Maximum sampled depth in the water column (m).")
+    velocity_noise_sigma_ms: float = Field(
+        default=0.02, ge=0.0, description="Gaussian per-axis current noise 1-σ (m/s)."
+    )
+    attenuation_per_m: float = Field(default=0.03, ge=0.0, description="Depth-dependent attenuation factor per metre.")
+    false_bin_rate: float = Field(
+        default=0.01, ge=0.0, le=1.0, description="Probability that a depth bin returns no valid estimate."
+    )
+    seed: int | None = None
+
+    @model_validator(mode="after")
+    def _depth_ordered(self) -> "AcousticCurrentProfilerConfig":
+        if self.min_depth_m >= self.max_depth_m:
+            raise ValueError(f"min_depth_m ({self.min_depth_m}) must be less than max_depth_m ({self.max_depth_m})")
+        return self
+
+
 # ---------------------------------------------------------------------------
 # Environmental sensing configs
 # ---------------------------------------------------------------------------
@@ -1036,6 +1088,10 @@ class SensorSuiteConfig(BaseModel):
     side_scan: SideScanSonarConfig | None = Field(
         default=None, description="Side-scan sonar strip imager (None = disabled)."
     )
+    dvl: DVLConfig | None = Field(default=None, description="Doppler velocity log (None = disabled).")
+    current_profiler: AcousticCurrentProfilerConfig | None = Field(
+        default=None, description="Water-column acoustic current profiler (None = disabled)."
+    )
     optical_flow: OpticalFlowConfig | None = Field(
         default=None, description="Downward-facing optical flow sensor (None = disabled)."
     )
@@ -1090,6 +1146,8 @@ class SensorSuiteConfig(BaseModel):
             ultrasonic=None,
             imaging_sonar=None,
             side_scan=None,
+            dvl=None,
+            current_profiler=None,
             optical_flow=None,
             battery=None,
             wheel_odometry=None,
@@ -1128,6 +1186,8 @@ class SensorSuiteConfig(BaseModel):
             ultrasonic=None,
             imaging_sonar=None,
             side_scan=None,
+            dvl=None,
+            current_profiler=None,
             optical_flow=None,
             battery=None,
             wheel_odometry=None,
@@ -1166,6 +1226,8 @@ class SensorSuiteConfig(BaseModel):
             ultrasonic=UltrasonicArrayConfig(),
             imaging_sonar=ImagingSonarConfig(),
             side_scan=SideScanSonarConfig(),
+            dvl=DVLConfig(),
+            current_profiler=AcousticCurrentProfilerConfig(),
             optical_flow=OpticalFlowConfig(),
             battery=BatteryConfig(),
             wheel_odometry=WheelOdometryConfig(),
@@ -1180,6 +1242,7 @@ class SensorSuiteConfig(BaseModel):
 
 
 __all__ = [
+    "AcousticCurrentProfilerConfig",
     "AirspeedConfig",
     "AnemometerConfig",
     "BarometerConfig",
@@ -1187,6 +1250,7 @@ __all__ = [
     "CameraConfig",
     "ContactSensorConfig",
     "CurrentSensorConfig",
+    "DVLConfig",
     "DepthCameraConfig",
     "EventCameraConfig",
     "ForceTorqueConfig",

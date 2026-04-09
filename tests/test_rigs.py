@@ -61,6 +61,8 @@ def test_synthetic_multimodal_rig_surfaces_more_upstream_sensors() -> None:
         "ultrasonic",
         "imaging_sonar",
         "side_scan",
+        "dvl",
+        "current_profiler",
     }.issubset(set(rig.sensor_names()))
     assert np.asarray(obs0["rgb"]["rgb"]).shape[-1] == 3
     assert np.asarray(obs0["thermal"]["temperature_c"]).ndim == 2
@@ -77,6 +79,8 @@ def test_synthetic_multimodal_rig_surfaces_more_upstream_sensors() -> None:
     assert "nearest_range_m" in obs0["ultrasonic"]
     assert "intensity_image" in obs0["imaging_sonar"]
     assert "port_intensity" in obs0["side_scan"]
+    assert "bottom_lock" in obs0["dvl"]
+    assert "current_profile_ms" in obs0["current_profiler"]
 
 
 def test_synthetic_state_and_preset_helpers_expose_upstream_surface() -> None:
@@ -98,6 +102,8 @@ def test_synthetic_state_and_preset_helpers_expose_upstream_surface() -> None:
         "ultrasonic_ranges_m",
         "sonar_targets",
         "water_turbidity_ntu",
+        "water_current_ms",
+        "current_layers",
     }.issubset(state)
     assert "ZED2_STEREO" in list_presets(kind="stereo")
     assert "DS18B20_PROBE" in list_presets(kind="thermometer")
@@ -107,5 +113,7 @@ def test_synthetic_state_and_preset_helpers_expose_upstream_surface() -> None:
     assert "HC_SR04_ARRAY4" in list_presets(kind="ultrasonic")
     assert "BLUEVIEW_P900_130" in list_presets(kind="imaging_sonar")
     assert "EDGETECH_4125" in list_presets(kind="side_scan_sonar")
+    assert "NORTEK_DVL1000" in list_presets(kind="dvl")
+    assert "TELEDYNE_WORKHORSE_600" in list_presets(kind="current_profiler")
     assert get_preset("FLIR_BOSON_320").name == "FLIR_BOSON_320"
     assert get_preset("TSL2591_LIGHT").name == "TSL2591_LIGHT"

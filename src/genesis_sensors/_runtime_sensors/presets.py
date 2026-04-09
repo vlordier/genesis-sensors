@@ -29,6 +29,7 @@ Sources are cited inline as ``# Source: <URL or spec>``.
 from __future__ import annotations
 
 from .config import (
+    AcousticCurrentProfilerConfig,
     AirspeedConfig,
     AnemometerConfig,
     BarometerConfig,
@@ -36,6 +37,7 @@ from .config import (
     CameraConfig,
     ContactSensorConfig,
     CurrentSensorConfig,
+    DVLConfig,
     DepthCameraConfig,
     EventCameraConfig,
     ForceTorqueConfig,
@@ -893,6 +895,36 @@ EDGETECH_4125 = SideScanSonarConfig(
 )
 
 # ---------------------------------------------------------------------------
+# Underwater navigation presets
+# ---------------------------------------------------------------------------
+
+NORTEK_DVL1000 = DVLConfig(
+    # Source: Nortek DVL1000 product sheet.
+    name="NORTEK_DVL1000",
+    update_rate_hz=4.0,
+    n_beams=4,
+    beam_angle_deg=30.0,
+    min_altitude_m=0.4,
+    max_altitude_m=90.0,
+    velocity_noise_sigma_ms=0.008,
+    range_noise_sigma_m=0.015,
+    dropout_prob=0.01,
+    water_track_blend=0.15,
+)
+
+TELEDYNE_WORKHORSE_600 = AcousticCurrentProfilerConfig(
+    # Source: Teledyne RDI Workhorse Sentinel 600 kHz ADCP overview.
+    name="TELEDYNE_WORKHORSE_600",
+    update_rate_hz=1.0,
+    n_cells=12,
+    min_depth_m=1.5,
+    max_depth_m=30.0,
+    velocity_noise_sigma_ms=0.015,
+    attenuation_per_m=0.025,
+    false_bin_rate=0.02,
+)
+
+# ---------------------------------------------------------------------------
 # Magnetometer presets
 # ---------------------------------------------------------------------------
 
@@ -1522,6 +1554,9 @@ _REGISTRY: dict[str, PresetConfig] = {
     "BLUEVIEW_P900_130": BLUEVIEW_P900_130,
     "TRITECH_GEMINI_720IK": TRITECH_GEMINI_720IK,
     "EDGETECH_4125": EDGETECH_4125,
+    # Underwater navigation
+    "NORTEK_DVL1000": NORTEK_DVL1000,
+    "TELEDYNE_WORKHORSE_600": TELEDYNE_WORKHORSE_600,
     # Airspeed
     "SDP33": SDP33,
     "MS4525DO": MS4525DO,
@@ -1590,6 +1625,8 @@ _CONFIG_TYPE_TO_KIND: dict[type, str] = {
     UltrasonicArrayConfig: "ultrasonic",
     ImagingSonarConfig: "imaging_sonar",
     SideScanSonarConfig: "side_scan_sonar",
+    DVLConfig: "dvl",
+    AcousticCurrentProfilerConfig: "current_profiler",
     AirspeedConfig: "airspeed",
     RangefinderConfig: "rangefinder",
     OpticalFlowConfig: "optical_flow",
@@ -1757,6 +1794,9 @@ __all__ = [
     "BLUEVIEW_P900_130",
     "TRITECH_GEMINI_720IK",
     "EDGETECH_4125",
+    # Underwater navigation presets
+    "NORTEK_DVL1000",
+    "TELEDYNE_WORKHORSE_600",
     # Magnetometer presets
     "IST8310",
     "HMC5883L",

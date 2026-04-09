@@ -54,10 +54,14 @@ def _iter_sonar_targets(raw: Any) -> list[dict[str, Any]]:
     return targets
 
 
-def _deposit_blob(image: np.ndarray, row: float, col: float, amplitude: float, row_sigma: float, col_sigma: float) -> None:
+def _deposit_blob(
+    image: np.ndarray, row: float, col: float, amplitude: float, row_sigma: float, col_sigma: float
+) -> None:
     row_idx = np.arange(image.shape[0], dtype=np.float32)[:, None]
     col_idx = np.arange(image.shape[1], dtype=np.float32)[None, :]
-    blob = np.exp(-0.5 * (((row_idx - row) / max(row_sigma, 1e-3)) ** 2 + ((col_idx - col) / max(col_sigma, 1e-3)) ** 2))
+    blob = np.exp(
+        -0.5 * (((row_idx - row) / max(row_sigma, 1e-3)) ** 2 + ((col_idx - col) / max(col_sigma, 1e-3)) ** 2)
+    )
     image += amplitude * blob.astype(np.float32)
 
 
@@ -181,7 +185,9 @@ class ImagingSonarModel(BaseSensor[ImagingSonarObservation]):
             det_range = float(np.clip(det_range, self.min_range_m, self.max_range_m))
             det_az = float(np.clip(det_az, -self.azimuth_fov_deg / 2.0, self.azimuth_fov_deg / 2.0))
 
-            row = (det_range - self.min_range_m) / max(self.max_range_m - self.min_range_m, 1e-6) * (self.range_bins - 1)
+            row = (
+                (det_range - self.min_range_m) / max(self.max_range_m - self.min_range_m, 1e-6) * (self.range_bins - 1)
+            )
             col = (det_az + self.azimuth_fov_deg / 2.0) / max(self.azimuth_fov_deg, 1e-6) * (self.azimuth_bins - 1)
 
             attenuation = math.exp(-(0.01 * self.attenuation_db_per_m + 0.002 * turbidity) * det_range)
@@ -318,8 +324,17 @@ class SideScanSonarModel(BaseSensor[SideScanSonarObservation]):
 
             det_range = lateral_range + float(self._rng.normal(0.0, self.range_noise_sigma_m))
             det_range = float(np.clip(det_range, self.min_range_m, self.max_range_m))
-            bin_idx = (det_range - self.min_range_m) / max(self.max_range_m - self.min_range_m, 1e-6) * (self.range_bins - 1)
-            amplitude = float(np.clip(float(target["strength"]) * math.exp(-(0.01 * self.attenuation_db_per_m + 0.002 * turbidity) * det_range), 0.0, 1.0))
+            bin_idx = (
+                (det_range - self.min_range_m) / max(self.max_range_m - self.min_range_m, 1e-6) * (self.range_bins - 1)
+            )
+            amplitude = float(
+                np.clip(
+                    float(target["strength"])
+                    * math.exp(-(0.01 * self.attenuation_db_per_m + 0.002 * turbidity) * det_range),
+                    0.0,
+                    1.0,
+                )
+            )
 
             if rel[1] >= 0.0:
                 _deposit_line(port, idx=bin_idx, amplitude=amplitude, sigma=1.5)
@@ -331,7 +346,12 @@ class SideScanSonarModel(BaseSensor[SideScanSonarObservation]):
         if self.false_alarm_rate > 0.0:
             for _ in range(int(self._rng.poisson(self.false_alarm_rate))):
                 signal = port if self._rng.random() < 0.5 else starboard
-                _deposit_line(signal, idx=float(self._rng.uniform(0, self.range_bins - 1)), amplitude=float(self._rng.uniform(0.01, 0.08)), sigma=1.0)
+                _deposit_line(
+                    signal,
+                    idx=float(self._rng.uniform(0, self.range_bins - 1)),
+                    amplitude=float(self._rng.uniform(0.01, 0.08)),
+                    sigma=1.0,
+                )
 
         if self.speckle_sigma > 0.0:
             port += np.abs(self._rng.normal(0.0, self.speckle_sigma, size=port.shape)).astype(np.float32)

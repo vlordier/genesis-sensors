@@ -13,6 +13,7 @@ from ._compat import (
     BLUEVIEW_P900_130,
     BUMPER_50HZ,
     DAVIS_346,
+    NORTEK_DVL1000,
     DAVIS_6410_ANEMOMETER,
     DIFF_DRIVE_ENCODER_50HZ,
     DS18B20_PROBE,
@@ -32,12 +33,14 @@ from ._compat import (
     TI_IWR6843AOP,
     VELODYNE_VLP16,
     ZED2_STEREO,
+    AcousticCurrentProfilerModel,
     AirspeedModel,
     BarometerModel,
     BatteryModel,
     CameraModel,
     ContactSensor,
     CurrentSensor,
+    DVLModel,
     DepthCameraModel,
     EventCameraModel,
     ForceTorqueSensorModel,
@@ -57,6 +60,7 @@ from ._compat import (
     SensorSuite,
     SideScanSonarModel,
     StereoCameraModel,
+    TELEDYNE_WORKHORSE_600,
     TSL2591_LIGHT,
     TactileArraySensor,
     ThermalCameraModel,
@@ -225,6 +229,15 @@ def _make_perception_state(
     relative_humidity_pct = float(np.clip(48.0 + 6.0 * rain_rate + 18.0 * cloud_cover, 18.0, 98.0))
     illuminance_lux = float(np.clip(42_000.0 * (1.0 - 0.75 * cloud_cover) * (1.0 - 0.55 * obstruction), 80.0, 95_000.0))
     wind_ms = np.array([1.3 + 0.35 * np.sin(0.08 * frame_idx), 0.25 * np.cos(0.16 * frame_idx), 0.0], dtype=np.float64)
+    water_current_ms = np.array(
+        [0.30 + 0.07 * np.sin(0.18 * frame_idx), -0.10 + 0.04 * np.cos(0.13 * frame_idx), 0.0],
+        dtype=np.float64,
+    )
+    current_layers = [
+        {"depth_m": 1.5, "vel": water_current_ms + np.array([-0.03, 0.02, 0.0], dtype=np.float64)},
+        {"depth_m": 4.0, "vel": water_current_ms + np.array([0.02, -0.01, 0.0], dtype=np.float64)},
+        {"depth_m": 8.0, "vel": water_current_ms + np.array([0.08, -0.05, 0.0], dtype=np.float64)},
+    ]
     gas_sources = [
         {
             "pos": np.array([pos[0] + 1.2, pos[1] + 0.3 * np.sin(phase), 0.0], dtype=np.float64),
@@ -303,6 +316,8 @@ def _make_perception_state(
         "relative_humidity_pct": relative_humidity_pct,
         "illuminance_lux": illuminance_lux,
         "wind_ms": wind_ms,
+        "water_current_ms": water_current_ms,
+        "current_layers": current_layers,
         "gas_sources": gas_sources,
         "uwb_anchors": uwb_anchors,
         "radar_targets": radar_targets,
@@ -348,10 +363,14 @@ def _build_multimodal_suite(seed_for: Callable[[int], int | None]) -> tuple[Sens
         ultrasonic=UltrasonicArrayModel.from_config(HC_SR04_ARRAY4.model_copy(update={"seed": seed_for(19)})),
         imaging_sonar=ImagingSonarModel.from_config(BLUEVIEW_P900_130.model_copy(update={"seed": seed_for(20)})),
         side_scan=SideScanSonarModel.from_config(EDGETECH_4125.model_copy(update={"seed": seed_for(21)})),
-        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(22)),
-        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(21)),
+        dvl=DVLModel.from_config(NORTEK_DVL1000.model_copy(update={"seed": seed_for(22)})),
+        current_profiler=AcousticCurrentProfilerModel.from_config(
+            TELEDYNE_WORKHORSE_600.model_copy(update={"seed": seed_for(23)})
+        ),
+        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(24)),
+        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(25)),
         wheel_odometry=WheelOdometryModel.from_config(
-            DIFF_DRIVE_ENCODER_50HZ.model_copy(update={"seed": seed_for(22)})
+            DIFF_DRIVE_ENCODER_50HZ.model_copy(update={"seed": seed_for(26)})
         ),
     )
     return suite, radio

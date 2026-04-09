@@ -78,12 +78,14 @@ See the following runnable examples for progressively deeper dives:
 """
 
 from . import presets
+from .acoustic_navigation import AcousticCurrentProfilerModel, DVLModel
 from .airspeed import AirspeedModel
 from .barometer import BarometerModel
 from .base import BaseSensor, SensorInput, SensorObservation
 from .battery import BatteryModel
 from .camera_model import CameraModel
 from .config import (
+    AcousticCurrentProfilerConfig,
     AirspeedConfig,
     AnemometerConfig,
     BarometerConfig,
@@ -91,6 +93,7 @@ from .config import (
     CameraConfig,
     ContactSensorConfig,
     CurrentSensorConfig,
+    DVLConfig,
     DepthCameraConfig,
     EventCameraConfig,
     ForceTorqueConfig,
@@ -142,6 +145,7 @@ from .presets import (
     BMP280,
     BMP388,
     BOSCH_BMI088,
+    NORTEK_DVL1000,
     BUMPER_50HZ,
     DAVIS_346,
     DAVIS_6410_ANEMOMETER,
@@ -187,6 +191,7 @@ from .presets import (
     OPTOFORCE_OMD,
     OPTICAL_ENC_1024,
     OUSTER_OS1_64,
+    TELEDYNE_WORKHORSE_600,
     PALM_TACTILE_8X8,
     PIXHAWK_ICM20689,
     PROPHESEE_EVK4,
@@ -231,6 +236,7 @@ from .thermal_camera import ThermalCameraModel
 from .ultrasonic import UltrasonicArrayModel
 from .wireless import RadarModel, UWBRangingModel
 from .types import (
+    AcousticCurrentProfilerObservation,
     AirspeedObservation,
     AnemometerObservation,
     ArrayLike,
@@ -240,6 +246,7 @@ from .types import (
     CameraObservation,
     ContactObservation,
     CurrentObservation,
+    DVLObservation,
     DepthCameraObservation,
     EventCameraObservation,
     Float64Array,
@@ -334,6 +341,9 @@ __all__ = [
     # Preset constants — ultrasonic
     "HC_SR04_ARRAY4",
     "MAXBOTIX_MB1242_RING8",
+    # Preset constants — underwater navigation
+    "NORTEK_DVL1000",
+    "TELEDYNE_WORKHORSE_600",
     # Preset constants — sonar
     "BLUEVIEW_P900_130",
     "EDGETECH_4125",
@@ -392,6 +402,7 @@ __all__ = [
     # Preset type alias
     "PresetConfig",
     # Sensor classes
+    "AcousticCurrentProfilerModel",
     "AirspeedModel",
     "AnemometerModel",
     "BarometerModel",
@@ -400,6 +411,7 @@ __all__ = [
     "CameraModel",
     "ContactSensor",
     "CurrentSensor",
+    "DVLModel",
     "DepthCameraModel",
     "Event",
     "EventCameraModel",
@@ -432,6 +444,7 @@ __all__ = [
     "UWBRangingModel",
     "WheelOdometryModel",
     # Config classes
+    "AcousticCurrentProfilerConfig",
     "AirspeedConfig",
     "AnemometerConfig",
     "BarometerConfig",
@@ -439,6 +452,7 @@ __all__ = [
     "CameraConfig",
     "ContactSensorConfig",
     "CurrentSensorConfig",
+    "DVLConfig",
     "DepthCameraConfig",
     "EventCameraConfig",
     "ForceTorqueConfig",
@@ -466,6 +480,7 @@ __all__ = [
     "UltrasonicArrayConfig",
     "WheelOdometryConfig",
     # Type aliases and TypedDicts
+    "AcousticCurrentProfilerObservation",
     "AirspeedObservation",
     "AnemometerObservation",
     "ArrayLike",
@@ -475,6 +490,7 @@ __all__ = [
     "CameraObservation",
     "ContactObservation",
     "CurrentObservation",
+    "DVLObservation",
     "DepthCameraObservation",
     "EventCameraObservation",
     "Float64Array",

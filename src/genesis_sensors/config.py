@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ._compat import (
+    AcousticCurrentProfilerConfig,
     AirspeedConfig,
     AnemometerConfig,
     BarometerConfig,
@@ -10,6 +11,7 @@ from ._compat import (
     CameraConfig,
     ContactSensorConfig,
     CurrentSensorConfig,
+    DVLConfig,
     DepthCameraConfig,
     EventCameraConfig,
     ForceTorqueConfig,
@@ -39,6 +41,7 @@ from ._compat import (
 )
 
 __all__ = [
+    "AcousticCurrentProfilerConfig",
     "AirspeedConfig",
     "AnemometerConfig",
     "BarometerConfig",
@@ -46,6 +49,7 @@ __all__ = [
     "CameraConfig",
     "ContactSensorConfig",
     "CurrentSensorConfig",
+    "DVLConfig",
     "DepthCameraConfig",
     "EventCameraConfig",
     "ForceTorqueConfig",
