@@ -103,6 +103,7 @@ from .config import (
     LightSensorConfig,
     MagnetometerConfig,
     OpticalFlowConfig,
+    RadarConfig,
     RadioConfig,
     RangefinderConfig,
     RPMSensorConfig,
@@ -111,6 +112,7 @@ from .config import (
     TactileArrayConfig,
     ThermalCameraConfig,
     ThermometerConfig,
+    UWBRangeConfig,
     WheelOdometryConfig,
 )
 from .contact_sensor import ContactSensor
@@ -165,6 +167,7 @@ from .presets import (
     LIPO_4S_5000MAH,
     LIPO_6S_10000MAH,
     LIVOX_AVIA,
+    LIVOX_MID360,
     INA226_10A,
     MATEKSYS_3901_L0X,
     MAUCH_HS_200,
@@ -181,19 +184,23 @@ from .presets import (
     PROPHESEE_EVK4,
     PresetConfig,
     PX4FLOW,
+    QORVO_DWM3001C,
     RASPBERRY_PI_V2,
     RM3100,
     ROKUBI_FT300,
     SDP33,
     SGP30_AIR_QUALITY,
     SHT31_HUMIDITY,
+    SICK_TIM571,
     SEEK_THERMAL_COMPACT_PRO,
     SPL06_001,
     T_MOTOR_HALL_6P,
     TERARANGER_ONE,
     TFMINI_PLUS,
+    TI_IWR6843AOP,
     TSL2591_LIGHT,
     TRIMBLE_BD992,
+    NAVTECH_CTS350X,
     UBLOX_F9P_RTK,
     UBLOX_M8N,
     UR5_JOINT_ENCODER,
@@ -212,6 +219,7 @@ from .scheduler import SensorScheduler
 from .stereo_camera import StereoCameraModel
 from .suite import SensorSuite
 from .thermal_camera import ThermalCameraModel
+from .wireless import RadarModel, UWBRangingModel
 from .types import (
     AirspeedObservation,
     AnemometerObservation,
@@ -239,6 +247,7 @@ from .types import (
     MagnetometerObservation,
     OpticalFlowObservation,
     Polarity,
+    RadarObservation,
     RadioObservation,
     RangefinderObservation,
     RPMObservation,
@@ -248,6 +257,7 @@ from .types import (
     ThermalObservation,
     ThermometerObservation,
     UInt16Array,
+    UWBObservation,
     UInt8Array,
     WheelOdometryObservation,
 )
@@ -268,7 +278,9 @@ __all__ = [
     # Preset constants — LiDAR
     "HESAI_XT32",
     "LIVOX_AVIA",
+    "LIVOX_MID360",
     "OUSTER_OS1_64",
+    "SICK_TIM571",
     "VELODYNE_HDL64E",
     "VELODYNE_VLP16",
     # Preset constants — IMU
@@ -302,6 +314,10 @@ __all__ = [
     "SGP30_AIR_QUALITY",
     "SHT31_HUMIDITY",
     "TSL2591_LIGHT",
+    # Preset constants — wireless
+    "NAVTECH_CTS350X",
+    "QORVO_DWM3001C",
+    "TI_IWR6843AOP",
     # Preset constants — magnetometer
     "HMC5883L",
     "IST8310",
@@ -379,6 +395,7 @@ __all__ = [
     "LightSensorModel",
     "MagnetometerModel",
     "OpticalFlowModel",
+    "RadarModel",
     "RadioLinkModel",
     "RangefinderModel",
     "RPMSensor",
@@ -389,6 +406,7 @@ __all__ = [
     "TactileArraySensor",
     "ThermalCameraModel",
     "ThermometerModel",
+    "UWBRangingModel",
     "WheelOdometryModel",
     # Config classes
     "AirspeedConfig",
@@ -410,6 +428,7 @@ __all__ = [
     "LightSensorConfig",
     "MagnetometerConfig",
     "OpticalFlowConfig",
+    "RadarConfig",
     "RadioConfig",
     "RangefinderConfig",
     "RPMSensorConfig",
@@ -418,6 +437,7 @@ __all__ = [
     "TactileArrayConfig",
     "ThermalCameraConfig",
     "ThermometerConfig",
+    "UWBRangeConfig",
     "WheelOdometryConfig",
     # Type aliases and TypedDicts
     "AirspeedObservation",
@@ -446,6 +466,7 @@ __all__ = [
     "MagnetometerObservation",
     "OpticalFlowObservation",
     "Polarity",
+    "RadarObservation",
     "RadioObservation",
     "RangefinderObservation",
     "RPMObservation",
@@ -458,5 +479,6 @@ __all__ = [
     "ThermometerObservation",
     "UInt16Array",
     "UInt8Array",
+    "UWBObservation",
     "WheelOdometryObservation",
 ]

@@ -135,6 +135,26 @@ def make_synthetic_sensor_state(
             "sigma_m": 0.9,
         }
     ]
+    uwb_anchors = [
+        {"id": "dock_nw", "pos": np.array([0.0, 0.0, 0.0], dtype=np.float64), "los": obstruction < 0.85},
+        {"id": "dock_ne", "pos": np.array([12.0, 0.0, 0.0], dtype=np.float64), "los": True},
+        {"id": "dock_sw", "pos": np.array([0.0, 12.0, 0.0], dtype=np.float64), "los": True},
+        {"id": "dock_top", "pos": np.array([0.0, 0.0, 6.0], dtype=np.float64), "los": True},
+    ]
+    radar_targets = [
+        {
+            "id": "lead_vehicle",
+            "pos": pos + np.array([10.0, 1.5 * np.sin(0.35 * sim_time), -0.2], dtype=np.float64),
+            "vel": np.array([-0.8, 0.2 * np.cos(0.35 * sim_time), 0.0], dtype=np.float64),
+            "rcs_dbsm": 14.0,
+        },
+        {
+            "id": "side_obstacle",
+            "pos": pos + np.array([7.0, -3.0 + 0.8 * np.cos(0.22 * sim_time), 0.4], dtype=np.float64),
+            "vel": np.array([0.0, 0.15, 0.0], dtype=np.float64),
+            "rcs_dbsm": 8.0,
+        },
+    ]
     if phase_name == "urban_canyon":
         obstruction = min(0.82, obstruction + 0.20)
         illuminance_lux *= 0.55
@@ -170,6 +190,8 @@ def make_synthetic_sensor_state(
         "relative_humidity_pct": relative_humidity_pct,
         "illuminance_lux": illuminance_lux,
         "gas_sources": gas_sources,
+        "uwb_anchors": uwb_anchors,
+        "radar_targets": radar_targets,
         "range_m": max(0.05, float(pos[2])),
         "current_a": float(np.clip(8.0 + 2.5 * speed, 0.0, 30.0)),
         "voltage_v": 14.8,

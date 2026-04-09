@@ -7,7 +7,9 @@ from genesis_sensors.synthetic import make_synthetic_sensor_state
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Demo the environmental sensor pack on top of the synthetic Genesis state")
+    parser = argparse.ArgumentParser(
+        description="Demo the environmental sensor pack on top of the synthetic Genesis state"
+    )
     parser.add_argument("--frames", type=int, default=8)
     parser.add_argument("--dt", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=0)

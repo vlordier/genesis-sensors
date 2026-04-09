@@ -23,8 +23,10 @@ from ._compat import (
     INA226_10A,
     INTEL_D435,
     OPTICAL_ENC_1024,
+    QORVO_DWM3001C,
     RASPBERRY_PI_V2,
     T_MOTOR_HALL_6P,
+    TI_IWR6843AOP,
     VELODYNE_VLP16,
     ZED2_STEREO,
     AirspeedModel,
@@ -42,6 +44,7 @@ from ._compat import (
     LidarModel,
     MagnetometerModel,
     OpticalFlowModel,
+    RadarModel,
     RPMSensor,
     RadioLinkModel,
     SGP30_AIR_QUALITY,
@@ -57,6 +60,7 @@ from ._compat import (
     LightSensorModel,
     GasSensorModel,
     AnemometerModel,
+    UWBRangingModel,
     WheelOdometryModel,
     extract_joint_state,
     extract_link_contact_force_n,
@@ -222,6 +226,26 @@ def _make_perception_state(
             "sigma_m": 0.9,
         }
     ]
+    uwb_anchors = [
+        {"id": "dock_nw", "pos": np.array([0.0, 0.0, 0.0], dtype=np.float64), "los": obstruction < 0.85},
+        {"id": "dock_ne", "pos": np.array([12.0, 0.0, 0.0], dtype=np.float64), "los": True},
+        {"id": "dock_sw", "pos": np.array([0.0, 12.0, 0.0], dtype=np.float64), "los": True},
+        {"id": "dock_top", "pos": np.array([0.0, 0.0, 6.0], dtype=np.float64), "los": True},
+    ]
+    radar_targets = [
+        {
+            "id": "lead_vehicle",
+            "pos": pos + np.array([8.0, 1.2 * np.sin(0.35 * sim_time), -0.2], dtype=np.float64),
+            "vel": np.array([-0.7, 0.15 * np.cos(0.35 * sim_time), 0.0], dtype=np.float64),
+            "rcs_dbsm": 14.0,
+        },
+        {
+            "id": "side_obstacle",
+            "pos": pos + np.array([6.0, -2.5 + 0.7 * np.cos(0.22 * sim_time), 0.4], dtype=np.float64),
+            "vel": np.array([0.0, 0.12, 0.0], dtype=np.float64),
+            "rcs_dbsm": 9.0,
+        },
+    ]
 
     return {
         "rgb": rgb_uint8,
@@ -247,6 +271,8 @@ def _make_perception_state(
         "illuminance_lux": illuminance_lux,
         "wind_ms": wind_ms,
         "gas_sources": gas_sources,
+        "uwb_anchors": uwb_anchors,
+        "radar_targets": radar_targets,
         "range_m": max(0.05, float(pos[2])),
     }
 
@@ -270,21 +296,23 @@ def _build_multimodal_suite(seed_for: Callable[[int], int | None]) -> tuple[Sens
         lidar=LidarModel.from_config(lidar_cfg),
         stereo_camera=StereoCameraModel.from_config(stereo_cfg),
         radio=radio,
-        imu=IMUModel(update_rate_hz=200.0, seed=seed_for(6)),
-        gnss=GNSSModel(update_rate_hz=5.0, noise_m=0.25, vel_noise_ms=0.02, seed=seed_for(7)),
-        barometer=BarometerModel(update_rate_hz=50.0, seed=seed_for(8)),
-        magnetometer=MagnetometerModel(update_rate_hz=100.0, seed=seed_for(9)),
-        thermometer=ThermometerModel.from_config(DS18B20_PROBE.model_copy(update={"seed": seed_for(10)})),
-        hygrometer=HygrometerModel.from_config(SHT31_HUMIDITY.model_copy(update={"seed": seed_for(11)})),
-        light_sensor=LightSensorModel.from_config(TSL2591_LIGHT.model_copy(update={"seed": seed_for(12)})),
-        gas_sensor=GasSensorModel.from_config(SGP30_AIR_QUALITY.model_copy(update={"seed": seed_for(13)})),
-        anemometer=AnemometerModel.from_config(DAVIS_6410_ANEMOMETER.model_copy(update={"seed": seed_for(14)})),
-        airspeed=AirspeedModel(update_rate_hz=50.0, seed=seed_for(15)),
-        rangefinder=RangefinderModel(update_rate_hz=20.0, seed=seed_for(16)),
-        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(17)),
-        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(18)),
+        uwb=UWBRangingModel.from_config(QORVO_DWM3001C.model_copy(update={"seed": seed_for(6)})),
+        radar=RadarModel.from_config(TI_IWR6843AOP.model_copy(update={"seed": seed_for(7)})),
+        imu=IMUModel(update_rate_hz=200.0, seed=seed_for(8)),
+        gnss=GNSSModel(update_rate_hz=5.0, noise_m=0.25, vel_noise_ms=0.02, seed=seed_for(9)),
+        barometer=BarometerModel(update_rate_hz=50.0, seed=seed_for(10)),
+        magnetometer=MagnetometerModel(update_rate_hz=100.0, seed=seed_for(11)),
+        thermometer=ThermometerModel.from_config(DS18B20_PROBE.model_copy(update={"seed": seed_for(12)})),
+        hygrometer=HygrometerModel.from_config(SHT31_HUMIDITY.model_copy(update={"seed": seed_for(13)})),
+        light_sensor=LightSensorModel.from_config(TSL2591_LIGHT.model_copy(update={"seed": seed_for(14)})),
+        gas_sensor=GasSensorModel.from_config(SGP30_AIR_QUALITY.model_copy(update={"seed": seed_for(15)})),
+        anemometer=AnemometerModel.from_config(DAVIS_6410_ANEMOMETER.model_copy(update={"seed": seed_for(16)})),
+        airspeed=AirspeedModel(update_rate_hz=50.0, seed=seed_for(17)),
+        rangefinder=RangefinderModel(update_rate_hz=20.0, seed=seed_for(18)),
+        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(19)),
+        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(20)),
         wheel_odometry=WheelOdometryModel.from_config(
-            DIFF_DRIVE_ENCODER_50HZ.model_copy(update={"seed": seed_for(19)})
+            DIFF_DRIVE_ENCODER_50HZ.model_copy(update={"seed": seed_for(21)})
         ),
     )
     return suite, radio
@@ -314,14 +342,16 @@ def make_drone_navigation_rig(entity: Any, *, dt: float = 0.01, seed: int | None
         gnss=GNSSModel(update_rate_hz=5.0, noise_m=0.25, vel_noise_ms=0.02, seed=seed_for(1)),
         barometer=BarometerModel(update_rate_hz=50.0, seed=seed_for(2)),
         magnetometer=MagnetometerModel(update_rate_hz=100.0, seed=seed_for(3)),
-        thermometer=ThermometerModel.from_config(DS18B20_PROBE.model_copy(update={"seed": seed_for(4)})),
-        hygrometer=HygrometerModel.from_config(SHT31_HUMIDITY.model_copy(update={"seed": seed_for(5)})),
-        light_sensor=LightSensorModel.from_config(TSL2591_LIGHT.model_copy(update={"seed": seed_for(6)})),
-        anemometer=AnemometerModel.from_config(DAVIS_6410_ANEMOMETER.model_copy(update={"seed": seed_for(7)})),
-        airspeed=AirspeedModel(update_rate_hz=50.0, seed=seed_for(8)),
-        rangefinder=RangefinderModel(update_rate_hz=20.0, seed=seed_for(9)),
-        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(10)),
-        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(11)),
+        uwb=UWBRangingModel.from_config(QORVO_DWM3001C.model_copy(update={"seed": seed_for(4)})),
+        radar=RadarModel.from_config(TI_IWR6843AOP.model_copy(update={"seed": seed_for(5)})),
+        thermometer=ThermometerModel.from_config(DS18B20_PROBE.model_copy(update={"seed": seed_for(6)})),
+        hygrometer=HygrometerModel.from_config(SHT31_HUMIDITY.model_copy(update={"seed": seed_for(7)})),
+        light_sensor=LightSensorModel.from_config(TSL2591_LIGHT.model_copy(update={"seed": seed_for(8)})),
+        anemometer=AnemometerModel.from_config(DAVIS_6410_ANEMOMETER.model_copy(update={"seed": seed_for(9)})),
+        airspeed=AirspeedModel(update_rate_hz=50.0, seed=seed_for(10)),
+        rangefinder=RangefinderModel(update_rate_hz=20.0, seed=seed_for(11)),
+        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(12)),
+        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(13)),
     )
 
     def _state_fn() -> dict[str, Any]:

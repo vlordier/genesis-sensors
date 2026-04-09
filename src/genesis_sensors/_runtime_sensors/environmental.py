@@ -202,7 +202,9 @@ class HygrometerModel(BaseSensor[HygrometerObservation]):
             self._rh_state_pct += self._response_alpha * (true_rh - self._rh_state_pct)
 
         self._bias_pct = self._alpha_bias * self._bias_pct + float(self._rng.normal(0.0, self._drive_sigma))
-        measured_rh = float(np.clip(self._rh_state_pct + self._bias_pct + self._rng.normal(0.0, self.noise_sigma_pct), 0.0, 100.0))
+        measured_rh = float(
+            np.clip(self._rh_state_pct + self._bias_pct + self._rng.normal(0.0, self.noise_sigma_pct), 0.0, 100.0)
+        )
         temp_c = _weather_value(state, "ambient_temp_c", 21.0)
         obs: HygrometerObservation = {
             "relative_humidity_pct": measured_rh,

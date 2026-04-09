@@ -48,6 +48,7 @@ from .config import (
     LightSensorConfig,
     MagnetometerConfig,
     OpticalFlowConfig,
+    RadarConfig,
     RadioConfig,
     RangefinderConfig,
     RPMSensorConfig,
@@ -55,6 +56,7 @@ from .config import (
     TactileArrayConfig,
     ThermalCameraConfig,
     ThermometerConfig,
+    UWBRangeConfig,
     WheelOdometryConfig,
 )
 
@@ -80,6 +82,8 @@ PresetConfig = (
     | AirspeedConfig
     | RangefinderConfig
     | RadioConfig
+    | UWBRangeConfig
+    | RadarConfig
     | OpticalFlowConfig
     | BatteryConfig
     | WheelOdometryConfig
@@ -335,6 +339,36 @@ HESAI_XT32 = LidarConfig(
     intensity_noise_sigma=0.01,
     dropout_prob=0.0005,
     beam_divergence_mrad=1.0,
+)
+
+LIVOX_MID360 = LidarConfig(
+    # Source: Livox Mid-360 datasheet
+    # Compact 360° solid-state LiDAR widely used on mobile robots and drones.
+    name="LIVOX_MID360",
+    update_rate_hz=10.0,
+    n_channels=32,
+    v_fov_deg=(-7.0, 52.0),
+    h_resolution=1200,
+    max_range_m=70.0,
+    range_noise_sigma_m=0.02,
+    intensity_noise_sigma=0.008,
+    dropout_prob=0.0007,
+    beam_divergence_mrad=0.35,
+)
+
+SICK_TIM571 = LidarConfig(
+    # Source: SICK TiM571 2D LiDAR datasheet
+    # Rugged planar scanner used in warehouse AMRs and outdoor AGV stacks.
+    name="SICK_TIM571",
+    update_rate_hz=15.0,
+    n_channels=1,
+    v_fov_deg=(-0.1, 0.1),
+    h_resolution=811,
+    max_range_m=25.0,
+    range_noise_sigma_m=0.015,
+    intensity_noise_sigma=0.01,
+    dropout_prob=0.001,
+    beam_divergence_mrad=2.2,
 )
 
 # ---------------------------------------------------------------------------
@@ -712,6 +746,59 @@ DAVIS_6410_ANEMOMETER = AnemometerConfig(
     direction_noise_deg=3.0,
     measure_relative_wind=False,
     max_speed_ms=89.0,
+)
+
+# ---------------------------------------------------------------------------
+# Wireless ranging / radar presets
+# ---------------------------------------------------------------------------
+
+QORVO_DWM3001C = UWBRangeConfig(
+    # Source: Qorvo DWM3001C specification summary
+    # Modern UWB anchor/tag module for indoor localization and robot docking.
+    name="QORVO_DWM3001C",
+    update_rate_hz=20.0,
+    range_noise_sigma_m=0.03,
+    dropout_prob=0.01,
+    max_range_m=60.0,
+    nlos_bias_m=0.20,
+    tx_power_dbm=0.0,
+    estimate_position=True,
+)
+
+TI_IWR6843AOP = RadarConfig(
+    # Source: TI IWR6843AOP mmWave radar datasheet
+    # Short-range 60 GHz FMCW radar for occupancy, tracking, and robot awareness.
+    name="TI_IWR6843AOP",
+    update_rate_hz=20.0,
+    max_range_m=60.0,
+    min_range_m=0.2,
+    azimuth_fov_deg=120.0,
+    elevation_fov_deg=60.0,
+    range_noise_sigma_m=0.08,
+    velocity_noise_sigma_ms=0.05,
+    azimuth_noise_deg=0.25,
+    elevation_noise_deg=0.25,
+    detection_prob=0.98,
+    false_alarm_rate=0.03,
+    rain_attenuation_db_per_mm_h=0.08,
+)
+
+NAVTECH_CTS350X = RadarConfig(
+    # Source: Navtech CTS350-X perimeter radar overview
+    # Long-range mechanically scanned radar used for outdoor surveillance and autonomous vehicles.
+    name="NAVTECH_CTS350X",
+    update_rate_hz=4.0,
+    max_range_m=250.0,
+    min_range_m=1.0,
+    azimuth_fov_deg=360.0,
+    elevation_fov_deg=20.0,
+    range_noise_sigma_m=0.25,
+    velocity_noise_sigma_ms=0.10,
+    azimuth_noise_deg=0.15,
+    elevation_noise_deg=0.40,
+    detection_prob=0.99,
+    false_alarm_rate=0.08,
+    rain_attenuation_db_per_mm_h=0.05,
 )
 
 # ---------------------------------------------------------------------------
@@ -1295,7 +1382,9 @@ _REGISTRY: dict[str, PresetConfig] = {
     "VELODYNE_HDL64E": VELODYNE_HDL64E,
     "OUSTER_OS1_64": OUSTER_OS1_64,
     "LIVOX_AVIA": LIVOX_AVIA,
+    "LIVOX_MID360": LIVOX_MID360,
     "HESAI_XT32": HESAI_XT32,
+    "SICK_TIM571": SICK_TIM571,
     # IMU
     "PIXHAWK_ICM20689": PIXHAWK_ICM20689,
     "VECTORNAV_VN100": VECTORNAV_VN100,
@@ -1331,6 +1420,10 @@ _REGISTRY: dict[str, PresetConfig] = {
     "TSL2591_LIGHT": TSL2591_LIGHT,
     "SGP30_AIR_QUALITY": SGP30_AIR_QUALITY,
     "DAVIS_6410_ANEMOMETER": DAVIS_6410_ANEMOMETER,
+    # Wireless sensing
+    "QORVO_DWM3001C": QORVO_DWM3001C,
+    "TI_IWR6843AOP": TI_IWR6843AOP,
+    "NAVTECH_CTS350X": NAVTECH_CTS350X,
     # Airspeed
     "SDP33": SDP33,
     "MS4525DO": MS4525DO,
@@ -1394,6 +1487,8 @@ _CONFIG_TYPE_TO_KIND: dict[type, str] = {
     LightSensorConfig: "light_sensor",
     GasSensorConfig: "gas_sensor",
     AnemometerConfig: "anemometer",
+    UWBRangeConfig: "uwb",
+    RadarConfig: "radar",
     AirspeedConfig: "airspeed",
     RangefinderConfig: "rangefinder",
     OpticalFlowConfig: "optical_flow",
@@ -1516,7 +1611,9 @@ __all__ = [
     "VELODYNE_HDL64E",
     "OUSTER_OS1_64",
     "LIVOX_AVIA",
+    "LIVOX_MID360",
     "HESAI_XT32",
+    "SICK_TIM571",
     # IMU presets
     "PIXHAWK_ICM20689",
     "VECTORNAV_VN100",
@@ -1548,6 +1645,10 @@ __all__ = [
     "TSL2591_LIGHT",
     "SGP30_AIR_QUALITY",
     "DAVIS_6410_ANEMOMETER",
+    # Wireless presets
+    "QORVO_DWM3001C",
+    "TI_IWR6843AOP",
+    "NAVTECH_CTS350X",
     # Magnetometer presets
     "IST8310",
     "HMC5883L",

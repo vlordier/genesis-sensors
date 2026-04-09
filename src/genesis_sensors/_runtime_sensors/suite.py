@@ -73,6 +73,7 @@ from .radio import RadioLinkModel
 from .rangefinder import RangefinderModel
 from .rpm_sensor import RPMSensor
 from .scheduler import SensorScheduler
+from .wireless import RadarModel, UWBRangingModel
 from .stereo_camera import StereoCameraModel
 from .tactile_array import TactileArraySensor
 from .thermal_camera import ThermalCameraModel
@@ -141,6 +142,8 @@ class SensorSuite:
         lidar: LidarModel | None = None,
         gnss: GNSSModel | None = None,
         radio: RadioLinkModel | None = None,
+        uwb: UWBRangingModel | None = None,
+        radar: RadarModel | None = None,
         imu: IMUModel | None = None,
         barometer: BarometerModel | None = None,
         magnetometer: MagnetometerModel | None = None,
@@ -178,6 +181,10 @@ class SensorSuite:
             self._scheduler.add(gnss, name="gnss")
         if radio is not None:
             self._scheduler.add(radio, name="radio")
+        if uwb is not None:
+            self._scheduler.add(uwb, name="uwb")
+        if radar is not None:
+            self._scheduler.add(radar, name="radar")
         if imu is not None:
             self._scheduler.add(imu, name="imu")
         if barometer is not None:
@@ -237,6 +244,8 @@ class SensorSuite:
         lidar_rate_hz: float = 10.0,
         gnss_rate_hz: float = 10.0,
         radio_rate_hz: float = 100.0,
+        uwb_rate_hz: float = 0.0,
+        radar_rate_hz: float = 0.0,
         imu_rate_hz: float = 200.0,
         baro_rate_hz: float = 50.0,
         mag_rate_hz: float = 100.0,
@@ -298,7 +307,7 @@ class SensorSuite:
         """
         # Derive N independent, deterministic seeds via SeedSequence so that
         # close base seeds (e.g. 0 vs 1) don't produce correlated sensor noise.
-        _N_SENSORS = 27
+        _N_SENSORS = 29
         if seed is not None:
             child_seeds = np.random.SeedSequence(seed).spawn(_N_SENSORS)
             _seeds: list[int | None] = [int(cs.generate_state(1)[0]) for cs in child_seeds]
@@ -317,69 +326,73 @@ class SensorSuite:
             lidar=LidarModel(update_rate_hz=lidar_rate_hz, seed=_seed(3)) if lidar_rate_hz > 0 else None,
             gnss=GNSSModel(update_rate_hz=gnss_rate_hz, seed=_seed(4)) if gnss_rate_hz > 0 else None,
             radio=RadioLinkModel(update_rate_hz=radio_rate_hz, seed=_seed(5)) if radio_rate_hz > 0 else None,
-            imu=IMUModel(update_rate_hz=imu_rate_hz, seed=_seed(6)) if imu_rate_hz > 0 else None,
-            barometer=BarometerModel(update_rate_hz=baro_rate_hz, seed=_seed(7)) if baro_rate_hz > 0 else None,
-            magnetometer=MagnetometerModel(update_rate_hz=mag_rate_hz, seed=_seed(8)) if mag_rate_hz > 0 else None,
+            uwb=UWBRangingModel(update_rate_hz=uwb_rate_hz, seed=_seed(6)) if uwb_rate_hz > 0 else None,
+            radar=RadarModel(update_rate_hz=radar_rate_hz, seed=_seed(7)) if radar_rate_hz > 0 else None,
+            imu=IMUModel(update_rate_hz=imu_rate_hz, seed=_seed(8)) if imu_rate_hz > 0 else None,
+            barometer=BarometerModel(update_rate_hz=baro_rate_hz, seed=_seed(9)) if baro_rate_hz > 0 else None,
+            magnetometer=MagnetometerModel(update_rate_hz=mag_rate_hz, seed=_seed(10)) if mag_rate_hz > 0 else None,
             thermometer=(
-                ThermometerModel(update_rate_hz=thermometer_rate_hz, seed=_seed(9)) if thermometer_rate_hz > 0 else None
+                ThermometerModel(update_rate_hz=thermometer_rate_hz, seed=_seed(11))
+                if thermometer_rate_hz > 0
+                else None
             ),
             hygrometer=(
-                HygrometerModel(update_rate_hz=hygrometer_rate_hz, seed=_seed(10)) if hygrometer_rate_hz > 0 else None
+                HygrometerModel(update_rate_hz=hygrometer_rate_hz, seed=_seed(12)) if hygrometer_rate_hz > 0 else None
             ),
             light_sensor=(
-                LightSensorModel(update_rate_hz=light_sensor_rate_hz, seed=_seed(11))
+                LightSensorModel(update_rate_hz=light_sensor_rate_hz, seed=_seed(13))
                 if light_sensor_rate_hz > 0
                 else None
             ),
             gas_sensor=(
-                GasSensorModel(update_rate_hz=gas_sensor_rate_hz, seed=_seed(12)) if gas_sensor_rate_hz > 0 else None
+                GasSensorModel(update_rate_hz=gas_sensor_rate_hz, seed=_seed(14)) if gas_sensor_rate_hz > 0 else None
             ),
             anemometer=(
-                AnemometerModel(update_rate_hz=anemometer_rate_hz, seed=_seed(13)) if anemometer_rate_hz > 0 else None
+                AnemometerModel(update_rate_hz=anemometer_rate_hz, seed=_seed(15)) if anemometer_rate_hz > 0 else None
             ),
-            airspeed=AirspeedModel(update_rate_hz=airspeed_rate_hz, seed=_seed(14)) if airspeed_rate_hz > 0 else None,
+            airspeed=AirspeedModel(update_rate_hz=airspeed_rate_hz, seed=_seed(16)) if airspeed_rate_hz > 0 else None,
             rangefinder=(
-                RangefinderModel(update_rate_hz=rangefinder_rate_hz, seed=_seed(15))
+                RangefinderModel(update_rate_hz=rangefinder_rate_hz, seed=_seed(17))
                 if rangefinder_rate_hz > 0
                 else None
             ),
             optical_flow=(
-                OpticalFlowModel(update_rate_hz=optical_flow_rate_hz, seed=_seed(16))
+                OpticalFlowModel(update_rate_hz=optical_flow_rate_hz, seed=_seed(18))
                 if optical_flow_rate_hz > 0
                 else None
             ),
-            battery=(BatteryModel(update_rate_hz=battery_rate_hz, seed=_seed(17)) if battery_rate_hz > 0 else None),
+            battery=(BatteryModel(update_rate_hz=battery_rate_hz, seed=_seed(19)) if battery_rate_hz > 0 else None),
             stereo_camera=(
-                StereoCameraModel(update_rate_hz=stereo_rate_hz, seed=_seed(18)) if stereo_rate_hz > 0 else None
+                StereoCameraModel(update_rate_hz=stereo_rate_hz, seed=_seed(20)) if stereo_rate_hz > 0 else None
             ),
             wheel_odometry=(
-                WheelOdometryModel(update_rate_hz=wheel_odometry_rate_hz, seed=_seed(19))
+                WheelOdometryModel(update_rate_hz=wheel_odometry_rate_hz, seed=_seed(21))
                 if wheel_odometry_rate_hz > 0
                 else None
             ),
             force_torque=(
-                ForceTorqueSensorModel(update_rate_hz=force_torque_rate_hz, seed=_seed(20))
+                ForceTorqueSensorModel(update_rate_hz=force_torque_rate_hz, seed=_seed(22))
                 if force_torque_rate_hz > 0
                 else None
             ),
             joint_state=(
-                JointStateSensor(update_rate_hz=joint_state_rate_hz, seed=_seed(21))
+                JointStateSensor(update_rate_hz=joint_state_rate_hz, seed=_seed(23))
                 if joint_state_rate_hz > 0
                 else None
             ),
-            contact=(ContactSensor(update_rate_hz=contact_rate_hz, seed=_seed(22)) if contact_rate_hz > 0 else None),
+            contact=(ContactSensor(update_rate_hz=contact_rate_hz, seed=_seed(24)) if contact_rate_hz > 0 else None),
             depth_camera=(
-                DepthCameraModel(update_rate_hz=depth_camera_rate_hz, seed=_seed(23))
+                DepthCameraModel(update_rate_hz=depth_camera_rate_hz, seed=_seed(25))
                 if depth_camera_rate_hz > 0
                 else None
             ),
             tactile_array=(
-                TactileArraySensor(update_rate_hz=tactile_array_rate_hz, seed=_seed(24))
+                TactileArraySensor(update_rate_hz=tactile_array_rate_hz, seed=_seed(26))
                 if tactile_array_rate_hz > 0
                 else None
             ),
-            current=(CurrentSensor(update_rate_hz=current_rate_hz, seed=_seed(25)) if current_rate_hz > 0 else None),
-            rpm=(RPMSensor(update_rate_hz=rpm_rate_hz, seed=_seed(26)) if rpm_rate_hz > 0 else None),
+            current=(CurrentSensor(update_rate_hz=current_rate_hz, seed=_seed(27)) if current_rate_hz > 0 else None),
+            rpm=(RPMSensor(update_rate_hz=rpm_rate_hz, seed=_seed(28)) if rpm_rate_hz > 0 else None),
         )
 
     @classmethod
@@ -406,6 +419,8 @@ class SensorSuite:
             lidar=LidarModel.from_config(config.lidar) if config.lidar is not None else None,
             gnss=GNSSModel.from_config(config.gnss) if config.gnss is not None else None,
             radio=RadioLinkModel.from_config(config.radio) if config.radio is not None else None,
+            uwb=UWBRangingModel.from_config(config.uwb) if config.uwb is not None else None,
+            radar=RadarModel.from_config(config.radar) if config.radar is not None else None,
             imu=IMUModel.from_config(config.imu) if config.imu is not None else None,
             barometer=BarometerModel.from_config(config.barometer) if config.barometer is not None else None,
             magnetometer=(

@@ -69,6 +69,8 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
     gnss = obs["gnss"]
     battery = obs["battery"]
     radio = obs["radio"]
+    uwb = obs.get("uwb", {})
+    radar = obs.get("radar", {})
     flow = obs["optical_flow"]
     rangefinder = obs["rangefinder"]
     airspeed = obs["airspeed"]
@@ -92,6 +94,10 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
     _log_scalar("traces/battery/voltage_v", float(battery.get("voltage_v", 0.0)))
     _log_scalar("traces/battery/current_a", float(battery.get("current_a", 0.0)))
     _log_scalar("traces/radio/queue_depth", int(radio.get("queue_depth", 0)))
+    _log_scalar("traces/uwb/anchor_count", len(uwb.get("ranges_m", {})))
+    if "position_estimate" in uwb:
+        _log_vector("traces/uwb/position_estimate_m", np.asarray(uwb["position_estimate"]))
+    _log_scalar("traces/radar/detections", int(radar.get("n_detections", 0)))
     _log_scalar("traces/weather/temperature_c", float(thermometer.get("temperature_c", 0.0)))
     _log_scalar("traces/weather/humidity_pct", float(hygrometer.get("relative_humidity_pct", 0.0)))
     _log_scalar("traces/weather/illuminance_lux", float(light_sensor.get("illuminance_lux", 0.0)))
@@ -100,12 +106,17 @@ def _log_observation(frame: int, dt: float, obs: dict[str, Any]) -> None:
     if "wind_vector_ms" in anemometer:
         _log_vector("traces/weather/wind_vector_ms", np.asarray(anemometer["wind_vector_ms"]))
 
+    radar_points = np.asarray(radar.get("points_xyz", np.empty((0, 3))), dtype=np.float32)
+    if radar_points.size:
+        rr.log("sensors/radar/detections", rr.Points3D(radar_points, radii=0.12))
+
     rr.log(
         "status/summary",
         rr.TextDocument(
             f"frame={frame:03d} t={frame * dt:.2f}s\n"
             f"events={event_count} range={float(rangefinder.get('range_m', 0.0)):.2f}m temp={float(thermometer.get('temperature_c', 0.0)):.1f}C\n"
-            f"battery={float(battery.get('voltage_v', 0.0)):.2f}V fix={int(gnss.get('fix_quality', 0))} hum={float(hygrometer.get('relative_humidity_pct', 0.0)):.0f}%"
+            f"battery={float(battery.get('voltage_v', 0.0)):.2f}V fix={int(gnss.get('fix_quality', 0))} hum={float(hygrometer.get('relative_humidity_pct', 0.0)):.0f}%\n"
+            f"uwb={len(uwb.get('ranges_m', {}))} anchors radar={int(radar.get('n_detections', 0))} detections"
         ),
     )
 

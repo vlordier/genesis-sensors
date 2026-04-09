@@ -265,6 +265,53 @@ class RadioConfig(BaseModel):
     seed: int | None = None
 
 
+class UWBRangeConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.UWBRangingModel`."""
+
+    name: str = "uwb"
+    update_rate_hz: float = Field(default=20.0, gt=0, description="Measurement rate (Hz).")
+    range_noise_sigma_m: float = Field(default=0.05, ge=0.0, description="Gaussian range noise 1-σ (m).")
+    dropout_prob: float = Field(default=0.02, ge=0.0, le=1.0, description="Per-anchor ranging dropout probability.")
+    max_range_m: float = Field(default=60.0, gt=0.0, description="Maximum measurable anchor range (m).")
+    nlos_bias_m: float = Field(default=0.3, ge=0.0, description="Positive bias applied to NLoS measurements (m).")
+    tx_power_dbm: float = Field(default=0.0, description="Reference transmit power used for RSSI estimation (dBm).")
+    estimate_position: bool = Field(
+        default=True, description="Estimate the platform position from valid anchor ranges."
+    )
+    seed: int | None = None
+
+
+class RadarConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.RadarModel`."""
+
+    name: str = "radar"
+    update_rate_hz: float = Field(default=15.0, gt=0, description="Measurement rate (Hz).")
+    max_range_m: float = Field(default=120.0, gt=0.0, description="Maximum measurable range (m).")
+    min_range_m: float = Field(default=0.5, ge=0.0, description="Minimum measurable range (m).")
+    azimuth_fov_deg: float = Field(default=120.0, gt=0.0, le=360.0, description="Horizontal field of view (deg).")
+    elevation_fov_deg: float = Field(default=40.0, gt=0.0, le=180.0, description="Vertical field of view (deg).")
+    range_noise_sigma_m: float = Field(default=0.15, ge=0.0, description="Gaussian range noise 1-σ (m).")
+    velocity_noise_sigma_ms: float = Field(
+        default=0.08, ge=0.0, description="Gaussian radial-velocity noise 1-σ (m/s)."
+    )
+    azimuth_noise_deg: float = Field(default=0.4, ge=0.0, description="Gaussian azimuth noise 1-σ (deg).")
+    elevation_noise_deg: float = Field(default=0.25, ge=0.0, description="Gaussian elevation noise 1-σ (deg).")
+    detection_prob: float = Field(default=0.97, ge=0.0, le=1.0, description="Nominal per-target detection probability.")
+    false_alarm_rate: float = Field(default=0.05, ge=0.0, description="Poisson clutter detections per scan.")
+    rain_attenuation_db_per_mm_h: float = Field(
+        default=0.12,
+        ge=0.0,
+        description="Additional SNR loss per mm/h of rain rate (dB per mm/h).",
+    )
+    seed: int | None = None
+
+    @model_validator(mode="after")
+    def _range_ordered(self) -> "RadarConfig":
+        if self.min_range_m >= self.max_range_m:
+            raise ValueError(f"min_range_m ({self.min_range_m}) must be less than max_range_m ({self.max_range_m})")
+        return self
+
+
 # ---------------------------------------------------------------------------
 # IMUConfig
 # ---------------------------------------------------------------------------
@@ -880,6 +927,8 @@ class SensorSuiteConfig(BaseModel):
     lidar: LidarConfig | None = Field(default_factory=LidarConfig, description="LiDAR (None = disabled).")
     gnss: GNSSConfig | None = Field(default_factory=GNSSConfig, description="GNSS (None = disabled).")
     radio: RadioConfig | None = Field(default_factory=RadioConfig, description="Radio link (None = disabled).")
+    uwb: UWBRangeConfig | None = Field(default=None, description="UWB anchor-ranging sensor (None = disabled).")
+    radar: RadarConfig | None = Field(default=None, description="Radar detection sensor (None = disabled).")
     imu: IMUConfig | None = Field(default_factory=IMUConfig, description="IMU (None = disabled).")
     barometer: BarometerConfig | None = Field(default=None, description="Barometer (None = disabled).")
     magnetometer: MagnetometerConfig | None = Field(default=None, description="Magnetometer (None = disabled).")
@@ -933,6 +982,8 @@ class SensorSuiteConfig(BaseModel):
             thermal=None,
             lidar=None,
             radio=None,
+            uwb=None,
+            radar=None,
             imu=None,
             barometer=None,
             magnetometer=None,
@@ -966,6 +1017,8 @@ class SensorSuiteConfig(BaseModel):
             lidar=None,
             gnss=None,
             radio=None,
+            uwb=None,
+            radar=None,
             imu=None,
             barometer=None,
             magnetometer=None,
@@ -999,6 +1052,8 @@ class SensorSuiteConfig(BaseModel):
             lidar=LidarConfig(),
             gnss=GNSSConfig(),
             radio=RadioConfig(),
+            uwb=UWBRangeConfig(),
+            radar=RadarConfig(),
             imu=IMUConfig(),
             barometer=BarometerConfig(),
             magnetometer=MagnetometerConfig(),
@@ -1042,6 +1097,7 @@ __all__ = [
     "LightSensorConfig",
     "MagnetometerConfig",
     "OpticalFlowConfig",
+    "RadarConfig",
     "RPMSensorConfig",
     "RadioConfig",
     "RangefinderConfig",
@@ -1050,5 +1106,6 @@ __all__ = [
     "TactileArrayConfig",
     "ThermalCameraConfig",
     "ThermometerConfig",
+    "UWBRangeConfig",
     "WheelOdometryConfig",
 ]

@@ -20,6 +20,7 @@ from genesis_sensors import (
     LightSensorModel,
     MagnetometerModel,
     OpticalFlowModel,
+    RadarModel,
     RadioLinkModel,
     RangefinderModel,
     SensorScheduler,
@@ -27,6 +28,7 @@ from genesis_sensors import (
     StereoCameraModel,
     ThermalCameraModel,
     ThermometerModel,
+    UWBRangingModel,
     WheelOdometryModel,
     get_preset,
     list_presets,
@@ -63,6 +65,9 @@ def demo_direct_usage(seed: int) -> None:
     rangefinder = RangefinderModel(update_rate_hz=20.0, seed=seed)
     flow = OpticalFlowModel(update_rate_hz=100.0, seed=seed)
     battery = BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed)
+    radio = RadioLinkModel(update_rate_hz=60.0, seed=seed)
+    uwb = UWBRangingModel(update_rate_hz=20.0, seed=seed)
+    radar = RadarModel(update_rate_hz=20.0, seed=seed)
     thermometer = ThermometerModel(seed=seed)
     hygrometer = HygrometerModel(seed=seed)
     light_sensor = LightSensorModel(seed=seed)
@@ -82,6 +87,9 @@ def demo_direct_usage(seed: int) -> None:
     range_obs = rangefinder.step(0.0, state1)
     flow_obs = flow.step(0.0, state1)
     bat_obs = battery.step(0.0, state1)
+    radio_obs = radio.step(0.0, state1)
+    uwb_obs = uwb.step(0.0, state1)
+    radar_obs = radar.step(0.0, state1)
     temp_obs = thermometer.step(0.0, state1)
     humidity_obs = hygrometer.step(0.0, state1)
     light_obs = light_sensor.step(0.0, state1)
@@ -100,6 +108,10 @@ def demo_direct_usage(seed: int) -> None:
     print(
         f"airspeed={float(airspeed_obs['airspeed_ms']):.2f}m/s range={float(range_obs['range_m']):.2f}m "
         f"flow_quality={int(flow_obs['quality'])} bat_soc={float(bat_obs['soc']) * 100:.1f}%"
+    )
+    print(
+        f"uwb_ranges={len(uwb_obs['ranges_m'])} radar_detections={int(radar_obs['n_detections'])} "
+        f"radio_delivered={len(radio_obs['delivered'])}"
     )
     print(
         f"temp={float(temp_obs['temperature_c']):.1f}C humidity={float(humidity_obs['relative_humidity_pct']):.1f}% "
@@ -147,6 +159,7 @@ def demo_preset_usage(seed: int) -> None:
     print(
         f"environmental presets: {', '.join(list_presets(kind='thermometer'))}, {', '.join(list_presets(kind='anemometer'))}"
     )
+    print(f"wireless presets: {', '.join(list_presets(kind='uwb'))}, {', '.join(list_presets(kind='radar'))}")
     print(
         f"ZED2_STEREO valid_frac={float(np.mean(stereo_obs['valid_mask'])):.1%} "
         f"VELODYNE_VLP16 points={len(lidar_obs['points'])} FLIR_BOSON_320 peak={float(np.max(thermal_obs['temperature_c'])):.1f}C"
@@ -196,11 +209,13 @@ def demo_suite_usage(frames: int, dt: float, seed: int) -> None:
         optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed + 11),
         battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed + 12),
         radio=RadioLinkModel(update_rate_hz=60.0, seed=seed + 13),
-        thermometer=ThermometerModel(seed=seed + 14),
-        hygrometer=HygrometerModel(seed=seed + 15),
-        light_sensor=LightSensorModel(seed=seed + 16),
-        gas_sensor=GasSensorModel(seed=seed + 17),
-        anemometer=AnemometerModel(seed=seed + 18),
+        uwb=UWBRangingModel(update_rate_hz=20.0, seed=seed + 14),
+        radar=RadarModel(update_rate_hz=20.0, seed=seed + 15),
+        thermometer=ThermometerModel(seed=seed + 16),
+        hygrometer=HygrometerModel(seed=seed + 17),
+        light_sensor=LightSensorModel(seed=seed + 18),
+        gas_sensor=GasSensorModel(seed=seed + 19),
+        anemometer=AnemometerModel(seed=seed + 20),
         wheel_odometry=WheelOdometryModel.from_config(wheel_cfg),
     )
     suite.reset()
@@ -222,6 +237,7 @@ def demo_suite_usage(frames: int, dt: float, seed: int) -> None:
             print(
                 f"frame={frame_idx:03d} rgb={np.asarray(obs['rgb']['rgb']).shape} "
                 f"stereo_valid={float(np.mean(obs['stereo']['valid_mask'])):.1%} radio_queue={int(obs['radio']['queue_depth'])} "
+                f"uwb={len(obs['uwb']['ranges_m'])} radar={int(obs['radar']['n_detections'])} "
                 f"temp={float(obs['thermometer']['temperature_c']):.1f}C hum={float(obs['hygrometer']['relative_humidity_pct']):.0f}%"
             )
 

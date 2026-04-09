@@ -131,6 +131,10 @@ class SensorState(TypedDict, total=False):
     gas_background_ppm: float  # background gas concentration (ppm)
     gas_sources: list[dict[str, Any]]  # optional plume source descriptors
 
+    # Wireless / ranging
+    uwb_anchors: list[dict[str, Any]] | dict[str, Any]  # UWB anchor descriptors or id->position map
+    radar_targets: list[dict[str, Any]]  # radar target descriptors with positions / velocities / RCS
+
     # Airspeed / wind
     airspeed_ms: float  # true airspeed (m/s); used directly when present
     wind: Float64Array  # shape (3,) world/body-frame wind vector (m/s)
@@ -370,6 +374,25 @@ class RadioObservation(TypedDict):
     queue_depth: int
 
 
+class UWBObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.UWBRangingModel`."""
+
+    anchor_ids: list[str]
+    ranges_m: FloatArray  # shape (N,) — measured anchor ranges (m)
+    rssi_dbm: FloatArray  # shape (N,) — estimated received signal strength (dBm)
+    los: BoolArray  # shape (N,) — line-of-sight flag for each anchor
+    valid_mask: BoolArray  # shape (N,) — valid / not dropped measurements
+    position_estimate: Float64Array  # shape (3,) — trilaterated platform position estimate (m)
+
+
+class RadarObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.RadarModel`."""
+
+    detections: FloatArray  # shape (N, 5) — [range_m, azimuth_deg, elevation_deg, radial_velocity_ms, snr_db]
+    points_xyz: FloatArray  # shape (N, 3) — Cartesian detection points in the sensor frame
+    n_detections: int
+
+
 # ---------------------------------------------------------------------------
 # Optical flow model
 # ---------------------------------------------------------------------------
@@ -538,11 +561,13 @@ __all__ = [
     "MagnetometerObservation",
     "OpticalFlowObservation",
     "RPMObservation",
+    "RadarObservation",
     "RadioObservation",
     "RangefinderObservation",
     "StereoCameraObservation",
     "TactileArrayObservation",
     "ThermalObservation",
     "ThermometerObservation",
+    "UWBObservation",
     "WheelOdometryObservation",
 ]
