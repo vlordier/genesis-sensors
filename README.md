@@ -21,6 +21,7 @@ Inspired by the standalone feel of `GenesisDroneEnv`, this package wraps the Gen
 - **Bundled sensor runtime** so the package works with released `genesis-world` as-is
 - **Headless synthetic rigs and state builders** for quickly exercising the full sensor surface
 - **Robustness wrappers** for latency injection, packet dropouts, and per-observation health metadata
+- **Common noise-model controls** for every sensor: `gaussian`, `laplace`, `uniform`, or `none`, plus rare outlier injection for heavier-tailed realism
 - **Preset-friendly helpers** via `get_preset()` and `list_presets()` re-exported from the companion package
 - **Self-contained demos** under `examples/`, including upstream-style ports for camera, IMU, contact-force, LiDAR teleop, tactile walkthroughs, and optional **Rerun sensor traces**
 - **Small packaging footprint**: depends on `genesis-world`, not on the full source tree layout
@@ -122,6 +123,29 @@ demo.rig.reset()
 ```
 
 See `docs/examples.md` for the full `genesis-world` + `genesis_sensors` walkthroughs and the generated outputs embedded in the documentation.
+
+## 🎚️ Common noise realism controls
+
+```python
+from genesis_sensors import IMUModel, SensorSuite
+
+imu = IMUModel.from_preset(
+    "PIXHAWK_ICM20689",
+    noise_model="laplace",
+    noise_outlier_prob=0.01,
+    noise_outlier_scale=6.0,
+)
+
+# Reconfigure any sensor after construction
+imu.configure_noise_model("uniform")
+
+# Or push a shared policy across a suite
+suite = SensorSuite(imu=imu)
+suite.configure_noise_models("gaussian", outlier_prob=0.005, outlier_scale=4.0)
+```
+
+Use `gaussian` for standard datasheet-style noise, `laplace` for heavier tails,
+`uniform` for bounded noise, and `none` for deterministic baselines or debugging.
 
 ---
 

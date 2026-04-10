@@ -8,9 +8,12 @@ uniform, rate-aware fashion.
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from typing import Any, Final, Generic, TypeVar
+from typing import Any, Final, Generic, Literal, Self, TypeVar
+
+import numpy as np
 
 # Half a simulation sub-step at 10 kHz — used to guard against float drift in
 # the scheduling comparison.
@@ -20,6 +23,79 @@ _SCHEDULE_TOLERANCE_S: Final[float] = 5e-5
 SensorInput = Mapping[str, Any]
 SensorObservation = dict[str, Any]
 ObservationT = TypeVar("ObservationT", bound=Mapping[str, Any])
+NoiseModelName = Literal["gaussian", "laplace", "uniform", "none"]
+
+
+class _SensorRNGProxy:
+    """Proxy around ``numpy.random.Generator`` with configurable white-noise behavior."""
+
+    _VALID_MODELS: Final[set[str]] = {"gaussian", "laplace", "uniform", "none"}
+
+    def __init__(
+        self,
+        base_rng: np.random.Generator,
+        *,
+        noise_model: NoiseModelName = "gaussian",
+        outlier_prob: float = 0.0,
+        outlier_scale: float = 6.0,
+    ) -> None:
+        self._base_rng = base_rng
+        self.configure(noise_model=noise_model, outlier_prob=outlier_prob, outlier_scale=outlier_scale)
+
+    def configure(
+        self,
+        noise_model: str = "gaussian",
+        *,
+        outlier_prob: float = 0.0,
+        outlier_scale: float = 6.0,
+    ) -> None:
+        model = str(noise_model).strip().lower()
+        if model not in self._VALID_MODELS:
+            raise ValueError(f"noise_model must be one of {sorted(self._VALID_MODELS)}, got {noise_model!r}")
+        self.noise_model = model
+        self.noise_outlier_prob = float(min(1.0, max(0.0, outlier_prob)))
+        self.noise_outlier_scale = float(max(1.0, outlier_scale))
+
+    def normal(self, loc: Any = 0.0, scale: Any = 1.0, size: Any = None):
+        loc_arr = np.asarray(loc, dtype=float)
+        sigma_arr = np.clip(np.asarray(scale, dtype=float), 0.0, None)
+
+        if size is None:
+            shape = np.broadcast(loc_arr, sigma_arr).shape
+        elif isinstance(size, tuple):
+            shape = size
+        else:
+            shape = (int(size),)
+
+        noise = self._sample_zero_mean_noise(sigma_arr, shape)
+        if shape == ():
+            return float(np.asarray(loc_arr, dtype=float) + float(noise))
+        return np.broadcast_to(loc_arr, shape).astype(float, copy=False) + np.asarray(noise, dtype=float)
+
+    def _sample_zero_mean_noise(self, sigma: np.ndarray, shape: tuple[int, ...]):
+        if self.noise_model == "none" or not np.any(sigma > 0.0):
+            return 0.0 if shape == () else np.zeros(shape, dtype=float)
+
+        sigma_b = float(sigma) if shape == () else np.broadcast_to(sigma, shape).astype(float, copy=False)
+        if self.noise_model == "gaussian":
+            samples = self._base_rng.normal(0.0, sigma_b, size=None if shape == () else shape)
+        elif self.noise_model == "laplace":
+            samples = self._base_rng.laplace(0.0, np.asarray(sigma_b) / math.sqrt(2.0), size=None if shape == () else shape)
+        else:
+            amp = np.asarray(sigma_b) * math.sqrt(3.0)
+            samples = self._base_rng.uniform(-amp, amp, size=None if shape == () else shape)
+
+        if self.noise_outlier_prob > 0.0:
+            mask = self._base_rng.random(size=None if shape == () else shape) < self.noise_outlier_prob
+            if bool(mask) if shape == () else np.any(mask):
+                outlier_sigma = np.asarray(sigma_b) * self.noise_outlier_scale
+                spikes = self._base_rng.normal(0.0, outlier_sigma, size=None if shape == () else shape)
+                samples = spikes if shape == () and bool(mask) else np.where(mask, spikes, samples)
+
+        return samples
+
+    def __getattr__(self, name: str):
+        return getattr(self._base_rng, name)
 
 
 class BaseSensor(ABC, Generic[ObservationT]):
@@ -39,6 +115,10 @@ class BaseSensor(ABC, Generic[ObservationT]):
         this to determine when ``step()`` should be called.
     """
 
+    noise_model: NoiseModelName
+    noise_outlier_prob: float
+    noise_outlier_scale: float
+
     def __init__(self, name: str = "", update_rate_hz: float = 1.0) -> None:
         if not isinstance(name, str):
             raise TypeError(f"name must be a str, got {type(name).__name__!r}")
@@ -46,7 +126,70 @@ class BaseSensor(ABC, Generic[ObservationT]):
             raise ValueError(f"update_rate_hz must be positive, got {update_rate_hz}")
         self.name = name or type(self).__name__
         self.update_rate_hz = float(update_rate_hz)
+        self.noise_model: NoiseModelName = "gaussian"
+        self.noise_outlier_prob: float = 0.0
+        self.noise_outlier_scale: float = 6.0
         self._last_update_time: float = -1.0
+
+    def _make_rng(self, seed: int | None = None, *, rng: np.random.Generator | None = None) -> _SensorRNGProxy:
+        base_rng = rng if rng is not None else np.random.default_rng(seed=seed)
+        return _SensorRNGProxy(
+            base_rng,
+            noise_model=self.noise_model,
+            outlier_prob=self.noise_outlier_prob,
+            outlier_scale=self.noise_outlier_scale,
+        )
+
+    def configure_noise_model(
+        self,
+        noise_model: NoiseModelName | str = "gaussian",
+        *,
+        outlier_prob: float = 0.0,
+        outlier_scale: float = 6.0,
+    ) -> Self:
+        """Configure the common white-noise sampler used by this sensor.
+
+        Parameters
+        ----------
+        noise_model:
+            One of ``"gaussian"`` (default), ``"laplace"`` (heavier tails),
+            ``"uniform"`` (bounded noise), or ``"none"`` (disable white noise).
+        outlier_prob:
+            Optional per-sample probability of replacing the nominal noise draw
+            with a larger outlier.
+        outlier_scale:
+            Multiplicative scale factor for those rare outlier events.
+        """
+        model = str(noise_model).strip().lower()
+        if model not in _SensorRNGProxy._VALID_MODELS:
+            raise ValueError(f"noise_model must be one of {sorted(_SensorRNGProxy._VALID_MODELS)}, got {noise_model!r}")
+        self.noise_model = model  # type: ignore[assignment]
+        self.noise_outlier_prob = float(min(1.0, max(0.0, outlier_prob)))
+        self.noise_outlier_scale = float(max(1.0, outlier_scale))
+
+        rng = getattr(self, "_rng", None)
+        if rng is None:
+            return self
+        if isinstance(rng, _SensorRNGProxy):
+            rng.configure(noise_model=noise_model, outlier_prob=outlier_prob, outlier_scale=outlier_scale)
+        elif isinstance(rng, np.random.Generator):
+            self._rng = self._make_rng(rng=rng)
+
+        gauss_markov_type = None
+        try:
+            from ._gauss_markov import GaussMarkovProcess as _GaussMarkovProcess
+
+            gauss_markov_type = _GaussMarkovProcess
+        except Exception:  # pragma: no cover - defensive import guard
+            pass
+
+        wrapped_rng = getattr(self, "_rng", None)
+        if gauss_markov_type is not None:
+            for attr_name in dir(self):
+                attr = getattr(self, attr_name, None)
+                if isinstance(attr, gauss_markov_type):
+                    attr._rng = wrapped_rng  # type: ignore[assignment]
+        return self
 
     # ------------------------------------------------------------------
     # Mandatory interface
@@ -59,6 +202,11 @@ class BaseSensor(ABC, Generic[ObservationT]):
 
         Called at the start of each episode / scene reset.
         """
+
+    @classmethod
+    def from_config(cls, config: Any):
+        """Construct a sensor from its validated config object."""
+        raise NotImplementedError(f"{cls.__name__}.from_config() must be implemented by subclasses")
 
     @abstractmethod
     def step(self, sim_time: float, state: SensorInput) -> ObservationT:
@@ -138,8 +286,18 @@ class BaseSensor(ABC, Generic[ObservationT]):
         """
         from .presets import get_preset
 
+        noise_override_keys = ("noise_model", "noise_outlier_prob", "noise_outlier_scale")
+        noise_overrides = {key: overrides.pop(key) for key in noise_override_keys if key in overrides}
+
         cfg = get_preset(name, **overrides)
-        return cls.from_config(cfg)
+        sensor = cls.from_config(cfg)
+        if noise_overrides:
+            sensor.configure_noise_model(
+                noise_overrides.get("noise_model", sensor.noise_model),
+                outlier_prob=noise_overrides.get("noise_outlier_prob", sensor.noise_outlier_prob),
+                outlier_scale=noise_overrides.get("noise_outlier_scale", sensor.noise_outlier_scale),
+            )
+        return sensor
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(name={self.name!r}, rate={self.update_rate_hz} Hz)"

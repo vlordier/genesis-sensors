@@ -50,6 +50,24 @@ True State → Error Injection → Quantisation/Clipping → Observation Dict
    dropout logic.
 4. The result is returned as a typed observation dict.
 
+### Common noise-model controls
+
+All runtime sensors share the same white-noise interface:
+
+```python
+imu.configure_noise_model("laplace", outlier_prob=0.01, outlier_scale=6.0)
+suite.configure_noise_models("uniform")
+```
+
+- `gaussian` — default datasheet-style white noise
+- `laplace` — heavier tails / more occasional larger deviations
+- `uniform` — bounded noise with the same nominal σ
+- `none` — disable white noise for debugging and deterministic baselines
+
+These controls sit on top of each sensor's native parameters such as
+`noise_sigma_*`, `noise_density_*`, dropout, bias drift, and modality-specific
+corruption.
+
 ### Noise Types
 
 | Type | Description | Applied By |

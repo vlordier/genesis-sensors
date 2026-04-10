@@ -473,6 +473,25 @@ class SensorSuite:
         """Return all registered sensor names."""
         return self._scheduler.sensor_names()
 
+    def configure_noise_models(
+        self,
+        noise_model: str | Mapping[str, str],
+        *,
+        outlier_prob: float = 0.0,
+        outlier_scale: float = 6.0,
+    ) -> None:
+        """Configure the shared white-noise model for one or all registered sensors."""
+        if isinstance(noise_model, Mapping):
+            for name, model in noise_model.items():
+                self.get_sensor(name).configure_noise_model(model, outlier_prob=outlier_prob, outlier_scale=outlier_scale)
+            return
+        for name in self.sensor_names():
+            self.get_sensor(name).configure_noise_model(
+                noise_model,
+                outlier_prob=outlier_prob,
+                outlier_scale=outlier_scale,
+            )
+
     def set_seed(self, base_seed: int) -> None:
         """Re-seed every registered sensor deterministically.
 
@@ -490,9 +509,9 @@ class SensorSuite:
         for name, cs in zip(names, child_seeds):
             sensor = self._scheduler.get_sensor(name)
             new_seed = int(cs.generate_state(1)[0])
-            new_rng = np.random.default_rng(new_seed)
+            new_rng = sensor._make_rng(new_seed) if hasattr(sensor, "_make_rng") else np.random.default_rng(new_seed)
             if hasattr(sensor, "_rng"):
-                sensor._rng = new_rng
+                sensor._rng = new_rng  # type: ignore[assignment]
             if hasattr(sensor, "_seed"):
                 sensor._seed = new_seed
             # Also update any GaussMarkovProcess instances that hold
@@ -500,7 +519,7 @@ class SensorSuite:
             for attr_name in dir(sensor):
                 attr = getattr(sensor, attr_name, None)
                 if isinstance(attr, GaussMarkovProcess):
-                    attr._rng = new_rng
+                    attr._rng = new_rng  # type: ignore[assignment]
 
     @property
     def scheduler(self) -> SensorScheduler:

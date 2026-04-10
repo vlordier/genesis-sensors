@@ -7,7 +7,15 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from genesis_sensors import CurrentSensor, SensorSuite, get_preset, list_presets, make_synthetic_sensor_state
+from genesis_sensors import (
+    CurrentSensor,
+    IMUModel,
+    SensorSuite,
+    ThermalCameraModel,
+    get_preset,
+    list_presets,
+    make_synthetic_sensor_state,
+)
 from genesis_sensors.rigs import NamedContactSensor, SensorRig, make_synthetic_multimodal_rig
 
 
@@ -151,3 +159,39 @@ def test_generate_assets_requires_genesis_capture(monkeypatch: pytest.MonkeyPatc
 
     with pytest.raises(RuntimeError, match="Genesis-backed capture"):
         doc_assets.generate_assets(tmp_path, frames=2, dt=0.05, seed=0, only={"imu"})
+
+
+def test_common_noise_model_can_disable_runtime_noise() -> None:
+    current = CurrentSensor(noise_sigma_a=1.5, offset_a=0.0, voltage_nominal_v=12.0, seed=0)
+    current.configure_noise_model("none")
+
+    current_obs = current.step(0.0, {"current_a": 3.0, "voltage_v": 12.0})
+    assert float(current_obs["current_a"]) == pytest.approx(3.0)
+    assert float(current_obs["power_w"]) == pytest.approx(36.0)
+
+    imu = IMUModel.from_preset("PIXHAWK_ICM20689", noise_model="none")
+    assert imu.noise_model == "none"
+
+    thermal = ThermalCameraModel(noise_sigma=0.8, nuc_sigma=0.0, resolution=(6, 4), seed=0)
+    thermal.configure_noise_model("none")
+    thermal_obs = thermal.step(
+        0.0,
+        {
+            "seg": np.zeros((4, 6), dtype=np.int32),
+            "temperature_map": {0: 25.0},
+        },
+    )
+    assert np.allclose(np.asarray(thermal_obs["temperature_c"], dtype=float), 25.0)
+
+
+def test_sensor_suite_set_seed_preserves_noise_model_configuration() -> None:
+    imu = IMUModel(noise_density_acc=0.2, noise_density_gyr=0.2, bias_sigma_acc=0.0, bias_sigma_gyr=0.0, seed=0)
+    imu.configure_noise_model("uniform")
+
+    suite = SensorSuite(imu=imu)
+    suite.set_seed(123)
+    suite.reset()
+    obs = suite.step(0.0, {"lin_acc": np.zeros(3), "ang_vel": np.zeros(3), "gravity_body": np.zeros(3)})
+
+    assert suite.get_sensor("imu").noise_model == "uniform"
+    assert np.max(np.abs(np.asarray(obs["imu"]["lin_acc"], dtype=float))) <= np.sqrt(3.0) * imu._sigma_acc + 1e-6
