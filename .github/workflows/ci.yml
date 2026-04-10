@@ -7,6 +7,10 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  PIP_DEFAULT_TIMEOUT: '120'
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+  PIP_PROGRESS_BAR: 'off'
+  PIP_RETRIES: '10'
 
 jobs:
   lint-test-and-build:
@@ -21,13 +25,30 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            pyproject.toml
+            .github/workflows/ci.yml
 
       - name: Install dependencies
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install "genesis-world @ git+https://github.com/vlordier/Genesis.git@copilot/genesis-sensors-integration"
-          pip install -e .[dev]
+          retry_pip() {
+            local attempt=1
+            until python -m pip "$@"; do
+              if [ "$attempt" -ge 3 ]; then
+                echo "pip $* failed after ${attempt} attempts"
+                return 1
+              fi
+              echo "pip $* failed on attempt ${attempt}; retrying..."
+              attempt=$((attempt + 1))
+            done
+          }
+
+          python -m pip install --upgrade pip setuptools wheel
+          retry_pip install --index-url https://download.pytorch.org/whl/cpu torch
+          retry_pip install "genesis-world @ git+https://github.com/vlordier/Genesis.git@copilot/genesis-sensors-integration"
+          retry_pip install -e ".[dev]"
 
       - name: Ruff
         run: ruff check .
@@ -62,13 +83,30 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: |
+            pyproject.toml
+            .github/workflows/ci.yml
 
       - name: Install runtime dependencies
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install "genesis-world @ git+https://github.com/vlordier/Genesis.git@copilot/genesis-sensors-integration"
-          pip install -e .
+          retry_pip() {
+            local attempt=1
+            until python -m pip "$@"; do
+              if [ "$attempt" -ge 3 ]; then
+                echo "pip $* failed after ${attempt} attempts"
+                return 1
+              fi
+              echo "pip $* failed on attempt ${attempt}; retrying..."
+              attempt=$((attempt + 1))
+            done
+          }
+
+          python -m pip install --upgrade pip setuptools wheel
+          retry_pip install --index-url https://download.pytorch.org/whl/cpu torch
+          retry_pip install "genesis-world @ git+https://github.com/vlordier/Genesis.git@copilot/genesis-sensors-integration"
+          retry_pip install -e .
 
       - name: Import package
         run: python -c "import genesis_sensors; print(genesis_sensors.__version__)"
