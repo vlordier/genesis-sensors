@@ -1,0 +1,61 @@
+[data-md-color-scheme="default"] {
+  --generated-example-bg: #f8fafc;
+  --generated-example-border: #cbd5e1;
+}
+
+[data-md-color-scheme="slate"] {
+  --generated-example-bg: #0f172a;
+  --generated-example-border: #334155;
+}
+
+.md-typeset .generated-example-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.md-typeset figure.generated-example {
+  margin: 0;
+  padding: 0.75rem;
+  border-radius: 0.8rem;
+  border: 1px solid var(--generated-example-border);
+  background: var(--generated-example-bg);
+  box-shadow: var(--md-shadow-z1);
+}
+
+.md-typeset figure.generated-example img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0.45rem;
+  border: 1px solid var(--generated-example-border);
+  background: #fff;
+}
+
+.md-typeset figure.generated-example figcaption {
+  margin-top: 0.55rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--md-default-fg-color--light);
+}
+
+.md-typeset .admonition.example,
+.md-typeset details.example {
+  border-color: var(--md-accent-fg-color);
+}
+
+.md-typeset .admonition.example > .admonition-title,
+.md-typeset details.example > summary {
+  font-weight: 700;
+}
+
+.md-typeset .highlight pre {
+  border-radius: 0.75rem;
+  border: 1px solid var(--generated-example-border);
+  box-shadow: var(--md-shadow-z1);
+}
+
+.md-typeset code {
+  font-weight: 500;
+}

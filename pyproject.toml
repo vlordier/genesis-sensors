@@ -37,11 +37,17 @@ dev = [
     "bump-my-version>=0.32.1",
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.5.39",
+    "mkdocstrings[python]>=0.29",
+    "poethepoet>=0.32.0",
     "pre-commit>=4.0.1",
     "pytest>=8.0",
+    "rerun-sdk>=0.23",
     "python-semantic-release>=10.2.0",
     "ruff>=0.9",
     "twine>=6.1.0",
+]
+rerun = [
+    "rerun-sdk>=0.23",
 ]
 
 [project.urls]
@@ -52,6 +58,8 @@ Documentation = "https://vlordier.github.io/genesis-sensors/"
 Changelog = "https://github.com/vlordier/genesis-sensors/releases"
 
 [project.scripts]
+genesis-sensors = "genesis_sensors.cli:main"
+gs-sensors = "genesis_sensors.cli:main"
 genesis-sensors-demo = "genesis_sensors.cli:main"
 
 [tool.setuptools]
@@ -113,3 +121,13 @@ prerelease = false
 [tool.semantic_release.changelog.default_templates]
 changelog_file = "CHANGELOG.md"
 output_format = "md"
+
+[tool.poe.tasks]
+test = { shell = "PYTHONPATH=src pytest tests -q" }
+fault_demo = { shell = "PYTHONPATH=src python examples/fault_tolerant_sensors.py --frames 8 --dropout 0.2" }
+environment_demo = { shell = "PYTHONPATH=src python examples/environmental_sensors.py --frames 8" }
+wireless_demo = { shell = "PYTHONPATH=src python examples/sensor_usage_patterns.py --frames 8" }
+doc_assets = { shell = "PYTHONPATH=src python examples/generate_sensor_doc_assets.py --output-dir docs/assets/sensors" }
+rerun_demo = { shell = "PYTHONPATH=src python examples/external_sensors_rerun.py --frames 60 --spawn" }
+rerun_save = { shell = "PYTHONPATH=src python examples/external_sensors_rerun.py --frames 60 --save /tmp/genesis-sensors-traces.rrd" }
+check = { shell = "pre-commit run --all-files && PYTHONPATH=src pytest tests -q" }
