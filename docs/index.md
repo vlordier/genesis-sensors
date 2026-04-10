@@ -34,6 +34,12 @@ pip install genesis-world
 pip install genesis-sensors
 ```
 
+If you only need the headless helpers first, verify the selected backend with:
+
+```bash
+python -c "import genesis_sensors as gs; print(gs.SENSOR_BACKEND)"
+```
+
 ## 60-second quick start
 
 ```python

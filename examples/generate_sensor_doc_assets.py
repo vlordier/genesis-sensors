@@ -82,6 +82,7 @@ def _get_demo_builders() -> dict[str, tuple[str, Callable[..., Any]]]:
         "franka": ("Genesis Franka demo", build_franka_demo),
     }
 
+
 DEMO_SENSOR_KEYS: dict[str, tuple[str, str]] = {
     "imu": ("perception", "imu"),
     "gnss": ("perception", "gnss"),

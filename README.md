@@ -199,9 +199,13 @@ python -m build
 python -m twine check dist/*
 
 # or use the pyproject-managed task shortcuts
+uv run --extra dev poe lint
+uv run --extra dev poe docs
 uv run --extra dev poe test
+uv run --extra dev poe test_fast
 uv run --extra dev poe fault_demo
 uv run --extra dev poe rerun_save
+uv run --extra dev poe check_fast
 uv run --extra dev poe check
 
 # publish from GitHub Actions after configuring PyPI trusted publishing
@@ -225,6 +229,15 @@ See `CONTRIBUTING.md`, `RELEASE.md`, and `CHANGELOG.md` for the full workflow.
 The docs site is built with **MkDocs Material** and published via **GitHub Pages**.
 
 ---
+
+## 🛠️ Troubleshooting
+
+- If `import genesis` fails with a missing `torch` error, install PyTorch for your platform first, for example:
+  `pip install torch --index-url https://download.pytorch.org/whl/cpu`
+- To confirm which sensor implementation is active, run:
+  `python -c "import genesis_sensors as gs; print(gs.SENSOR_BACKEND)"`
+- For a fast local verification pass that does not require the full scene runtime, use:
+  `uv run --extra dev poe test_fast`
 
 ## 🧭 Notes
 

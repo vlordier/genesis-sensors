@@ -1,6 +1,6 @@
 # Overview
 
-`genesis-sensors` is a lightweight companion package built around the upstream `genesis.sensors` module.
+`genesis-sensors` is a lightweight companion package built around the Genesis external-sensor API surface, preferring upstream `genesis.sensors` when available and otherwise using its bundled compatible runtime.
 
 ## Mental model
 

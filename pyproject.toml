@@ -123,7 +123,11 @@ changelog_file = "CHANGELOG.md"
 output_format = "md"
 
 [tool.poe.tasks]
+lint = { shell = "ruff check ." }
+docs = { shell = "mkdocs build --strict" }
 test = { shell = "PYTHONPATH=src pytest tests -q" }
+test_fast = { shell = "PYTHONPATH=src pytest tests/test_compat.py tests/test_architecture.py tests/test_rigs.py -q" }
+check_fast = { shell = "pre-commit run --all-files && PYTHONPATH=src pytest tests/test_compat.py tests/test_architecture.py tests/test_rigs.py -q" }
 fault_demo = { shell = "PYTHONPATH=src python examples/fault_tolerant_sensors.py --frames 8 --dropout 0.2" }
 environment_demo = { shell = "PYTHONPATH=src python examples/environmental_sensors.py --frames 8" }
 wireless_demo = { shell = "PYTHONPATH=src python examples/sensor_usage_patterns.py --frames 8" }
