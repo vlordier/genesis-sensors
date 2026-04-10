@@ -33,7 +33,13 @@ def main() -> None:
         "go2": build_go2_demo,
     }
     demo_builder = builders[args.scene]
-    demo: DemoScene = demo_builder(dt=args.dt, show_viewer=args.vis, use_gpu=args.gpu)
+    try:
+        demo: DemoScene = demo_builder(dt=args.dt, show_viewer=args.vis, use_gpu=args.gpu)
+    except ImportError as exc:  # pragma: no cover - depends on optional runtime deps
+        raise SystemExit(
+            "Running Genesis sensor scenes requires a working Genesis + PyTorch runtime. "
+            "Install torch in the target environment first."
+        ) from exc
     demo.rig.reset()
 
     for step in range(args.steps):

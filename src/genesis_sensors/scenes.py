@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from importlib import import_module
 from typing import Any
 
 import numpy as np
-import genesis as gs
 
 from .rigs import SensorRig, make_drone_navigation_rig, make_drone_perception_rig, make_franka_wrist_rig, make_go2_rig
 
@@ -25,15 +25,27 @@ class DemoScene:
     controller: Callable[[int], None] | None = None
 
 
-def _init_genesis(*, use_gpu: bool, logging_level: str = "warning") -> None:
+def _get_genesis() -> Any:
+    """Import Genesis lazily so module import remains lightweight without Torch."""
+    try:
+        return import_module("genesis")
+    except ImportError as exc:  # pragma: no cover - depends on optional runtime deps
+        raise ImportError(
+            "Genesis demo scenes require a working Genesis + PyTorch runtime. Install torch in the target environment first."
+        ) from exc
+
+
+def _init_genesis(*, use_gpu: bool, logging_level: str = "warning") -> Any:
     """Initialize Genesis with a CPU/GPU backend selected at runtime."""
+    gs = _get_genesis()
     backend = getattr(gs, "gpu" if use_gpu else "cpu", None)
     gs.init(backend=backend, logging_level=logging_level)
+    return gs
 
 
 def build_drone_demo(*, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0) -> DemoScene:
     """Build a small drone scene plus a navigation sensor rig."""
-    _init_genesis(use_gpu=use_gpu)
+    gs = _init_genesis(use_gpu=use_gpu)
 
     scene = gs.Scene(
         sim_options=gs.options.SimOptions(dt=dt, substeps=2),
@@ -78,7 +90,7 @@ def build_perception_demo(
     *, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0
 ) -> DemoScene:
     """Build a drone scene showcasing the richer multimodal perception stack."""
-    _init_genesis(use_gpu=use_gpu)
+    gs = _init_genesis(use_gpu=use_gpu)
 
     scene = gs.Scene(
         sim_options=gs.options.SimOptions(dt=dt, substeps=2),
@@ -123,7 +135,7 @@ def build_franka_demo(
     *, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0
 ) -> DemoScene:
     """Build a Franka arm scene plus a wrist/proprioception sensor rig."""
-    _init_genesis(use_gpu=use_gpu)
+    gs = _init_genesis(use_gpu=use_gpu)
 
     scene = gs.Scene(
         sim_options=gs.options.SimOptions(dt=dt),
@@ -175,7 +187,7 @@ def build_franka_demo(
 
 def build_go2_demo(*, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0) -> DemoScene:
     """Build a Go2 quadruped scene plus a proprioception/contact rig."""
-    _init_genesis(use_gpu=use_gpu)
+    gs = _init_genesis(use_gpu=use_gpu)
 
     scene = gs.Scene(
         sim_options=gs.options.SimOptions(dt=dt),
