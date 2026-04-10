@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import importlib
+import types
+
 import numpy as np
+import pytest
 
 import genesis_sensors
 from genesis_sensors._runtime_sensors import (
@@ -30,6 +34,59 @@ def test_bundled_sensor_backend_exposes_presets_and_models() -> None:
 
     obs = scheduler.update(0.0, genesis_sensors.make_synthetic_sensor_state(0, resolution=(16, 12)))
     assert obs["rgb"]["rgb"].shape == (12, 16, 3)
+
+
+def test_incomplete_upstream_surface_falls_back_to_bundled() -> None:
+    import genesis_sensors._compat as compat
+
+    fake_backend = types.ModuleType("genesis.sensors")
+    fake_config = types.ModuleType("genesis.sensors.config")
+    fake_bridge = types.ModuleType("genesis.sensors.genesis_bridge")
+    fake_presets = types.ModuleType("genesis.sensors.presets")
+
+    class FakeBaseSensor:
+        pass
+
+    class FakeSensorSuite:
+        def __init__(self, imu=None):
+            self.imu = imu
+
+    def fake_list_presets(kind: str | None = None) -> list[str]:
+        if kind is None:
+            return ["UPSTREAM_PLACEHOLDER"]
+        raise KeyError(kind)
+
+    fake_backend.BaseSensor = FakeBaseSensor
+    fake_backend.SensorSuite = FakeSensorSuite
+    fake_backend.__all__ = ["BaseSensor", "SensorSuite"]
+    fake_config.__all__ = []
+    fake_bridge.__all__ = []
+    fake_presets.__all__ = ["get_preset", "list_presets"]
+    fake_presets.get_preset = lambda name: types.SimpleNamespace(name=name)
+    fake_presets.list_presets = fake_list_presets
+
+    real_import_module = importlib.import_module
+
+    with pytest.MonkeyPatch.context() as mp:
+
+        def fake_import(name: str, package: str | None = None):
+            mapping = {
+                "genesis.sensors": fake_backend,
+                "genesis.sensors.config": fake_config,
+                "genesis.sensors.genesis_bridge": fake_bridge,
+                "genesis.sensors.presets": fake_presets,
+            }
+            if name in mapping:
+                return mapping[name]
+            return real_import_module(name, package)
+
+        mp.setattr(importlib, "import_module", fake_import)
+        reloaded = importlib.reload(compat)
+        assert reloaded.SENSOR_BACKEND == "bundled"
+        assert reloaded.has_upstream_sensors() is True
+        assert isinstance(reloaded.upstream_sensors_error(), RuntimeError)
+
+    importlib.reload(compat)
 
 
 def test_bundled_optical_flow_matches_documented_axis_convention() -> None:

@@ -11,7 +11,12 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from typing import Any, Final, Generic, Literal, Self, TypeVar
+from typing import Any, Final, Generic, Literal, TypeVar
+
+try:  # Python 3.11+
+    from typing import Self
+except ImportError:  # pragma: no cover - Python 3.10 compatibility
+    from typing_extensions import Self
 
 import numpy as np
 
