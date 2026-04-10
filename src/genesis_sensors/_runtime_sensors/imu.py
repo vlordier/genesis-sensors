@@ -191,7 +191,7 @@ class IMUModel(BaseSensor):
     @classmethod
     def from_config(cls, config: "IMUConfig") -> "IMUModel":
         """Construct an :class:`IMUModel` from an :class:`~genesis.sensors.config.IMUConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "IMUConfig":
         """Return the current parameters as an :class:`~genesis.sensors.config.IMUConfig`."""

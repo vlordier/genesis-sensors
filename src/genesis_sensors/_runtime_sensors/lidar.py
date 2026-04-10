@@ -254,7 +254,7 @@ class LidarModel(BaseSensor):
     @classmethod
     def from_config(cls, config: "LidarConfig") -> "LidarModel":
         """Construct a :class:`LidarModel` from a :class:`~genesis.sensors.config.LidarConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "LidarConfig":
         """Return the current parameters as a :class:`~genesis.sensors.config.LidarConfig`."""

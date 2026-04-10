@@ -141,7 +141,7 @@ class OpticalFlowModel(BaseSensor):
     @classmethod
     def from_config(cls, config: "OpticalFlowConfig") -> "OpticalFlowModel":
         """Construct from an :class:`~genesis.sensors.config.OpticalFlowConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "OpticalFlowConfig":
         """Return the current parameters as an :class:`~genesis.sensors.config.OpticalFlowConfig`."""

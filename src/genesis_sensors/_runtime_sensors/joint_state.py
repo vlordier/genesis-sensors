@@ -92,7 +92,7 @@ class JointStateSensor(BaseSensor):
     @classmethod
     def from_config(cls, config: "JointStateConfig") -> "JointStateSensor":
         """Construct from a :class:`~genesis.sensors.config.JointStateConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "JointStateConfig":
         """Serialise parameters back to a :class:`~genesis.sensors.config.JointStateConfig`."""

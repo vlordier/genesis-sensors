@@ -135,7 +135,7 @@ class EventCameraModel(BaseSensor):
     @classmethod
     def from_config(cls, config: "EventCameraConfig") -> "EventCameraModel":
         """Construct an :class:`EventCameraModel` from an :class:`~genesis.sensors.config.EventCameraConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "EventCameraConfig":
         """Return the current parameters as an :class:`~genesis.sensors.config.EventCameraConfig`."""

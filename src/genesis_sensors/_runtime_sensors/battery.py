@@ -174,7 +174,7 @@ class BatteryModel(BaseSensor):
     @classmethod
     def from_config(cls, config: "BatteryConfig") -> "BatteryModel":
         """Construct from a :class:`~genesis.sensors.config.BatteryConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "BatteryConfig":
         """Return current parameters as a :class:`~genesis.sensors.config.BatteryConfig`."""

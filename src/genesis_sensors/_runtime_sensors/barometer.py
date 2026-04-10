@@ -146,7 +146,7 @@ class BarometerModel(BaseSensor):
     @classmethod
     def from_config(cls, config: "BarometerConfig") -> "BarometerModel":
         """Construct a :class:`BarometerModel` from a :class:`~genesis.sensors.config.BarometerConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "BarometerConfig":
         """Return the current parameters as a :class:`~genesis.sensors.config.BarometerConfig`."""

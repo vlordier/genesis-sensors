@@ -24,7 +24,29 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel as PydanticBaseModel, Field, field_validator, model_validator
+
+NoiseModelLiteral = Literal["gaussian", "laplace", "uniform", "none"]
+
+
+class BaseModel(PydanticBaseModel):
+    """Shared config base with common runtime noise-model controls."""
+
+    noise_model: NoiseModelLiteral = Field(
+        default="gaussian",
+        description="White-noise distribution: gaussian, laplace, uniform, or none.",
+    )
+    noise_outlier_prob: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Optional probability of rare larger outlier draws.",
+    )
+    noise_outlier_scale: float = Field(
+        default=6.0,
+        ge=1.0,
+        description="Scale multiplier for those rare outlier events.",
+    )
 
 # ---------------------------------------------------------------------------
 # CameraConfig

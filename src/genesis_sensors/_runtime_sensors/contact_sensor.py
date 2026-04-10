@@ -86,7 +86,7 @@ class ContactSensor(BaseSensor):
     @classmethod
     def from_config(cls, config: "ContactSensorConfig") -> "ContactSensor":
         """Construct from a :class:`~genesis.sensors.config.ContactSensorConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "ContactSensorConfig":
         """Serialise parameters back to a :class:`~genesis.sensors.config.ContactSensorConfig`."""

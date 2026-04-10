@@ -96,7 +96,7 @@ class DepthCameraModel(BaseSensor):
     @classmethod
     def from_config(cls, config: "DepthCameraConfig") -> "DepthCameraModel":
         """Construct from a :class:`~genesis.sensors.config.DepthCameraConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "DepthCameraConfig":
         """Serialise parameters back to a :class:`~genesis.sensors.config.DepthCameraConfig`."""

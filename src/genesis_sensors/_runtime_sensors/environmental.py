@@ -92,7 +92,7 @@ class ThermometerModel(BaseSensor[ThermometerObservation]):
 
     @classmethod
     def from_config(cls, config: "ThermometerConfig") -> "ThermometerModel":
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "ThermometerConfig":
         from .config import ThermometerConfig
@@ -171,7 +171,7 @@ class HygrometerModel(BaseSensor[HygrometerObservation]):
 
     @classmethod
     def from_config(cls, config: "HygrometerConfig") -> "HygrometerModel":
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "HygrometerConfig":
         from .config import HygrometerConfig
@@ -252,7 +252,7 @@ class LightSensorModel(BaseSensor[LightSensorObservation]):
 
     @classmethod
     def from_config(cls, config: "LightSensorConfig") -> "LightSensorModel":
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "LightSensorConfig":
         from .config import LightSensorConfig
@@ -332,7 +332,7 @@ class GasSensorModel(BaseSensor[GasObservation]):
 
     @classmethod
     def from_config(cls, config: "GasSensorConfig") -> "GasSensorModel":
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "GasSensorConfig":
         from .config import GasSensorConfig
@@ -445,7 +445,7 @@ class AnemometerModel(BaseSensor[AnemometerObservation]):
 
     @classmethod
     def from_config(cls, config: "AnemometerConfig") -> "AnemometerModel":
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "AnemometerConfig":
         from .config import AnemometerConfig

@@ -145,7 +145,7 @@ class UWBRangingModel(BaseSensor[UWBObservation]):
 
     @classmethod
     def from_config(cls, config: "UWBRangeConfig") -> "UWBRangingModel":
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "UWBRangeConfig":
         from .config import UWBRangeConfig
@@ -283,7 +283,7 @@ class RadarModel(BaseSensor[RadarObservation]):
 
     @classmethod
     def from_config(cls, config: "RadarConfig") -> "RadarModel":
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "RadarConfig":
         from .config import RadarConfig

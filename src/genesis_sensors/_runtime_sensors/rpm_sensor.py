@@ -92,7 +92,7 @@ class RPMSensor(BaseSensor[RPMObservation]):
     @classmethod
     def from_config(cls, config: "RPMSensorConfig") -> "RPMSensor":
         """Construct from a :class:`~genesis.sensors.config.RPMSensorConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "RPMSensorConfig":
         """Serialise parameters back to a :class:`~genesis.sensors.config.RPMSensorConfig`."""

@@ -87,7 +87,7 @@ class WheelOdometryModel(BaseSensor):
     @classmethod
     def from_config(cls, config: "WheelOdometryConfig") -> "WheelOdometryModel":
         """Construct from a :class:`~genesis.sensors.config.WheelOdometryConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "WheelOdometryConfig":
         """Serialise current parameters to a :class:`~genesis.sensors.config.WheelOdometryConfig`."""

@@ -105,7 +105,7 @@ class TactileArraySensor(BaseSensor[TactileArrayObservation]):
     @classmethod
     def from_config(cls, config: "TactileArrayConfig") -> "TactileArraySensor":
         """Construct from a :class:`~genesis.sensors.config.TactileArrayConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "TactileArrayConfig":
         """Serialise parameters back to a :class:`~genesis.sensors.config.TactileArrayConfig`."""

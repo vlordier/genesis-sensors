@@ -130,7 +130,7 @@ class UltrasonicArrayModel(BaseSensor[UltrasonicObservation]):
 
     @classmethod
     def from_config(cls, config: "UltrasonicArrayConfig") -> "UltrasonicArrayModel":
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "UltrasonicArrayConfig":
         from .config import UltrasonicArrayConfig

@@ -180,7 +180,7 @@ class ThermalCameraModel(BaseSensor):
     @classmethod
     def from_config(cls, config: "ThermalCameraConfig") -> "ThermalCameraModel":
         """Construct a :class:`ThermalCameraModel` from a :class:`~genesis.sensors.config.ThermalCameraConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "ThermalCameraConfig":
         """Return the current parameters as a :class:`~genesis.sensors.config.ThermalCameraConfig`."""

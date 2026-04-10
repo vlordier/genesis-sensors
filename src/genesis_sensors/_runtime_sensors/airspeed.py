@@ -168,7 +168,7 @@ class AirspeedModel(BaseSensor):
     @classmethod
     def from_config(cls, config: "AirspeedConfig") -> "AirspeedModel":
         """Construct from an :class:`~genesis.sensors.config.AirspeedConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "AirspeedConfig":
         """Return the current parameters as an :class:`~genesis.sensors.config.AirspeedConfig`."""

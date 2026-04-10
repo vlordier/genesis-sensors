@@ -85,7 +85,7 @@ class CurrentSensor(BaseSensor[CurrentObservation]):
     @classmethod
     def from_config(cls, config: "CurrentSensorConfig") -> "CurrentSensor":
         """Construct from a :class:`~genesis.sensors.config.CurrentSensorConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "CurrentSensorConfig":
         """Serialise parameters back to a :class:`~genesis.sensors.config.CurrentSensorConfig`."""

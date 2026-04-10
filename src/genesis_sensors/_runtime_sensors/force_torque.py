@@ -105,7 +105,7 @@ class ForceTorqueSensorModel(BaseSensor):
     @classmethod
     def from_config(cls, config: "ForceTorqueConfig") -> "ForceTorqueSensorModel":
         """Construct from a :class:`~genesis.sensors.config.ForceTorqueConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "ForceTorqueConfig":
         """Serialise current parameters to a :class:`~genesis.sensors.config.ForceTorqueConfig`."""

@@ -137,7 +137,7 @@ class RangefinderModel(BaseSensor):
     @classmethod
     def from_config(cls, config: "RangefinderConfig") -> "RangefinderModel":
         """Construct from a :class:`~genesis.sensors.config.RangefinderConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "RangefinderConfig":
         """Return the current parameters as a :class:`~genesis.sensors.config.RangefinderConfig`."""

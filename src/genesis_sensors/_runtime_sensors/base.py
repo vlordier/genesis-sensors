@@ -204,6 +204,21 @@ class BaseSensor(ABC, Generic[ObservationT]):
         """
 
     @classmethod
+    def _from_config_with_noise(cls, config: Any):
+        """Construct from a config object while honoring the shared noise controls."""
+        cfg = config.model_dump() if hasattr(config, "model_dump") else dict(config)
+        noise_model = cfg.pop("noise_model", "gaussian")
+        noise_outlier_prob = cfg.pop("noise_outlier_prob", 0.0)
+        noise_outlier_scale = cfg.pop("noise_outlier_scale", 6.0)
+        sensor = cls(**cfg)
+        sensor.configure_noise_model(
+            noise_model,
+            outlier_prob=noise_outlier_prob,
+            outlier_scale=noise_outlier_scale,
+        )
+        return sensor
+
+    @classmethod
     def from_config(cls, config: Any):
         """Construct a sensor from its validated config object."""
         raise NotImplementedError(f"{cls.__name__}.from_config() must be implemented by subclasses")

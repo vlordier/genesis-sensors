@@ -293,7 +293,7 @@ class CameraModel(BaseSensor):
     @classmethod
     def from_config(cls, config: "CameraConfig") -> "CameraModel":
         """Construct a :class:`CameraModel` from a :class:`~genesis.sensors.config.CameraConfig`."""
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "CameraConfig":
         """Return the current parameters as a :class:`~genesis.sensors.config.CameraConfig`."""

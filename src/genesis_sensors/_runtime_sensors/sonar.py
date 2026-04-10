@@ -123,7 +123,7 @@ class ImagingSonarModel(BaseSensor[ImagingSonarObservation]):
 
     @classmethod
     def from_config(cls, config: "ImagingSonarConfig") -> "ImagingSonarModel":
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "ImagingSonarConfig":
         from .config import ImagingSonarConfig
@@ -278,7 +278,7 @@ class SideScanSonarModel(BaseSensor[SideScanSonarObservation]):
 
     @classmethod
     def from_config(cls, config: "SideScanSonarConfig") -> "SideScanSonarModel":
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "SideScanSonarConfig":
         from .config import SideScanSonarConfig

@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from genesis_sensors._runtime_sensors.config import CurrentSensorConfig, IMUConfig, SensorSuiteConfig
 from genesis_sensors import (
     CurrentSensor,
     IMUModel,
@@ -195,3 +196,40 @@ def test_sensor_suite_set_seed_preserves_noise_model_configuration() -> None:
 
     assert suite.get_sensor("imu").noise_model == "uniform"
     assert np.max(np.abs(np.asarray(obs["imu"]["lin_acc"], dtype=float))) <= np.sqrt(3.0) * imu._sigma_acc + 1e-6
+
+
+def test_from_config_applies_noise_model_controls() -> None:
+    cfg = CurrentSensorConfig(
+        noise_sigma_a=0.5,
+        offset_a=0.0,
+        voltage_nominal_v=12.0,
+        noise_model="uniform",
+        noise_outlier_prob=0.2,
+        noise_outlier_scale=3.0,
+        seed=0,
+    )
+    sensor = CurrentSensor.from_config(cfg)
+
+    assert sensor.noise_model == "uniform"
+    assert sensor.noise_outlier_prob == pytest.approx(0.2)
+    assert sensor.noise_outlier_scale == pytest.approx(3.0)
+
+
+def test_sensor_suite_from_config_applies_noise_models() -> None:
+    suite = SensorSuite.from_config(
+        SensorSuiteConfig(
+            imu=IMUConfig(
+                noise_density_acc=0.2,
+                noise_density_gyr=0.2,
+                bias_sigma_acc=0.0,
+                bias_sigma_gyr=0.0,
+                noise_model="none",
+                seed=0,
+            )
+        )
+    )
+
+    suite.reset()
+    obs = suite.step(0.0, {"lin_acc": np.zeros(3), "ang_vel": np.zeros(3), "gravity_body": np.zeros(3)})
+    assert suite.get_sensor("imu").noise_model == "none"
+    assert np.allclose(np.asarray(obs["imu"]["lin_acc"], dtype=float), 0.0)

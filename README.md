@@ -146,6 +146,8 @@ suite.configure_noise_models("gaussian", outlier_prob=0.005, outlier_scale=4.0)
 
 Use `gaussian` for standard datasheet-style noise, `laplace` for heavier tails,
 `uniform` for bounded noise, and `none` for deterministic baselines or debugging.
+The same fields are also available on every validated `*Config` object and therefore
+work through `SensorSuite.from_config(...)` as well.
 
 ---
 

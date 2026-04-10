@@ -66,7 +66,8 @@ suite.configure_noise_models("uniform")
 
 These controls sit on top of each sensor's native parameters such as
 `noise_sigma_*`, `noise_density_*`, dropout, bias drift, and modality-specific
-corruption.
+corruption. They are available both through `sensor.configure_noise_model(...)`
+and through each validated `*Config` model used by `SensorSuite.from_config(...)`.
 
 ### Noise Types
 

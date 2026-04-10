@@ -93,7 +93,7 @@ class DVLModel(BaseSensor[DVLObservation]):
 
     @classmethod
     def from_config(cls, config: "DVLConfig") -> "DVLModel":
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "DVLConfig":
         from .config import DVLConfig
@@ -199,7 +199,7 @@ class AcousticCurrentProfilerModel(BaseSensor[AcousticCurrentProfilerObservation
 
     @classmethod
     def from_config(cls, config: "AcousticCurrentProfilerConfig") -> "AcousticCurrentProfilerModel":
-        return cls(**config.model_dump())
+        return cls._from_config_with_noise(config)
 
     def get_config(self) -> "AcousticCurrentProfilerConfig":
         from .config import AcousticCurrentProfilerConfig
