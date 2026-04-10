@@ -13,7 +13,7 @@ genesis-sensors/
 │   └── _runtime_sensors/    # Bundled sensor backend
 │       ├── base.py          # BaseSensor ABC
 │       ├── scheduler.py     # Multi-rate SensorScheduler
-│       ├── suite.py         # SensorSuite (34 sensor types)
+│       ├── suite.py         # SensorSuite (43 sensor types)
 │       ├── config.py        # Pydantic configuration models
 │       ├── types.py         # TypedDict observation schemas
 │       ├── presets.py        # 90+ real-world sensor presets
@@ -38,7 +38,7 @@ companion.
 
 ### 2. Registry-Driven Sensor Suite
 
-The `SensorSuite` uses a data-driven `_SENSOR_SLOTS` tuple to manage all 34
+The `SensorSuite` uses a data-driven `_SENSOR_SLOTS` tuple to manage all 43
 sensor types. Adding a new sensor requires:
 
 1. Implement the model class (subclass `BaseSensor`)
@@ -75,13 +75,14 @@ method allows re-seeding all sensors for replay.
 
 | Category | Sensors | Count |
 |----------|---------|-------|
-| **Navigation** | IMU, GNSS, Barometer, Magnetometer, Airspeed, Optical Flow, Wheel Odometry | 7 |
+| **Navigation** | IMU, GNSS, Barometer, Magnetometer, Airspeed, Optical Flow, Wheel Odometry, Inclinometer | 8 |
 | **Vision** | RGB Camera, Stereo Camera, Depth Camera, Thermal Camera, Event Camera, LiDAR | 6 |
-| **Range Sensing** | Rangefinder, Ultrasonic Array, Imaging Sonar, Side-Scan Sonar, DVL, Current Profiler | 6 |
+| **Range Sensing** | Rangefinder, Ultrasonic Array, Imaging Sonar, Side-Scan Sonar, DVL, Current Profiler, Proximity ToF | 7 |
 | **Environmental** | Thermometer, Hygrometer, Light Sensor, Gas Sensor, Anemometer, Battery | 6 |
-| **Communication** | Radio Link, UWB Ranging, Radar | 3 |
-| **Manipulation** | Force/Torque, Joint State, Contact, Tactile Array, Current Sensor, RPM Sensor | 6 |
-| **Total** | | **34** |
+| **Communication** | Radio Link, UWB Ranging, Radar, Underwater Modem | 4 |
+| **Manipulation** | Force/Torque, Joint State, Contact, Tactile Array, Current Sensor, RPM Sensor, Load Cell, Wire Encoder, Motor Temperature | 9 |
+| **Marine & Subsea** | Water Pressure, Hydrophone, Leak Detector | 3 |
+| **Total** | | **43** |
 
 ## Data Flow
 

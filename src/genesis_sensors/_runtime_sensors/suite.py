@@ -49,7 +49,7 @@ Example
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
@@ -57,6 +57,7 @@ from ._gauss_markov import GaussMarkovProcess
 from .acoustic_navigation import AcousticCurrentProfilerModel, DVLModel
 from .airspeed import AirspeedModel
 from .barometer import BarometerModel
+from .base import BaseSensor
 from .battery import BatteryModel
 from .camera_model import CameraModel
 from .contact_sensor import ContactSensor
@@ -66,22 +67,31 @@ from .event_camera import EventCameraModel
 from .environmental import AnemometerModel, GasSensorModel, HygrometerModel, LightSensorModel, ThermometerModel
 from .force_torque import ForceTorqueSensorModel
 from .gnss import GNSSModel
+from .hydrophone import HydrophoneModel
 from .imu import IMUModel
+from .inclinometer import InclinometerModel
 from .joint_state import JointStateSensor
+from .leak_detector import LeakDetectorModel
 from .lidar import LidarModel
+from .load_cell import LoadCellModel
 from .magnetometer import MagnetometerModel
+from .motor_temperature import MotorTemperatureModel
 from .optical_flow import OpticalFlowModel
+from .proximity_tof import ProximityToFArrayModel
 from .radio import RadioLinkModel
 from .rangefinder import RangefinderModel
 from .rpm_sensor import RPMSensor
 from .scheduler import SensorScheduler
 from .sonar import ImagingSonarModel, SideScanSonarModel
-from .wireless import RadarModel, UWBRangingModel
 from .stereo_camera import StereoCameraModel
-from .ultrasonic import UltrasonicArrayModel
 from .tactile_array import TactileArraySensor
 from .thermal_camera import ThermalCameraModel
+from .ultrasonic import UltrasonicArrayModel
+from .underwater_modem import UnderwaterModemModel
+from .water_pressure import WaterPressureModel
 from .wheel_odometry import WheelOdometryModel
+from .wire_encoder import WireEncoderModel
+from .wireless import RadarModel, UWBRangingModel
 
 if TYPE_CHECKING:
     from .base import BaseSensor
@@ -94,7 +104,7 @@ if TYPE_CHECKING:
 # This single table drives ``__init__``, ``default()``, and ``from_config()``
 # so that adding a new sensor type is a one-line change.
 # ---------------------------------------------------------------------------
-_SENSOR_SLOTS: tuple[tuple[str, str, type, str, float, str], ...] = (
+_SENSOR_SLOTS: tuple[tuple[str, str, type[BaseSensor[Any]], str, float, str], ...] = (
     # (kwarg,             display,           model_class,                  rate_param,              default_rate, cfg_attr)
     ("rgb_camera", "rgb", CameraModel, "rgb_rate_hz", 30.0, "rgb"),
     ("event_camera", "events", EventCameraModel, "event_rate_hz", 1000.0, "event"),
@@ -126,17 +136,40 @@ _SENSOR_SLOTS: tuple[tuple[str, str, type, str, float, str], ...] = (
         0.0,
         "current_profiler",
     ),
+    ("water_pressure", "water_pressure", WaterPressureModel, "water_pressure_rate_hz", 0.0, "water_pressure"),
+    ("hydrophone", "hydrophone", HydrophoneModel, "hydrophone_rate_hz", 0.0, "hydrophone"),
+    ("leak_detector", "leak_detector", LeakDetectorModel, "leak_detector_rate_hz", 0.0, "leak_detector"),
+    (
+        "underwater_modem",
+        "underwater_modem",
+        UnderwaterModemModel,
+        "underwater_modem_rate_hz",
+        0.0,
+        "underwater_modem",
+    ),
     ("optical_flow", "optical_flow", OpticalFlowModel, "optical_flow_rate_hz", 0.0, "optical_flow"),
     ("battery", "battery", BatteryModel, "battery_rate_hz", 0.0, "battery"),
     ("stereo_camera", "stereo", StereoCameraModel, "stereo_rate_hz", 0.0, "stereo_camera"),
     ("wheel_odometry", "wheel_odometry", WheelOdometryModel, "wheel_odometry_rate_hz", 0.0, "wheel_odometry"),
+    ("inclinometer", "inclinometer", InclinometerModel, "inclinometer_rate_hz", 0.0, "inclinometer"),
     ("force_torque", "force_torque", ForceTorqueSensorModel, "force_torque_rate_hz", 0.0, "force_torque"),
     ("joint_state", "joint_state", JointStateSensor, "joint_state_rate_hz", 0.0, "joint_state"),
     ("contact", "contact", ContactSensor, "contact_rate_hz", 0.0, "contact"),
     ("depth_camera", "depth_camera", DepthCameraModel, "depth_camera_rate_hz", 0.0, "depth_camera"),
+    ("proximity_tof", "proximity_tof", ProximityToFArrayModel, "proximity_tof_rate_hz", 0.0, "proximity_tof"),
     ("tactile_array", "tactile_array", TactileArraySensor, "tactile_array_rate_hz", 0.0, "tactile_array"),
+    ("load_cell", "load_cell", LoadCellModel, "load_cell_rate_hz", 0.0, "load_cell"),
     ("current", "current", CurrentSensor, "current_rate_hz", 0.0, "current"),
     ("rpm", "rpm", RPMSensor, "rpm_rate_hz", 0.0, "rpm"),
+    ("wire_encoder", "wire_encoder", WireEncoderModel, "wire_encoder_rate_hz", 0.0, "wire_encoder"),
+    (
+        "motor_temperature",
+        "motor_temperature",
+        MotorTemperatureModel,
+        "motor_temperature_rate_hz",
+        0.0,
+        "motor_temperature",
+    ),
 )
 
 
@@ -215,65 +248,86 @@ class SensorSuite:
         side_scan: SideScanSonarModel | None = None,
         dvl: DVLModel | None = None,
         current_profiler: AcousticCurrentProfilerModel | None = None,
+        water_pressure: WaterPressureModel | None = None,
+        hydrophone: HydrophoneModel | None = None,
+        leak_detector: LeakDetectorModel | None = None,
+        underwater_modem: UnderwaterModemModel | None = None,
         optical_flow: OpticalFlowModel | None = None,
         battery: BatteryModel | None = None,
         stereo_camera: StereoCameraModel | None = None,
         wheel_odometry: WheelOdometryModel | None = None,
+        inclinometer: InclinometerModel | None = None,
         force_torque: ForceTorqueSensorModel | None = None,
         joint_state: JointStateSensor | None = None,
         contact: ContactSensor | None = None,
         depth_camera: DepthCameraModel | None = None,
+        proximity_tof: ProximityToFArrayModel | None = None,
         tactile_array: TactileArraySensor | None = None,
+        load_cell: LoadCellModel | None = None,
         current: CurrentSensor | None = None,
         rpm: RPMSensor | None = None,
+        wire_encoder: WireEncoderModel | None = None,
+        motor_temperature: MotorTemperatureModel | None = None,
         extra_sensors: list[tuple[str, BaseSensor]] | None = None,
     ) -> None:
         self._scheduler = SensorScheduler()
 
         # Register each non-None sensor under its canonical display name.
-        _locals = {
-            "rgb_camera": rgb_camera,
-            "event_camera": event_camera,
-            "thermal_camera": thermal_camera,
-            "lidar": lidar,
-            "gnss": gnss,
-            "radio": radio,
-            "uwb": uwb,
-            "radar": radar,
-            "imu": imu,
-            "barometer": barometer,
-            "magnetometer": magnetometer,
-            "thermometer": thermometer,
-            "hygrometer": hygrometer,
-            "light_sensor": light_sensor,
-            "gas_sensor": gas_sensor,
-            "anemometer": anemometer,
-            "airspeed": airspeed,
-            "rangefinder": rangefinder,
-            "ultrasonic": ultrasonic,
-            "imaging_sonar": imaging_sonar,
-            "side_scan": side_scan,
-            "dvl": dvl,
-            "current_profiler": current_profiler,
-            "optical_flow": optical_flow,
-            "battery": battery,
-            "stereo_camera": stereo_camera,
-            "wheel_odometry": wheel_odometry,
-            "force_torque": force_torque,
-            "joint_state": joint_state,
-            "contact": contact,
-            "depth_camera": depth_camera,
-            "tactile_array": tactile_array,
-            "current": current,
-            "rpm": rpm,
-        }
+        _locals: dict[str, BaseSensor[Any] | None] = cast(
+            dict[str, BaseSensor[Any] | None],
+            {
+                "rgb_camera": rgb_camera,
+                "event_camera": event_camera,
+                "thermal_camera": thermal_camera,
+                "lidar": lidar,
+                "gnss": gnss,
+                "radio": radio,
+                "uwb": uwb,
+                "radar": radar,
+                "imu": imu,
+                "barometer": barometer,
+                "magnetometer": magnetometer,
+                "thermometer": thermometer,
+                "hygrometer": hygrometer,
+                "light_sensor": light_sensor,
+                "gas_sensor": gas_sensor,
+                "anemometer": anemometer,
+                "airspeed": airspeed,
+                "rangefinder": rangefinder,
+                "ultrasonic": ultrasonic,
+                "imaging_sonar": imaging_sonar,
+                "side_scan": side_scan,
+                "dvl": dvl,
+                "current_profiler": current_profiler,
+                "water_pressure": water_pressure,
+                "hydrophone": hydrophone,
+                "leak_detector": leak_detector,
+                "underwater_modem": underwater_modem,
+                "optical_flow": optical_flow,
+                "battery": battery,
+                "stereo_camera": stereo_camera,
+                "wheel_odometry": wheel_odometry,
+                "inclinometer": inclinometer,
+                "force_torque": force_torque,
+                "joint_state": joint_state,
+                "contact": contact,
+                "depth_camera": depth_camera,
+                "proximity_tof": proximity_tof,
+                "tactile_array": tactile_array,
+                "load_cell": load_cell,
+                "current": current,
+                "rpm": rpm,
+                "wire_encoder": wire_encoder,
+                "motor_temperature": motor_temperature,
+            },
+        )
         for kwarg, display, _cls, _rate, _dflt, _cfg in _SENSOR_SLOTS:
             sensor = _locals.get(kwarg)
             if sensor is not None:
-                self._scheduler.add(sensor, name=display)
+                self._scheduler.add(cast("BaseSensor[Any]", sensor), name=display)
 
-        for name, sensor in extra_sensors or []:
-            self._scheduler.add(sensor, name=name)
+        for name, extra_sensor in extra_sensors or []:
+            self._scheduler.add(extra_sensor, name=name)
 
     # ------------------------------------------------------------------
     # Class-level factory
@@ -305,17 +359,26 @@ class SensorSuite:
         side_scan_rate_hz: float = 0.0,
         dvl_rate_hz: float = 0.0,
         current_profiler_rate_hz: float = 0.0,
+        water_pressure_rate_hz: float = 0.0,
+        hydrophone_rate_hz: float = 0.0,
+        leak_detector_rate_hz: float = 0.0,
+        underwater_modem_rate_hz: float = 0.0,
         optical_flow_rate_hz: float = 0.0,
         battery_rate_hz: float = 0.0,
         stereo_rate_hz: float = 0.0,
         wheel_odometry_rate_hz: float = 0.0,
+        inclinometer_rate_hz: float = 0.0,
         force_torque_rate_hz: float = 0.0,
         joint_state_rate_hz: float = 0.0,
         contact_rate_hz: float = 0.0,
         depth_camera_rate_hz: float = 0.0,
+        proximity_tof_rate_hz: float = 0.0,
         tactile_array_rate_hz: float = 0.0,
+        load_cell_rate_hz: float = 0.0,
         current_rate_hz: float = 0.0,
         rpm_rate_hz: float = 0.0,
+        wire_encoder_rate_hz: float = 0.0,
+        motor_temperature_rate_hz: float = 0.0,
         seed: int | None = None,
     ) -> SensorSuite:
         """
@@ -388,24 +451,34 @@ class SensorSuite:
             "side_scan_rate_hz": side_scan_rate_hz,
             "dvl_rate_hz": dvl_rate_hz,
             "current_profiler_rate_hz": current_profiler_rate_hz,
+            "water_pressure_rate_hz": water_pressure_rate_hz,
+            "hydrophone_rate_hz": hydrophone_rate_hz,
+            "leak_detector_rate_hz": leak_detector_rate_hz,
+            "underwater_modem_rate_hz": underwater_modem_rate_hz,
             "optical_flow_rate_hz": optical_flow_rate_hz,
             "battery_rate_hz": battery_rate_hz,
             "stereo_rate_hz": stereo_rate_hz,
             "wheel_odometry_rate_hz": wheel_odometry_rate_hz,
+            "inclinometer_rate_hz": inclinometer_rate_hz,
             "force_torque_rate_hz": force_torque_rate_hz,
             "joint_state_rate_hz": joint_state_rate_hz,
             "contact_rate_hz": contact_rate_hz,
             "depth_camera_rate_hz": depth_camera_rate_hz,
+            "proximity_tof_rate_hz": proximity_tof_rate_hz,
             "tactile_array_rate_hz": tactile_array_rate_hz,
+            "load_cell_rate_hz": load_cell_rate_hz,
             "current_rate_hz": current_rate_hz,
             "rpm_rate_hz": rpm_rate_hz,
+            "wire_encoder_rate_hz": wire_encoder_rate_hz,
+            "motor_temperature_rate_hz": motor_temperature_rate_hz,
         }
 
         kwargs: dict[str, Any] = {}
         for idx, (_kwarg, _display, model_cls, rate_param, _dflt, _cfg) in enumerate(_SENSOR_SLOTS):
             rate = rate_overrides[rate_param]
             if rate > 0:
-                kwargs[_kwarg] = model_cls(update_rate_hz=rate, seed=_seeds[idx])
+                model_factory: Any = model_cls
+                kwargs[_kwarg] = model_factory(update_rate_hz=rate, seed=_seeds[idx])
 
         return cls(**kwargs)
 

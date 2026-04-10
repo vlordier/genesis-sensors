@@ -40,16 +40,14 @@ class WaterPressureModel(BaseSensor):
         Sensor instance name.
     update_rate_hz:
         Output rate (Hz).
-    noise_sigma_m:
-        1-σ Gaussian noise on depth reading (m).
-    bias_m:
-        Constant depth offset / calibration error (m).
-    resolution_m:
-        Quantisation step (m).  0 = no quantisation.
+    noise_sigma_kpa:
+        1-σ Gaussian noise on the pressure reading (kPa).
+    resolution_kpa:
+        Pressure quantisation step (kPa). 0 = no quantisation.
+    temp_sensitivity_kpa_per_c:
+        Temperature cross-sensitivity on pressure (kPa/°C relative to 15 °C).
     max_depth_m:
-        Maximum rated depth (m).  Readings above are clipped.
-    temp_coeff_m_per_c:
-        Temperature cross-sensitivity on depth (m/°C relative to 15 °C).
+        Maximum rated depth (m). Readings above are clipped.
     surface_pressure_pa:
         Assumed atmospheric pressure at surface (Pa).  101325 = 1 atm.
     seed:
@@ -59,21 +57,19 @@ class WaterPressureModel(BaseSensor):
     def __init__(
         self,
         name: str = "water_pressure",
-        update_rate_hz: float = 20.0,
-        noise_sigma_m: float = 0.01,
-        bias_m: float = 0.0,
-        resolution_m: float = 0.0,
+        update_rate_hz: float = 10.0,
+        noise_sigma_kpa: float = 0.5,
+        resolution_kpa: float = 0.0,
+        temp_sensitivity_kpa_per_c: float = 0.0,
         max_depth_m: float = 300.0,
-        temp_coeff_m_per_c: float = 0.0,
         surface_pressure_pa: float = 101_325.0,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
-        self.noise_sigma_m = float(max(0.0, noise_sigma_m))
-        self.bias_m = float(bias_m)
-        self.resolution_m = float(max(0.0, resolution_m))
+        self.noise_sigma_kpa = float(max(0.0, noise_sigma_kpa))
+        self.resolution_kpa = float(max(0.0, resolution_kpa))
+        self.temp_sensitivity_kpa_per_c = float(temp_sensitivity_kpa_per_c)
         self.max_depth_m = float(max(0.0, max_depth_m))
-        self.temp_coeff_m_per_c = float(temp_coeff_m_per_c)
         self.surface_pressure_pa = float(surface_pressure_pa)
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
@@ -89,12 +85,10 @@ class WaterPressureModel(BaseSensor):
         return WaterPressureConfig(
             name=self.name,
             update_rate_hz=self.update_rate_hz,
-            noise_sigma_m=self.noise_sigma_m,
-            bias_m=self.bias_m,
-            resolution_m=self.resolution_m,
+            noise_sigma_kpa=self.noise_sigma_kpa,
+            resolution_kpa=self.resolution_kpa,
+            temp_sensitivity_kpa_per_c=self.temp_sensitivity_kpa_per_c,
             max_depth_m=self.max_depth_m,
-            temp_coeff_m_per_c=self.temp_coeff_m_per_c,
-            surface_pressure_pa=self.surface_pressure_pa,
             seed=self._seed,
         )
 
@@ -119,32 +113,29 @@ class WaterPressureModel(BaseSensor):
 
         true_depth = max(0.0, true_depth)
 
-        temp_c = float(state.get("temperature_c", 15.0))
+        temp_c = float(state.get("water_temperature_c", state.get("temperature_c", 15.0)))
         salinity_ppt = float(state.get("water_salinity_ppt", 35.0))
 
         # Water density for pressure conversion
         rho = self._water_density(temp_c, salinity_ppt)
         g = 9.80665
+        true_pressure_kpa = (self.surface_pressure_pa + rho * g * true_depth) / 1000.0
+        pressure_kpa = true_pressure_kpa
 
-        # Noisy depth
-        depth = true_depth + self.bias_m
-        if self.temp_coeff_m_per_c != 0.0:
-            depth += self.temp_coeff_m_per_c * (temp_c - 15.0)
-        if self.noise_sigma_m > 0.0:
-            depth += float(self._rng.normal(0.0, self.noise_sigma_m))
+        if self.temp_sensitivity_kpa_per_c != 0.0:
+            pressure_kpa += self.temp_sensitivity_kpa_per_c * (temp_c - 15.0)
+        if self.noise_sigma_kpa > 0.0:
+            pressure_kpa += float(self._rng.normal(0.0, self.noise_sigma_kpa))
+        if self.resolution_kpa > 0.0:
+            pressure_kpa = round(pressure_kpa / self.resolution_kpa) * self.resolution_kpa
 
-        depth = max(0.0, min(depth, self.max_depth_m))
-
-        # Quantisation
-        if self.resolution_m > 0.0:
-            depth = round(depth / self.resolution_m) * self.resolution_m
-
-        # Noisy pressure from noisy depth
-        noisy_pressure_pa = self.surface_pressure_pa + rho * g * depth
+        max_pressure_kpa = (self.surface_pressure_pa + rho * g * self.max_depth_m) / 1000.0
+        pressure_kpa = float(np.clip(pressure_kpa, self.surface_pressure_pa / 1000.0, max_pressure_kpa))
+        depth = max(0.0, min((pressure_kpa * 1000.0 - self.surface_pressure_pa) / (rho * g), self.max_depth_m))
 
         self._last_obs = {
             "depth_m": depth,
-            "pressure_pa": noisy_pressure_pa,
+            "pressure_pa": pressure_kpa * 1000.0,
             "temperature_c": temp_c,
             "water_density_kg_m3": rho,
         }

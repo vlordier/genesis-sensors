@@ -45,12 +45,18 @@ from ._compat import (
     EventCameraModel,
     ForceTorqueSensorModel,
     GNSSModel,
+    HydrophoneModel,
     IMUModel,
     ImagingSonarModel,
+    InclinometerModel,
     JointStateSensor,
+    LeakDetectorModel,
     LidarModel,
+    LoadCellModel,
     MagnetometerModel,
+    MotorTemperatureModel,
     OpticalFlowModel,
+    ProximityToFArrayModel,
     RadarModel,
     RPMSensor,
     RadioLinkModel,
@@ -66,12 +72,15 @@ from ._compat import (
     ThermalCameraModel,
     ThermometerModel,
     UltrasonicArrayModel,
+    UnderwaterModemModel,
     HygrometerModel,
     LightSensorModel,
     GasSensorModel,
     AnemometerModel,
     UWBRangingModel,
+    WaterPressureModel,
     WheelOdometryModel,
+    WireEncoderModel,
     extract_joint_state,
     extract_link_contact_force_n,
     extract_link_ft_state,
@@ -134,7 +143,7 @@ class NamedContactSensor(ContactSensor):
         return super().step(sim_time, {"contact_force_n": force_n})
 
 
-def _seed_getter(base_seed: int | None, n_children: int = 32) -> Callable[[int], int | None]:
+def _seed_getter(base_seed: int | None, n_children: int = 48) -> Callable[[int], int | None]:
     """Derive deterministic child seeds so individual sensors stay decorrelated."""
     if base_seed is None:
         return lambda _: None
@@ -292,6 +301,42 @@ def _make_perception_state(
         },
     ]
     water_turbidity_ntu = float(np.clip(3.0 + 6.0 * rain_rate + 2.0 * obstruction, 0.5, 40.0))
+    water_depth_m = float(2.4 + 0.6 * np.sin(0.18 * frame_idx))
+    water_salinity_ppt = float(34.5 + 0.6 * np.sin(0.07 * frame_idx + 0.3))
+    water_temperature_c = float(11.5 + 1.4 * np.cos(0.09 * frame_idx))
+    water_ingress_ml = float(
+        np.clip(
+            0.05 + 0.12 * (1.0 + np.sin(0.14 * frame_idx)) + (0.9 if rain_rate >= 6.0 else 0.0),
+            0.0,
+            2.5,
+        )
+    )
+    hull_breach = rain_rate >= 6.0 and frame_idx % 6 == 0
+    acoustic_sources = [
+        {
+            "pos": pos + np.array([6.5, 1.2 * np.sin(0.22 * sim_time), -water_depth_m], dtype=np.float64),
+            "frequency_hz": 18_000.0,
+            "source_level_db": 158.0,
+        },
+        {
+            "pos": pos + np.array([10.0, -2.5, -water_depth_m - 0.6], dtype=np.float64),
+            "frequency_hz": 26_000.0,
+            "source_level_db": 152.0,
+        },
+    ]
+    tof_rows, tof_cols = 8, 8
+    tof_x = np.linspace(-1.0, 1.0, tof_cols, dtype=np.float32)[None, :]
+    tof_y = np.linspace(-1.0, 1.0, tof_rows, dtype=np.float32).reshape(-1, 1)
+    tof_ranges_m = np.clip(
+        0.35
+        + 0.18 * np.sqrt(tof_x**2 + tof_y**2)
+        + 0.05 * np.sin(phase + 2.0 * tof_x)
+        - 0.03 * np.cos(phase + 3.0 * tof_y),
+        0.08,
+        2.8,
+    ).astype(np.float32)
+    load_force_n = float(45.0 + 8.0 * np.sin(0.33 * sim_time) + 4.0 * speed)
+    extension_m = float(np.clip(0.9 + 0.3 * np.sin(0.26 * sim_time), 0.0, 2.0))
 
     return {
         "rgb": rgb_uint8,
@@ -313,6 +358,8 @@ def _make_perception_state(
             "wind_direction_deg": float((np.degrees(np.arctan2(wind_ms[1], wind_ms[0])) + 360.0) % 360.0),
         },
         "ambient_temp_c": ambient_temp_c,
+        "ambient_temperature_c": ambient_temp_c,
+        "temperature_c": ambient_temp_c,
         "relative_humidity_pct": relative_humidity_pct,
         "illuminance_lux": illuminance_lux,
         "wind_ms": wind_ms,
@@ -324,6 +371,19 @@ def _make_perception_state(
         "ultrasonic_ranges_m": ultrasonic_ranges,
         "sonar_targets": sonar_targets,
         "water_turbidity_ntu": water_turbidity_ntu,
+        "depth_m": water_depth_m,
+        "water_temperature_c": water_temperature_c,
+        "water_salinity_ppt": water_salinity_ppt,
+        "ambient_noise_db": 58.0 + 4.0 * obstruction,
+        "acoustic_sources": acoustic_sources,
+        "hull_breach": hull_breach,
+        "water_ingress_ml": water_ingress_ml,
+        "remote_pos": pos + np.array([22.0, -7.0, -water_depth_m], dtype=np.float64),
+        "motor_current_a": float(np.clip(10.0 + 3.0 * speed, 0.0, 40.0)),
+        "motor_speed_rads": float(240.0 + 40.0 * np.sin(0.22 * sim_time)),
+        "tof_ranges_m": tof_ranges_m,
+        "load_force_n": load_force_n,
+        "extension_m": extension_m,
         "range_m": max(0.05, float(pos[2])),
     }
 
@@ -367,11 +427,20 @@ def _build_multimodal_suite(seed_for: Callable[[int], int | None]) -> tuple[Sens
         current_profiler=AcousticCurrentProfilerModel.from_config(
             TELEDYNE_WORKHORSE_600.model_copy(update={"seed": seed_for(23)})
         ),
-        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(24)),
-        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(25)),
+        water_pressure=WaterPressureModel(update_rate_hz=10.0, seed=seed_for(24)),
+        hydrophone=HydrophoneModel(update_rate_hz=4.0, seed=seed_for(25)),
+        leak_detector=LeakDetectorModel(update_rate_hz=2.0, seed=seed_for(26)),
+        underwater_modem=UnderwaterModemModel(update_rate_hz=2.0, seed=seed_for(27)),
+        optical_flow=OpticalFlowModel(update_rate_hz=100.0, seed=seed_for(28)),
+        battery=BatteryModel(n_cells=4, capacity_mah=5000.0, seed=seed_for(29)),
         wheel_odometry=WheelOdometryModel.from_config(
-            DIFF_DRIVE_ENCODER_50HZ.model_copy(update={"seed": seed_for(26)})
+            DIFF_DRIVE_ENCODER_50HZ.model_copy(update={"seed": seed_for(30)})
         ),
+        inclinometer=InclinometerModel(update_rate_hz=50.0, seed=seed_for(31)),
+        proximity_tof=ProximityToFArrayModel(update_rate_hz=15.0, seed=seed_for(32)),
+        load_cell=LoadCellModel(update_rate_hz=25.0, seed=seed_for(33)),
+        wire_encoder=WireEncoderModel(update_rate_hz=50.0, seed=seed_for(34)),
+        motor_temperature=MotorTemperatureModel(update_rate_hz=10.0, seed=seed_for(35)),
     )
     return suite, radio
 
@@ -512,7 +581,7 @@ def make_franka_wrist_rig(
 def make_synthetic_multimodal_rig(*, dt: float = 0.05, seed: int | None = 0) -> SensorRig:
     """Create a headless full-stack rig mirroring the richer upstream sensor examples."""
     cache = VelocityCache()
-    seed_for = _seed_getter(seed, n_children=32)
+    seed_for = _seed_getter(seed, n_children=48)
     suite, radio = _build_multimodal_suite(seed_for)
 
     def _state_fn() -> dict[str, Any]:
@@ -561,7 +630,7 @@ def make_synthetic_multimodal_rig(*, dt: float = 0.05, seed: int | None = 0) -> 
 def make_drone_perception_rig(entity: Any, *, dt: float = 0.01, seed: int | None = 0) -> SensorRig:
     """Create a richer drone rig with RGB, stereo, event, thermal, LiDAR, and radio sensors."""
     cache = VelocityCache()
-    seed_for = _seed_getter(seed, n_children=32)
+    seed_for = _seed_getter(seed, n_children=48)
     suite, radio = _build_multimodal_suite(seed_for)
 
     def _state_fn() -> dict[str, Any]:
@@ -601,7 +670,7 @@ def make_go2_rig(
 ) -> SensorRig:
     """Create a proprioception + per-foot contact rig for Go2-like quadrupeds."""
     cache = VelocityCache()
-    seed_for = _seed_getter(seed, n_children=32)
+    seed_for = _seed_getter(seed, n_children=48)
 
     extra_sensors: list[tuple[str, Any]] = []
     for idx, foot_link in enumerate(foot_links):

@@ -40,12 +40,12 @@ class MotorTemperatureModel(BaseSensor):
         Output rate (Hz).
     winding_resistance_ohm:
         Motor winding DC resistance (Ω).  Determines I²R heating.
-    thermal_resistance_c_per_w:
+    thermal_resistance_cw:
         Thermal resistance winding→ambient (°C/W).
     thermal_capacitance_j_per_c:
         Thermal capacitance of winding mass (J/°C).
-    friction_coeff_w_per_rads:
-        Speed-dependent friction heating coefficient (W per rad/s).
+    friction_heat_coeff:
+        Speed-dependent friction heating coefficient (W·s/rad).
     noise_sigma_c:
         1-σ temperature measurement noise (°C).
     overtemp_threshold_c:
@@ -61,19 +61,19 @@ class MotorTemperatureModel(BaseSensor):
         name: str = "motor_temperature",
         update_rate_hz: float = 10.0,
         winding_resistance_ohm: float = 0.5,
-        thermal_resistance_c_per_w: float = 2.0,
+        thermal_resistance_cw: float = 2.0,
         thermal_capacitance_j_per_c: float = 50.0,
-        friction_coeff_w_per_rads: float = 0.001,
+        friction_heat_coeff: float = 0.01,
         noise_sigma_c: float = 0.5,
-        overtemp_threshold_c: float = 120.0,
+        overtemp_threshold_c: float = 130.0,
         initial_temperature_c: float = 25.0,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
         self.winding_resistance_ohm = float(max(0.0, winding_resistance_ohm))
-        self.thermal_resistance_c_per_w = float(max(0.01, thermal_resistance_c_per_w))
+        self.thermal_resistance_cw = float(max(0.01, thermal_resistance_cw))
         self.thermal_capacitance_j_per_c = float(max(0.01, thermal_capacitance_j_per_c))
-        self.friction_coeff_w_per_rads = float(max(0.0, friction_coeff_w_per_rads))
+        self.friction_heat_coeff = float(max(0.0, friction_heat_coeff))
         self.noise_sigma_c = float(max(0.0, noise_sigma_c))
         self.overtemp_threshold_c = float(overtemp_threshold_c)
         self.initial_temperature_c = float(initial_temperature_c)
@@ -94,12 +94,11 @@ class MotorTemperatureModel(BaseSensor):
             name=self.name,
             update_rate_hz=self.update_rate_hz,
             winding_resistance_ohm=self.winding_resistance_ohm,
-            thermal_resistance_c_per_w=self.thermal_resistance_c_per_w,
+            thermal_resistance_cw=self.thermal_resistance_cw,
             thermal_capacitance_j_per_c=self.thermal_capacitance_j_per_c,
-            friction_coeff_w_per_rads=self.friction_coeff_w_per_rads,
+            friction_heat_coeff=self.friction_heat_coeff,
             noise_sigma_c=self.noise_sigma_c,
             overtemp_threshold_c=self.overtemp_threshold_c,
-            initial_temperature_c=self.initial_temperature_c,
             seed=self._seed,
         )
 
@@ -115,9 +114,9 @@ class MotorTemperatureModel(BaseSensor):
             dt = sim_time - self._prev_time
             if dt > 0.0:
                 p_joule = current_a**2 * self.winding_resistance_ohm
-                p_friction = self.friction_coeff_w_per_rads * abs(speed_rads)
+                p_friction = self.friction_heat_coeff * abs(speed_rads)
                 p_total = p_joule + p_friction
-                p_dissipated = (self._winding_temp_c - t_amb) / self.thermal_resistance_c_per_w
+                p_dissipated = (self._winding_temp_c - t_amb) / self.thermal_resistance_cw
                 d_temp = (p_total - p_dissipated) / self.thermal_capacitance_j_per_c * dt
                 self._winding_temp_c += d_temp
         self._prev_time = sim_time
@@ -132,7 +131,7 @@ class MotorTemperatureModel(BaseSensor):
         self._last_obs = {
             "temperature_c": measured,
             "overtemp_alarm": overtemp,
-            "power_dissipated_w": (self._winding_temp_c - t_amb) / self.thermal_resistance_c_per_w,
+            "power_dissipated_w": (self._winding_temp_c - t_amb) / self.thermal_resistance_cw,
         }
         return self._last_obs
 

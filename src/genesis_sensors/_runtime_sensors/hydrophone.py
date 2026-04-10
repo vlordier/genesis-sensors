@@ -99,9 +99,10 @@ class HydrophoneModel(BaseSensor):
         update_rate_hz: float = 10.0,
         sensitivity_db: float = -180.0,
         frequency_range_hz: tuple[float, float] = (100.0, 100_000.0),
-        detection_threshold_db: float = 10.0,
+        detection_threshold_db: float = 80.0,
         noise_floor_db: float = 30.0,
         directivity_index_db: float = 0.0,
+        bearing_noise_deg: float = 5.0,
         max_range_m: float = 5000.0,
         seed: int | None = None,
     ) -> None:
@@ -111,6 +112,7 @@ class HydrophoneModel(BaseSensor):
         self.detection_threshold_db = float(detection_threshold_db)
         self.noise_floor_db = float(noise_floor_db)
         self.directivity_index_db = float(directivity_index_db)
+        self.bearing_noise_deg = float(max(0.0, bearing_noise_deg))
         self.max_range_m = float(max_range_m)
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
@@ -127,11 +129,9 @@ class HydrophoneModel(BaseSensor):
             name=self.name,
             update_rate_hz=self.update_rate_hz,
             sensitivity_db=self.sensitivity_db,
-            frequency_range_hz=self.frequency_range_hz,
             detection_threshold_db=self.detection_threshold_db,
-            noise_floor_db=self.noise_floor_db,
-            directivity_index_db=self.directivity_index_db,
-            max_range_m=self.max_range_m,
+            bearing_noise_deg=self.bearing_noise_deg,
+            frequency_range_hz=self.frequency_range_hz,
             seed=self._seed,
         )
 
@@ -180,15 +180,16 @@ class HydrophoneModel(BaseSensor):
             rl_noisy = rl + float(self._rng.normal(0.0, 1.5))
             snr_noisy = rl_noisy - nl
 
-            if snr_noisy >= self.detection_threshold_db:
+            if rl_noisy >= self.detection_threshold_db and snr_noisy >= 0.0:
                 # Bearing estimation (azimuth, elevation)
                 bearing_az = math.degrees(math.atan2(diff[1], diff[0]))
                 bearing_el = math.degrees(math.atan2(-diff[2], math.sqrt(diff[0] ** 2 + diff[1] ** 2)))
 
                 detections.append(
                     {
-                        "bearing_azimuth_deg": bearing_az + float(self._rng.normal(0.0, 3.0)),
-                        "bearing_elevation_deg": bearing_el + float(self._rng.normal(0.0, 5.0)),
+                        "bearing_azimuth_deg": bearing_az + float(self._rng.normal(0.0, self.bearing_noise_deg)),
+                        "bearing_elevation_deg": bearing_el
+                        + float(self._rng.normal(0.0, max(self.bearing_noise_deg, self.bearing_noise_deg * 1.2))),
                         "received_level_db": rl_noisy,
                         "snr_db": snr_noisy,
                         "range_estimate_m": rng + float(self._rng.normal(0.0, rng * 0.1)),

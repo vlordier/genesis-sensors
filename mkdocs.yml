@@ -79,12 +79,23 @@ nav:
           - Ultrasonic Array: api/ultrasonic.md
           - Sonar: api/sonar.md
           - DVL & Current Profiler: api/acoustic_navigation.md
+      - Marine & Subsea:
+          - Water Pressure: api/water_pressure.md
+          - Hydrophone: api/hydrophone.md
+          - Underwater Modem: api/underwater_modem.md
+          - Leak Detector: api/leak_detector.md
       - Environmental:
           - Environmental Sensors: api/environmental.md
           - Battery: api/battery.md
       - Communication:
           - UWB & Radar: api/wireless.md
           - Radio Link: api/radio.md
+      - Industrial & Field Robotics:
+          - Inclinometer: api/inclinometer.md
+          - Proximity ToF Array: api/proximity_tof.md
+          - Load Cell: api/load_cell.md
+          - Wire Encoder: api/wire_encoder.md
+          - Motor Temperature: api/motor_temperature.md
       - Manipulation:
           - Force / Torque: api/force_torque.md
           - Joint State: api/joint_state.md

@@ -42,30 +42,30 @@ class ProximityToFArrayModel(BaseSensor):
         Minimum detectable range (m).
     max_range_m:
         Maximum detectable range (m).
-    noise_sigma_m:
-        Per-zone 1-σ Gaussian range noise (m).
-    noise_scale_z:
+    noise_sigma_base_m:
+        Per-zone baseline 1-σ Gaussian range noise (m).
+    noise_sigma_scale:
         Range-dependent noise coefficient: σ = σ_base + scale × z².
     fov_deg:
         Total field of view (degrees).
-    crosstalk_sigma_m:
-        Inter-zone optical crosstalk noise (m).
+    crosstalk_fraction:
+        Fractional optical crosstalk blended in from neighboring zones.
     seed:
         Optional RNG seed.
     """
 
     def __init__(
         self,
-        name: str = "tof_array",
+        name: str = "proximity_tof",
         update_rate_hz: float = 15.0,
         rows: int = 8,
         cols: int = 8,
         min_range_m: float = 0.02,
         max_range_m: float = 4.0,
-        noise_sigma_m: float = 0.01,
-        noise_scale_z: float = 0.002,
+        noise_sigma_base_m: float = 0.005,
+        noise_sigma_scale: float = 0.001,
         fov_deg: float = 63.0,
-        crosstalk_sigma_m: float = 0.0,
+        crosstalk_fraction: float = 0.02,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
@@ -73,10 +73,10 @@ class ProximityToFArrayModel(BaseSensor):
         self.cols = int(max(1, cols))
         self.min_range_m = float(max(0.0, min_range_m))
         self.max_range_m = float(max(self.min_range_m + 0.01, max_range_m))
-        self.noise_sigma_m = float(max(0.0, noise_sigma_m))
-        self.noise_scale_z = float(max(0.0, noise_scale_z))
+        self.noise_sigma_base_m = float(max(0.0, noise_sigma_base_m))
+        self.noise_sigma_scale = float(max(0.0, noise_sigma_scale))
         self.fov_deg = float(max(1.0, fov_deg))
-        self.crosstalk_sigma_m = float(max(0.0, crosstalk_sigma_m))
+        self.crosstalk_fraction = float(np.clip(crosstalk_fraction, 0.0, 1.0))
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
         self._last_obs: dict[str, Any] = {}
@@ -93,12 +93,10 @@ class ProximityToFArrayModel(BaseSensor):
             update_rate_hz=self.update_rate_hz,
             rows=self.rows,
             cols=self.cols,
-            min_range_m=self.min_range_m,
             max_range_m=self.max_range_m,
-            noise_sigma_m=self.noise_sigma_m,
-            noise_scale_z=self.noise_scale_z,
-            fov_deg=self.fov_deg,
-            crosstalk_sigma_m=self.crosstalk_sigma_m,
+            noise_sigma_base_m=self.noise_sigma_base_m,
+            noise_sigma_scale=self.noise_sigma_scale,
+            crosstalk_fraction=self.crosstalk_fraction,
             seed=self._seed,
         )
 
@@ -112,13 +110,18 @@ class ProximityToFArrayModel(BaseSensor):
             ranges = np.full((self.rows, self.cols), self.max_range_m, dtype=np.float32)
 
         # Range-dependent noise
-        sigma = self.noise_sigma_m + self.noise_scale_z * ranges**2
+        sigma = self.noise_sigma_base_m + self.noise_sigma_scale * ranges**2
         noisy = ranges + self._rng.normal(0.0, 1.0, size=ranges.shape).astype(np.float32) * sigma
 
-        # Crosstalk
-        if self.crosstalk_sigma_m > 0.0:
-            crosstalk = self._rng.normal(0.0, self.crosstalk_sigma_m, size=ranges.shape).astype(np.float32)
-            noisy += crosstalk
+        # Crosstalk between neighboring zones
+        if self.crosstalk_fraction > 0.0:
+            neighbor_mean = (
+                np.roll(noisy, 1, axis=0)
+                + np.roll(noisy, -1, axis=0)
+                + np.roll(noisy, 1, axis=1)
+                + np.roll(noisy, -1, axis=1)
+            ) / 4.0
+            noisy = (1.0 - self.crosstalk_fraction) * noisy + self.crosstalk_fraction * neighbor_mean
 
         # Clip to valid range
         valid = (ranges >= self.min_range_m) & (ranges <= self.max_range_m)

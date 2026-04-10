@@ -68,8 +68,8 @@ class UnderwaterModemModel(BaseSensor):
         Transmit source level (dB re 1 µPa @ 1 m).
     max_range_m:
         Maximum communication range (m).
-    noise_spectral_db:
-        Ambient noise spectral density (dB re 1 µPa/Hz).
+    noise_level_db:
+        Ambient acoustic noise level (dB re 1 µPa).
     spreading_factor:
         Geometric spreading factor.  1.5 = practical, 2.0 = spherical.
     data_rate_bps:
@@ -88,11 +88,11 @@ class UnderwaterModemModel(BaseSensor):
         update_rate_hz: float = 1.0,
         frequency_hz: float = 25_000.0,
         bandwidth_hz: float = 5000.0,
-        source_level_db: float = 185.0,
+        source_level_db: float = 170.0,
         max_range_m: float = 3000.0,
-        noise_spectral_db: float = 50.0,
+        noise_level_db: float = 60.0,
         spreading_factor: float = 1.5,
-        data_rate_bps: float = 9600.0,
+        data_rate_bps: int = 9600,
         packet_size_bits: int = 256,
         ber_threshold: float = 1e-3,
         seed: int | None = None,
@@ -102,9 +102,9 @@ class UnderwaterModemModel(BaseSensor):
         self.bandwidth_hz = float(max(1.0, bandwidth_hz))
         self.source_level_db = float(source_level_db)
         self.max_range_m = float(max(1.0, max_range_m))
-        self.noise_spectral_db = float(noise_spectral_db)
+        self.noise_level_db = float(noise_level_db)
         self.spreading_factor = float(max(1.0, spreading_factor))
-        self.data_rate_bps = float(max(1.0, data_rate_bps))
+        self.data_rate_bps = int(max(1, data_rate_bps))
         self.packet_size_bits = int(max(1, packet_size_bits))
         self.ber_threshold = float(ber_threshold)
         self._rng = np.random.default_rng(seed=seed)
@@ -122,14 +122,11 @@ class UnderwaterModemModel(BaseSensor):
             name=self.name,
             update_rate_hz=self.update_rate_hz,
             frequency_hz=self.frequency_hz,
-            bandwidth_hz=self.bandwidth_hz,
             source_level_db=self.source_level_db,
-            max_range_m=self.max_range_m,
-            noise_spectral_db=self.noise_spectral_db,
             spreading_factor=self.spreading_factor,
+            noise_level_db=self.noise_level_db,
             data_rate_bps=self.data_rate_bps,
             packet_size_bits=self.packet_size_bits,
-            ber_threshold=self.ber_threshold,
             seed=self._seed,
         )
 
@@ -174,7 +171,7 @@ class UnderwaterModemModel(BaseSensor):
 
         # Received level and SNR
         rl = self.source_level_db - tl
-        noise_level = self.noise_spectral_db + 10.0 * math.log10(self.bandwidth_hz)
+        noise_level = self.noise_level_db
         snr = rl - noise_level
 
         # Add fading variation

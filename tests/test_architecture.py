@@ -62,7 +62,8 @@ class TestGaussMarkovProcess:
     def test_deterministic_with_same_seed(self) -> None:
         from genesis_sensors._runtime_sensors._gauss_markov import GaussMarkovProcess
 
-        vals_a, vals_b = [], []
+        vals_a: list[float] = []
+        vals_b: list[float] = []
         for vals in (vals_a, vals_b):
             rng = np.random.default_rng(42)
             gm = GaussMarkovProcess(tau_s=50.0, sigma=1.0, dt=0.01, rng=rng)
@@ -124,6 +125,15 @@ _ROUNDTRIP_PAIRS: list[tuple[str, str]] = [
     ("SideScanSonarModel", "SideScanSonarConfig"),
     ("DVLModel", "DVLConfig"),
     ("AcousticCurrentProfilerModel", "AcousticCurrentProfilerConfig"),
+    ("WaterPressureModel", "WaterPressureConfig"),
+    ("HydrophoneModel", "HydrophoneConfig"),
+    ("LeakDetectorModel", "LeakDetectorConfig"),
+    ("UnderwaterModemModel", "UnderwaterModemConfig"),
+    ("InclinometerModel", "InclinometerConfig"),
+    ("ProximityToFArrayModel", "ProximityToFArrayConfig"),
+    ("LoadCellModel", "LoadCellConfig"),
+    ("WireEncoderModel", "WireEncoderConfig"),
+    ("MotorTemperatureModel", "MotorTemperatureConfig"),
 ]
 
 
@@ -196,6 +206,15 @@ _CONFIG_TO_MODEL: dict[str, str] = {
     "SideScanSonarConfig": "SideScanSonarModel",
     "DVLConfig": "DVLModel",
     "AcousticCurrentProfilerConfig": "AcousticCurrentProfilerModel",
+    "WaterPressureConfig": "WaterPressureModel",
+    "HydrophoneConfig": "HydrophoneModel",
+    "LeakDetectorConfig": "LeakDetectorModel",
+    "UnderwaterModemConfig": "UnderwaterModemModel",
+    "InclinometerConfig": "InclinometerModel",
+    "ProximityToFArrayConfig": "ProximityToFArrayModel",
+    "LoadCellConfig": "LoadCellModel",
+    "WireEncoderConfig": "WireEncoderModel",
+    "MotorTemperatureConfig": "MotorTemperatureModel",
 }
 
 
@@ -263,12 +282,25 @@ def test_multi_rate_scheduling_cadence() -> None:
 
 
 def test_suite_from_config_roundtrip() -> None:
-    """SensorSuiteConfig.full() → from_config → sensor_names covers all slots."""
+    """SensorSuiteConfig.full() → from_config → sensor_names covers all advertised slots."""
     cfg = SensorSuiteConfig.full()
     suite = SensorSuite.from_config(cfg)
-    names = suite.sensor_names()
-    # Should have all 34 sensors
-    assert len(names) >= 30  # at least most
+    names = set(suite.sensor_names())
+
+    expected = {
+        "water_pressure",
+        "hydrophone",
+        "leak_detector",
+        "underwater_modem",
+        "inclinometer",
+        "proximity_tof",
+        "load_cell",
+        "wire_encoder",
+        "motor_temperature",
+    }
+
+    assert expected.issubset(names)
+    assert len(names) >= 43
 
 
 def test_suite_all_disabled_has_no_sensors() -> None:

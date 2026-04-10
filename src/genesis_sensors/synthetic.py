@@ -201,6 +201,41 @@ def make_synthetic_sensor_state(
         rain_rate = max(rain_rate, 6.0)
         relative_humidity_pct = min(98.0, relative_humidity_pct + 10.0)
 
+    depth_m = float(2.6 + 0.5 * np.sin(0.18 * frame_idx))
+    water_salinity_ppt = float(34.8 + 0.4 * np.sin(0.05 * frame_idx + 0.4))
+    water_temperature_c = float(11.0 + 1.5 * np.cos(0.08 * frame_idx))
+    acoustic_sources = [
+        {
+            "pos": pos + np.array([6.0, 1.0 * np.sin(0.2 * sim_time), -depth_m], dtype=np.float64),
+            "frequency_hz": 18_000.0,
+            "source_level_db": 158.0,
+        },
+        {
+            "pos": pos + np.array([10.0, -2.0, -depth_m - 0.8], dtype=np.float64),
+            "frequency_hz": 24_000.0,
+            "source_level_db": 151.0,
+        },
+    ]
+    water_ingress_ml = float(
+        np.clip(
+            0.05 + 0.12 * (1.0 + np.sin(0.14 * frame_idx)) + (0.9 if phase_name == "rain_burst" else 0.0),
+            0.0,
+            2.5,
+        )
+    )
+    hull_breach = phase_name == "rain_burst" and frame_idx % 6 == 0
+    tof_rows, tof_cols = 8, 8
+    tof_x = np.linspace(-1.0, 1.0, tof_cols, dtype=np.float32)[None, :]
+    tof_y = np.linspace(-1.0, 1.0, tof_rows, dtype=np.float32).reshape(-1, 1)
+    tof_ranges_m = np.clip(
+        0.32
+        + 0.20 * np.sqrt(tof_x**2 + tof_y**2)
+        + 0.04 * np.sin(phase + 2.0 * tof_x)
+        - 0.03 * np.cos(phase + 3.0 * tof_y),
+        0.08,
+        2.8,
+    ).astype(np.float32)
+
     return {
         "rgb": rgb_uint8,
         "rgb_right": rgb_right,
@@ -226,6 +261,8 @@ def make_synthetic_sensor_state(
             "wind_direction_deg": float((np.degrees(np.arctan2(wind_ms[1], wind_ms[0])) + 360.0) % 360.0),
         },
         "ambient_temp_c": ambient_temp_c,
+        "ambient_temperature_c": ambient_temp_c,
+        "temperature_c": ambient_temp_c,
         "relative_humidity_pct": relative_humidity_pct,
         "illuminance_lux": illuminance_lux,
         "gas_sources": gas_sources,
@@ -234,6 +271,19 @@ def make_synthetic_sensor_state(
         "ultrasonic_ranges_m": ultrasonic_ranges,
         "sonar_targets": sonar_targets,
         "water_turbidity_ntu": water_turbidity_ntu,
+        "depth_m": depth_m,
+        "water_temperature_c": water_temperature_c,
+        "water_salinity_ppt": water_salinity_ppt,
+        "ambient_noise_db": 58.0 + 4.0 * obstruction,
+        "acoustic_sources": acoustic_sources,
+        "water_ingress_ml": water_ingress_ml,
+        "hull_breach": hull_breach,
+        "remote_pos": pos + np.array([20.0, -6.0, -depth_m], dtype=np.float64),
+        "motor_current_a": float(np.clip(10.0 + 3.0 * speed, 0.0, 40.0)),
+        "motor_speed_rads": float(235.0 + 35.0 * np.sin(0.24 * sim_time)),
+        "tof_ranges_m": tof_ranges_m,
+        "load_force_n": float(42.0 + 7.0 * np.sin(0.31 * sim_time) + 3.0 * speed),
+        "extension_m": float(np.clip(0.95 + 0.25 * np.sin(0.27 * sim_time), 0.0, 2.0)),
         "range_m": max(0.05, float(pos[2])),
         "current_a": float(np.clip(8.0 + 2.5 * speed, 0.0, 30.0)),
         "voltage_v": 14.8,

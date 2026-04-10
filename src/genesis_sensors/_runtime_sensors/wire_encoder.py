@@ -38,10 +38,10 @@ class WireEncoderModel(BaseSensor):
         Position quantisation step (m).  0 = continuous.
     noise_sigma_m:
         1-σ Gaussian noise (m).
-    linearity_pct:
-        Non-linearity as % of full stroke.  0 = perfectly linear.
-    temp_coeff_m_per_c:
-        Thermal expansion coefficient for cable (m/°C, ref 25 °C).
+    nonlinearity_amplitude:
+        Peak sinusoidal non-linearity amplitude (m). 0 = perfectly linear.
+    thermal_expansion_coeff:
+        Cable thermal expansion coefficient (1/°C, ref 25 °C).
     hysteresis_m:
         Mechanical hysteresis band (m).  Retraction reading differs
         from extension reading by up to this amount.
@@ -56,18 +56,18 @@ class WireEncoderModel(BaseSensor):
         stroke_m: float = 2.0,
         resolution_m: float = 0.0,
         noise_sigma_m: float = 0.0005,
-        linearity_pct: float = 0.0,
-        temp_coeff_m_per_c: float = 0.0,
-        hysteresis_m: float = 0.0,
+        nonlinearity_amplitude: float = 0.001,
+        hysteresis_m: float = 0.0002,
+        thermal_expansion_coeff: float = 1.2e-5,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
         self.stroke_m = float(max(0.01, stroke_m))
         self.resolution_m = float(max(0.0, resolution_m))
         self.noise_sigma_m = float(max(0.0, noise_sigma_m))
-        self.linearity_pct = float(max(0.0, linearity_pct))
-        self.temp_coeff_m_per_c = float(temp_coeff_m_per_c)
+        self.nonlinearity_amplitude = float(max(0.0, nonlinearity_amplitude))
         self.hysteresis_m = float(max(0.0, hysteresis_m))
+        self.thermal_expansion_coeff = float(thermal_expansion_coeff)
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
         self._prev_extension: float = 0.0
@@ -87,9 +87,9 @@ class WireEncoderModel(BaseSensor):
             stroke_m=self.stroke_m,
             resolution_m=self.resolution_m,
             noise_sigma_m=self.noise_sigma_m,
-            linearity_pct=self.linearity_pct,
-            temp_coeff_m_per_c=self.temp_coeff_m_per_c,
+            nonlinearity_amplitude=self.nonlinearity_amplitude,
             hysteresis_m=self.hysteresis_m,
+            thermal_expansion_coeff=self.thermal_expansion_coeff,
             seed=self._seed,
         )
 
@@ -103,15 +103,14 @@ class WireEncoderModel(BaseSensor):
         reading = true_ext
 
         # Non-linearity error (sinusoidal model)
-        if self.linearity_pct > 0.0:
+        if self.nonlinearity_amplitude > 0.0:
             import math
 
-            nl_amplitude = self.linearity_pct / 100.0 * self.stroke_m
-            reading += nl_amplitude * math.sin(math.pi * true_ext / self.stroke_m)
+            reading += self.nonlinearity_amplitude * math.sin(math.pi * true_ext / self.stroke_m)
 
         # Temperature drift
-        if self.temp_coeff_m_per_c != 0.0:
-            reading += self.temp_coeff_m_per_c * (temp_c - 25.0)
+        if self.thermal_expansion_coeff != 0.0:
+            reading += self.thermal_expansion_coeff * self.stroke_m * (temp_c - 25.0)
 
         # Hysteresis
         if self.hysteresis_m > 0.0:
