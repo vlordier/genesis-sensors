@@ -73,6 +73,8 @@ See `RELEASE.md` for the full release checklist.
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev]
+# Required for scene-backed Genesis tests and demos
+pip install torch --index-url https://download.pytorch.org/whl/cpu
 pre-commit install
 ```
 
@@ -82,6 +84,8 @@ pre-commit install
 pre-commit run --all-files
 ruff check .
 pytest tests -q
+# Fast subset when Torch/Genesis runtime is not installed locally
+pytest tests/test_compat.py tests/test_architecture.py tests/test_rigs.py -q
 python -m build
 python -m twine check dist/*
 mkdocs build --strict
