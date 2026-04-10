@@ -106,6 +106,14 @@ class BarometerModel(BaseSensor):
     resolution_m:
         Quantisation step for the altitude output in metres (0 = disabled).
         Models the discrete ADC / pressure resolution of MEMS sensors.
+    qnh_pa:
+        Sea-level reference pressure (Pa).  Default: ISA 101325.
+        Models time-varying weather pressure by departing from ISA.
+        Set to the actual QNH to simulate realistic baro-altitude errors.
+    temp_cross_sensitivity_m_per_c:
+        Temperature cross-sensitivity on altitude (m/°C, ref 25 °C).
+        Models the fact that MEMS piezoresistive barometers have residual
+        temperature dependence after factory calibration.  Typical: 0.01–0.1.
     seed:
         Optional RNG seed for reproducibility.
     """
@@ -119,6 +127,8 @@ class BarometerModel(BaseSensor):
         bias_sigma_m: float = 1.5,
         ground_alt_m: float = 0.0,
         resolution_m: float = 0.0,
+        qnh_pa: float = 101_325.0,
+        temp_cross_sensitivity_m_per_c: float = 0.0,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
@@ -127,6 +137,8 @@ class BarometerModel(BaseSensor):
         self.bias_sigma_m = float(bias_sigma_m)
         self.ground_alt_m = float(ground_alt_m)
         self.resolution_m = float(max(0.0, resolution_m))
+        self.qnh_pa = float(qnh_pa)
+        self.temp_cross_sensitivity_m_per_c = float(temp_cross_sensitivity_m_per_c)
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
 
@@ -160,6 +172,8 @@ class BarometerModel(BaseSensor):
             bias_sigma_m=self.bias_sigma_m,
             ground_alt_m=self.ground_alt_m,
             resolution_m=self.resolution_m,
+            qnh_pa=self.qnh_pa,
+            temp_cross_sensitivity_m_per_c=self.temp_cross_sensitivity_m_per_c,
             seed=self._seed,
         )
 
@@ -198,13 +212,20 @@ class BarometerModel(BaseSensor):
 
         true_alt_m = float(np.asarray(pos, dtype=np.float64)[2]) + self.ground_alt_m
 
+        # QNH weather offset: difference from ISA gives an altitude error
+        qnh_alt_error = _pressure_to_altitude(self.qnh_pa)
+
+        # Temperature cross-sensitivity
+        temp_c = float(state.get("temperature_c", 25.0))
+        temp_error = self.temp_cross_sensitivity_m_per_c * (temp_c - 25.0)
+
         # Gauss-Markov bias drift (temperature-induced pressure creep)
         bias_m = float(self._bias_process.step())
 
         # White noise
         white_m = float(self._rng.normal(0.0, self.noise_sigma_m))
 
-        noisy_alt = true_alt_m + bias_m + white_m
+        noisy_alt = true_alt_m + bias_m + white_m + qnh_alt_error + temp_error
 
         # Quantise if a resolution is specified
         if self.resolution_m > 0.0:

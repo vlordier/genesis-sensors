@@ -30,6 +30,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
 if TYPE_CHECKING:
     from .base import BaseSensor
 
@@ -42,10 +44,28 @@ class SensorScheduler:
     ----------
     sensors:
         Optional initial list of ``(name, sensor)`` pairs.
+    jitter_sigma_s:
+        Standard deviation of Gaussian timing jitter applied to the
+        simulated measurement timestamp.  Models the fact that real
+        sensor hardware does not sample at perfectly uniform intervals.
+        ``0`` = no jitter (default).
+    add_timestamps:
+        When ``True``, each sensor observation dict is augmented with a
+        ``"timestamp_s"`` key containing the (possibly jittered) simulation
+        time at which the measurement was taken.
     """
 
-    def __init__(self, sensors: list[tuple[str, BaseSensor]] | None = None) -> None:
+    def __init__(
+        self,
+        sensors: list[tuple[str, BaseSensor]] | None = None,
+        jitter_sigma_s: float = 0.0,
+        add_timestamps: bool = False,
+        seed: int | None = None,
+    ) -> None:
         self._sensors: dict[str, BaseSensor] = {}
+        self.jitter_sigma_s = float(max(jitter_sigma_s, 0.0))
+        self.add_timestamps = bool(add_timestamps)
+        self._rng = np.random.default_rng(seed=seed)
         for name, sensor in sensors or []:
             self.add(sensor, name=name)
 
@@ -115,7 +135,14 @@ class SensorScheduler:
         for name, sensor in self._sensors.items():
             try:
                 if sensor.is_due(sim_time):
-                    obs[name] = sensor.step(sim_time=sim_time, state=state)
+                    sensor_obs = sensor.step(sim_time=sim_time, state=state)
+                    if self.add_timestamps:
+                        ts = sim_time
+                        if self.jitter_sigma_s > 0.0:
+                            ts += float(self._rng.normal(0.0, self.jitter_sigma_s))
+                        sensor_obs = dict(sensor_obs)  # ensure mutable copy
+                        sensor_obs["timestamp_s"] = ts
+                    obs[name] = sensor_obs
                 else:
                     obs[name] = sensor.get_observation()
             except Exception as exc:

@@ -29,6 +29,7 @@ Observation keys
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
@@ -66,6 +67,14 @@ class TactileArraySensor(BaseSensor[TactileArrayObservation]):
     dead_zone_fraction:
         Fraction of taxels permanently disabled at construction time
         (simulates wear / defective units).  In ``[0.0, 1.0]``.
+    shear_enabled:
+        When ``True``, also process ``state["shear_map"]`` — a shape
+        ``(H, W, 2)`` tangential force map (Pa).  Enables shear force
+        and slip detection output (GelSight / DIGIT style).
+    crosstalk_sigma:
+        Inter-taxel mechanical crosstalk.  Each taxel receives a
+        Gaussian-blurred contribution from neighbours with this sigma
+        (in taxels).  0 = no crosstalk.
     seed:
         Optional RNG seed.
     """
@@ -80,6 +89,8 @@ class TactileArraySensor(BaseSensor[TactileArrayObservation]):
         contact_threshold_pa: float = 5000.0,
         taxel_area_mm2: float = 4.0,
         dead_zone_fraction: float = 0.0,
+        shear_enabled: bool = False,
+        crosstalk_sigma: float = 0.0,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
@@ -92,6 +103,8 @@ class TactileArraySensor(BaseSensor[TactileArrayObservation]):
         self.contact_threshold_pa = float(contact_threshold_pa)
         self.taxel_area_mm2 = float(taxel_area_mm2)
         self.dead_zone_fraction = float(dead_zone_fraction)
+        self.shear_enabled = bool(shear_enabled)
+        self.crosstalk_sigma = float(max(0.0, crosstalk_sigma))
         self._rng = np.random.default_rng(seed)
         self._seed = seed
         self._default_cop = np.array([0.5, 0.5], dtype=np.float32)
@@ -120,6 +133,8 @@ class TactileArraySensor(BaseSensor[TactileArrayObservation]):
             contact_threshold_pa=self.contact_threshold_pa,
             taxel_area_mm2=self.taxel_area_mm2,
             dead_zone_fraction=self.dead_zone_fraction,
+            shear_enabled=self.shear_enabled,
+            crosstalk_sigma=self.crosstalk_sigma,
             seed=self._seed,
         )
 
@@ -156,6 +171,27 @@ class TactileArraySensor(BaseSensor[TactileArrayObservation]):
         cop_y = float((ys.astype(np.float32) * p_vals).sum() / total_weight) / max(self.height - 1, 1)
         return np.array([cop_x, cop_y], dtype=np.float32)
 
+    def _apply_crosstalk(self, pressure: np.ndarray) -> np.ndarray:
+        """Approximate inter-taxel mechanical crosstalk using a small Gaussian-like kernel."""
+        if self.crosstalk_sigma <= 0.0:
+            return pressure
+
+        sigma = max(self.crosstalk_sigma, 1.0e-6)
+        adj = math.exp(-0.5 / (sigma * sigma))
+        diag = math.exp(-1.0 / (sigma * sigma))
+        kernel = np.array(
+            [[diag, adj, diag], [adj, 1.0, adj], [diag, adj, diag]],
+            dtype=np.float32,
+        )
+        kernel /= kernel.sum()
+
+        padded = np.pad(pressure.astype(np.float32), 1, mode="edge")
+        blurred = np.zeros_like(pressure, dtype=np.float32)
+        for ky in range(3):
+            for kx in range(3):
+                blurred += kernel[ky, kx] * padded[ky : ky + self.height, kx : kx + self.width]
+        return blurred
+
     # ------------------------------------------------------------------
     # Sensor interface
     # ------------------------------------------------------------------
@@ -168,6 +204,9 @@ class TactileArraySensor(BaseSensor[TactileArrayObservation]):
     def step(self, sim_time: float, state: Mapping[str, Any]) -> TactileArrayObservation:
         """Process the ideal pressure map through noise and dead-zone models."""
         ideal = self._coerce_pressure_map(state)
+
+        # Mechanical crosstalk between neighbouring taxels
+        ideal = self._apply_crosstalk(ideal)
 
         if self.noise_sigma_pa > 0.0:
             pressure = ideal + self._rng.normal(0.0, self.noise_sigma_pa, size=self._shape_hw).astype(np.float32)
@@ -186,6 +225,27 @@ class TactileArraySensor(BaseSensor[TactileArrayObservation]):
             "cop_xy": cop_xy,
             "total_force_n": float(pressure.sum()) * taxel_area_m2,
         }
+
+        # Shear / tangential force sensing
+        if self.shear_enabled:
+            shear_map = state.get("shear_map")
+            if shear_map is not None:
+                shear = np.asarray(shear_map, dtype=np.float32)
+                if shear.shape == (self.height, self.width, 2):
+                    if self.noise_sigma_pa > 0.0:
+                        shear = shear + self._rng.normal(0.0, self.noise_sigma_pa * 0.5, size=shear.shape).astype(
+                            np.float32
+                        )
+                    shear[self._dead_mask] = 0.0
+                    # Shear magnitude
+                    shear_mag = np.sqrt(shear[..., 0] ** 2 + shear[..., 1] ** 2)
+                    # Slip detection: shear/normal ratio > threshold (~0.3 for rubber)
+                    with np.errstate(divide="ignore", invalid="ignore"):
+                        friction_ratio = np.where(pressure > 0, shear_mag / pressure, 0.0)
+                    obs["shear_pa"] = shear
+                    obs["shear_magnitude_pa"] = shear_mag
+                    obs["slip_detected"] = friction_ratio > 0.3
+
         self._last_obs = obs
         self._mark_updated(sim_time)
         return obs

@@ -80,7 +80,9 @@ class _SensorRNGProxy:
         if self.noise_model == "gaussian":
             samples = self._base_rng.normal(0.0, sigma_b, size=None if shape == () else shape)
         elif self.noise_model == "laplace":
-            samples = self._base_rng.laplace(0.0, np.asarray(sigma_b) / math.sqrt(2.0), size=None if shape == () else shape)
+            samples = self._base_rng.laplace(
+                0.0, np.asarray(sigma_b) / math.sqrt(2.0), size=None if shape == () else shape
+            )
         else:
             amp = np.asarray(sigma_b) * math.sqrt(3.0)
             samples = self._base_rng.uniform(-amp, amp, size=None if shape == () else shape)

@@ -44,7 +44,15 @@ class ContactSensor(BaseSensor):
     update_rate_hz:
         Output rate (Hz).
     force_threshold_n:
-        Force magnitude above which contact is declared (N).
+        Force magnitude above which contact is declared (N).  When
+        ``release_threshold_n`` is set, this is the "make" threshold;
+        contact is released only when force drops below the release value.
+    release_threshold_n:
+        Force below which an existing contact is released (N).  When set
+        to a value less than ``force_threshold_n``, creates a hysteresis
+        band that prevents rapid toggling near the threshold.  ``None``
+        means the release threshold equals ``force_threshold_n`` (no
+        hysteresis).
     noise_sigma_n:
         Gaussian noise 1-σ on the measured force (N).
     force_range_n:
@@ -61,6 +69,7 @@ class ContactSensor(BaseSensor):
         name: str = "contact",
         update_rate_hz: float = 200.0,
         force_threshold_n: float = 0.5,
+        release_threshold_n: float | None = None,
         noise_sigma_n: float = 0.02,
         force_range_n: float = 50.0,
         debounce_steps: int = 0,
@@ -68,6 +77,7 @@ class ContactSensor(BaseSensor):
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
         self.force_threshold_n = float(force_threshold_n)
+        self.release_threshold_n = float(release_threshold_n) if release_threshold_n is not None else None
         self.noise_sigma_n = float(noise_sigma_n)
         self.force_range_n = float(force_range_n)
         self.debounce_steps = int(debounce_steps)
@@ -96,6 +106,7 @@ class ContactSensor(BaseSensor):
             name=self.name,
             update_rate_hz=self.update_rate_hz,
             force_threshold_n=self.force_threshold_n,
+            release_threshold_n=self.release_threshold_n,
             noise_sigma_n=self.noise_sigma_n,
             force_range_n=self.force_range_n,
             debounce_steps=self.debounce_steps,
@@ -134,8 +145,17 @@ class ContactSensor(BaseSensor):
         noisy_force = ideal_force + float(self._rng.normal(0.0, self.noise_sigma_n))
         noisy_force = float(np.clip(noisy_force, 0.0, self.force_range_n))
 
-        # Raw detection before debounce
-        raw_contact = noisy_force >= self.force_threshold_n
+        # Raw detection with hysteresis
+        if self.release_threshold_n is not None:
+            # Hysteresis: use make/break thresholds
+            if self._confirmed_state:
+                # Currently in contact — release only below release threshold
+                raw_contact = noisy_force >= self.release_threshold_n
+            else:
+                # Currently not in contact — make only above force threshold
+                raw_contact = noisy_force >= self.force_threshold_n
+        else:
+            raw_contact = noisy_force >= self.force_threshold_n
 
         # --- Debounce logic ---
         if self.debounce_steps <= 0:

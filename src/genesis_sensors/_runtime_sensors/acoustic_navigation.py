@@ -63,6 +63,7 @@ class DVLModel(BaseSensor[DVLObservation]):
         range_noise_sigma_m: float = 0.02,
         dropout_prob: float = 0.01,
         water_track_blend: float = 0.20,
+        nominal_sos_ms: float = 1500.0,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
@@ -79,12 +80,25 @@ class DVLModel(BaseSensor[DVLObservation]):
         self.range_noise_sigma_m = float(max(0.0, range_noise_sigma_m))
         self.dropout_prob = float(np.clip(dropout_prob, 0.0, 1.0))
         self.water_track_blend = float(np.clip(water_track_blend, 0.0, 1.0))
+        self.nominal_sos_ms = float(max(1.0, nominal_sos_ms))
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
+
+        # Pre-compute Janus beam directions (equally spaced around Z axis)
+        _beam_angs = np.linspace(0.0, 2.0 * np.pi, self.n_beams, endpoint=False)
+        theta = math.radians(self.beam_angle_deg)
+        sin_t = math.sin(theta)
+        cos_t = math.cos(theta)
+        # Each column is a unit beam direction in body frame
+        self._beam_dirs = np.column_stack(
+            [sin_t * np.cos(_beam_angs), sin_t * np.sin(_beam_angs), -cos_t * np.ones(self.n_beams)]
+        ).T  # shape (3, n_beams)
+
         self._last_obs: DVLObservation | SensorObservation = {
             "velocity_body_ms": np.zeros(3, dtype=np.float32),
             "water_track_velocity_ms": np.zeros(3, dtype=np.float32),
             "beam_ranges_m": np.zeros(self.n_beams, dtype=np.float32),
+            "beam_velocities_ms": np.zeros(self.n_beams, dtype=np.float32),
             "altitude_m": 0.0,
             "speed_ms": 0.0,
             "bottom_lock": False,
@@ -109,6 +123,7 @@ class DVLModel(BaseSensor[DVLObservation]):
             range_noise_sigma_m=self.range_noise_sigma_m,
             dropout_prob=self.dropout_prob,
             water_track_blend=self.water_track_blend,
+            nominal_sos_ms=self.nominal_sos_ms,
             seed=self._seed,
         )
 
@@ -118,6 +133,7 @@ class DVLModel(BaseSensor[DVLObservation]):
             "velocity_body_ms": np.zeros(3, dtype=np.float32),
             "water_track_velocity_ms": np.zeros(3, dtype=np.float32),
             "beam_ranges_m": np.zeros(self.n_beams, dtype=np.float32),
+            "beam_velocities_ms": np.zeros(self.n_beams, dtype=np.float32),
             "altitude_m": 0.0,
             "speed_ms": 0.0,
             "bottom_lock": False,
@@ -129,23 +145,35 @@ class DVLModel(BaseSensor[DVLObservation]):
         water_current = _as_vec3(state.get("water_current_ms", state.get("water_current")))
         altitude = float(state.get("range_m", max(0.0, _as_vec3(state.get("pos"))[2])))
 
+        # Speed-of-sound correction factor
+        actual_sos = float(state.get("speed_of_sound_ms", self.nominal_sos_ms))
+        sos_scale = actual_sos / self.nominal_sos_ms
+
         bottom_lock = self.min_altitude_m <= altitude <= self.max_altitude_m and self._rng.random() >= self.dropout_prob
         water_track_velocity = vel - water_current + self._rng.normal(0.0, self.velocity_noise_sigma_ms, size=3)
 
         if bottom_lock:
             measured_velocity = vel + self._rng.normal(0.0, self.velocity_noise_sigma_ms, size=3)
+            # Apply SoS scaling error (DVL measures Doppler shift proportional to SoS)
+            measured_velocity = measured_velocity * sos_scale
             beam_base = altitude / max(math.cos(math.radians(self.beam_angle_deg)), 1e-6)
             beam_ranges = beam_base + self._rng.normal(0.0, self.range_noise_sigma_m, size=self.n_beams)
+            beam_ranges = beam_ranges * sos_scale
             quality = int(np.clip(220 + 35 * (1.0 - altitude / max(self.max_altitude_m, 1e-6)), 0, 255))
         else:
             measured_velocity = (1.0 - self.water_track_blend) * water_track_velocity + self.water_track_blend * vel
             beam_ranges = np.zeros(self.n_beams, dtype=np.float64)
             quality = 40 if altitude > 0.0 else 0
 
+        # Per-beam along-beam velocity: projection of body velocity onto each beam direction
+        beam_velocities = self._beam_dirs.T @ measured_velocity  # shape (n_beams,)
+        beam_velocities += self._rng.normal(0.0, self.velocity_noise_sigma_ms * 1.5, size=self.n_beams)
+
         obs: DVLObservation = {
             "velocity_body_ms": np.asarray(measured_velocity, dtype=np.float32),
             "water_track_velocity_ms": np.asarray(water_track_velocity, dtype=np.float32),
             "beam_ranges_m": np.asarray(np.clip(beam_ranges, 0.0, None), dtype=np.float32),
+            "beam_velocities_ms": np.asarray(beam_velocities, dtype=np.float32),
             "altitude_m": float(max(0.0, altitude)),
             "speed_ms": float(np.linalg.norm(measured_velocity)),
             "bottom_lock": bool(bottom_lock),

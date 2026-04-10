@@ -115,6 +115,16 @@ class BatteryModel(BaseSensor):
         Typical ADC: 0.005–0.02 V.
     initial_soc:
         Starting state of charge (0 = empty, 1 = full).
+    temp_coeff_resistance:
+        Temperature coefficient for internal resistance.  The effective
+        resistance is scaled by ``1 + coeff × (T - 25)``.  LiPo cells
+        have higher internal resistance at low temperatures.  Typical
+        value: 0.005–0.02 /°C.  ``0`` = temperature-independent.
+    temp_coeff_capacity:
+        Temperature coefficient for effective capacity.  At low temps,
+        available capacity drops.  Scaled as ``C_eff = C × max(0.1,
+        1 + coeff × (T - 25))``.  Typical value: −0.005 /°C (capacity
+        decreases ~0.5 % per °C below 25 °C).  ``0`` = disabled.
     seed:
         Optional RNG seed for reproducibility.
     """
@@ -131,6 +141,8 @@ class BatteryModel(BaseSensor):
         current_noise_a: float = 0.05,
         voltage_noise_v: float = 0.01,
         initial_soc: float = 1.0,
+        temp_coeff_resistance: float = 0.0,
+        temp_coeff_capacity: float = 0.0,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
@@ -149,6 +161,8 @@ class BatteryModel(BaseSensor):
         self.current_noise_a = float(current_noise_a)
         self.voltage_noise_v = float(voltage_noise_v)
         self.initial_soc = float(initial_soc)
+        self.temp_coeff_resistance = float(temp_coeff_resistance)
+        self.temp_coeff_capacity = float(temp_coeff_capacity)
 
         # SoC lookup tables
         if cell_chemistry == "lihv":
@@ -191,6 +205,8 @@ class BatteryModel(BaseSensor):
             current_noise_a=self.current_noise_a,
             voltage_noise_v=self.voltage_noise_v,
             initial_soc=self.initial_soc,
+            temp_coeff_resistance=self.temp_coeff_resistance,
+            temp_coeff_capacity=self.temp_coeff_capacity,
             seed=self._seed,
         )
 
@@ -225,6 +241,21 @@ class BatteryModel(BaseSensor):
             Measurement dict (see :class:`~genesis.sensors.types.BatteryObservation`).
         """
         current_a = float(state.get("current_a", 0.0))
+        temp_c = float(state.get("temperature_c", 25.0))
+
+        # ------------------------------------------------------------------
+        # Temperature-dependent resistance and capacity
+        # ------------------------------------------------------------------
+        delta_t = temp_c - 25.0
+        if self.temp_coeff_resistance != 0.0:
+            effective_resistance = self.internal_resistance_ohm * max(0.1, 1.0 + self.temp_coeff_resistance * delta_t)
+        else:
+            effective_resistance = self.internal_resistance_ohm
+
+        if self.temp_coeff_capacity != 0.0:
+            effective_capacity_mah = self.capacity_mah * max(0.1, 1.0 + self.temp_coeff_capacity * delta_t)
+        else:
+            effective_capacity_mah = self.capacity_mah
 
         # ------------------------------------------------------------------
         # Coulomb counting — update SoC every simulation step
@@ -232,7 +263,7 @@ class BatteryModel(BaseSensor):
         if self._prev_time is not None:
             dt = sim_time - self._prev_time
             if dt > 0.0:
-                capacity_as = self.capacity_mah * 1e-3 * 3600.0  # A·s
+                capacity_as = effective_capacity_mah * 1e-3 * 3600.0  # A·s
                 self._soc -= current_a * dt / capacity_as
                 self._soc = max(0.0, min(1.0, self._soc))
                 self._capacity_used_mah += current_a * dt / 3.6  # A·s → mAh
@@ -242,7 +273,7 @@ class BatteryModel(BaseSensor):
         # OCV and terminal voltage (Thevenin model)
         # ------------------------------------------------------------------
         v_oc_per_cell = _interp_ocv(self._soc, self._soc_table, self._ocv_table)
-        v_terminal = v_oc_per_cell * self.n_cells - current_a * self.internal_resistance_ohm
+        v_terminal = v_oc_per_cell * self.n_cells - current_a * effective_resistance
         v_terminal = max(0.0, v_terminal)  # physical lower bound
 
         # ------------------------------------------------------------------

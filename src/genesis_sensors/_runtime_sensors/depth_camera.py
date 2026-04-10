@@ -62,6 +62,15 @@ class DepthCameraModel(BaseSensor):
         Minimum measurable range (m); shallower returns are marked invalid.
     max_depth_m:
         Maximum measurable range (m); deeper returns are marked invalid.
+    multipath_bias_m:
+        Time-of-flight multipath bias in metres.  In scenes with reflective
+        surfaces, indirect light paths arrive later and shift the measured
+        depth outward.  A constant per-pixel bias is added when > 0.
+        Typical ToF sensors: 0.005–0.02 m.  ``0`` = disabled.
+    multipath_noise_sigma_m:
+        Additional depth noise from multipath scatter.  Added as Gaussian
+        noise on top of the constant bias.  Typical: 0.002–0.01 m.
+        ``0`` = disabled.
     seed:
         Optional RNG seed for reproducibility.
     """
@@ -76,6 +85,8 @@ class DepthCameraModel(BaseSensor):
         missing_edge_px: int = 2,
         min_depth_m: float = 0.2,
         max_depth_m: float = 10.0,
+        multipath_bias_m: float = 0.0,
+        multipath_noise_sigma_m: float = 0.0,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
@@ -85,6 +96,8 @@ class DepthCameraModel(BaseSensor):
         self.missing_edge_px = int(missing_edge_px)
         self.min_depth_m = float(min_depth_m)
         self.max_depth_m = float(max_depth_m)
+        self.multipath_bias_m = float(max(multipath_bias_m, 0.0))
+        self.multipath_noise_sigma_m = float(max(multipath_noise_sigma_m, 0.0))
         self._rng = np.random.default_rng(seed)
         self._seed = seed
         self._last_obs: dict[str, Any] = {}
@@ -111,6 +124,8 @@ class DepthCameraModel(BaseSensor):
             missing_edge_px=self.missing_edge_px,
             min_depth_m=self.min_depth_m,
             max_depth_m=self.max_depth_m,
+            multipath_bias_m=self.multipath_bias_m,
+            multipath_noise_sigma_m=self.multipath_noise_sigma_m,
             seed=self._seed,
         )
 
@@ -151,6 +166,16 @@ class DepthCameraModel(BaseSensor):
         sigma = self.depth_noise_sigma_m + self.depth_noise_scale_z * (ideal**2)
         noise = self._rng.normal(0.0, 1.0, size=ideal.shape).astype(np.float32) * sigma
         noisy = ideal + noise
+
+        # --- ToF multipath error ---
+        if self.multipath_bias_m > 0.0 or self.multipath_noise_sigma_m > 0.0:
+            mp_error = self.multipath_bias_m
+            if self.multipath_noise_sigma_m > 0.0:
+                mp_error = mp_error + self._rng.normal(0.0, self.multipath_noise_sigma_m, size=ideal.shape).astype(
+                    np.float32
+                )
+            # Only apply multipath to pixels with valid depth
+            noisy = np.where(ideal > 0, noisy + mp_error, noisy)
 
         # --- Validity mask: range gate ---
         valid = (ideal > 0) & (noisy >= self.min_depth_m) & (noisy <= self.max_depth_m)

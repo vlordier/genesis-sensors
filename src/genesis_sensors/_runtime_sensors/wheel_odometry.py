@@ -31,6 +31,7 @@ Observation keys
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -59,6 +60,12 @@ class WheelOdometryModel(BaseSensor):
         Wheel-slip standard deviation as a fraction of instantaneous speed.
         A random multiplicative scale drawn from N(1, slip_sigma) is applied
         to the velocity before dead-reckoning integration.
+    slip_correlation:
+        AR(1) autocorrelation coefficient for temporal slip correlation.
+        When > 0, consecutive slip events are correlated (e.g. driving on
+        an icy patch produces sustained slip, not independent per-step).
+        ``slip_state[t] = corr * slip_state[t-1] + √(1-corr²) * N(0,1)``.
+        Typical values: 0.9–0.99 for sustained slip.  ``0`` = iid slip.
     seed:
         Optional RNG seed.
     """
@@ -70,14 +77,17 @@ class WheelOdometryModel(BaseSensor):
         pos_noise_sigma_m: float = 0.002,
         heading_noise_sigma_rad: float = 0.001,
         slip_sigma: float = 0.005,
+        slip_correlation: float = 0.0,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
         self.pos_noise_sigma_m = float(pos_noise_sigma_m)
         self.heading_noise_sigma_rad = float(heading_noise_sigma_rad)
         self.slip_sigma = float(slip_sigma)
+        self.slip_correlation = float(np.clip(slip_correlation, 0.0, 0.999))
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
+        self._slip_state: float = 0.0  # AR(1) state for correlated slip
         self._last_obs: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
@@ -99,6 +109,7 @@ class WheelOdometryModel(BaseSensor):
             pos_noise_sigma_m=self.pos_noise_sigma_m,
             heading_noise_sigma_rad=self.heading_noise_sigma_rad,
             slip_sigma=self.slip_sigma,
+            slip_correlation=self.slip_correlation,
             seed=self._seed,
         )
 
@@ -109,6 +120,7 @@ class WheelOdometryModel(BaseSensor):
     def reset(self, env_id: int = 0) -> None:
         self._last_obs = {}
         self._last_update_time = -1.0
+        self._slip_state = 0.0
 
     def step(self, sim_time: float, state: dict[str, Any]) -> dict[str, Any]:
         """
@@ -149,7 +161,14 @@ class WheelOdometryModel(BaseSensor):
         # Wheel slip: multiplicative scale on velocity magnitude
         v_linear = float(np.sqrt(vx**2 + vy**2))
         if v_linear > 1e-9 and self.slip_sigma > 0.0:
-            slip_factor = float(self._rng.normal(1.0, self.slip_sigma))
+            if self.slip_correlation > 0.0:
+                # AR(1) correlated slip process
+                innov = float(self._rng.normal(0.0, 1.0))
+                rho = self.slip_correlation
+                self._slip_state = rho * self._slip_state + math.sqrt(1.0 - rho**2) * innov
+                slip_factor = 1.0 + self.slip_sigma * self._slip_state
+            else:
+                slip_factor = float(self._rng.normal(1.0, self.slip_sigma))
         else:
             slip_factor = 1.0
 

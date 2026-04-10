@@ -140,6 +140,12 @@ class StereoCameraModel(BaseSensor):
     disparity_noise_sigma_px:
         Standard deviation of Gaussian noise added to the ideal disparity
         (pixels). Typical SGBM performance: 0.3–1.0 px at mid-range.
+    disparity_noise_scale_z:
+        Range-dependent disparity noise coefficient.  When > 0, additional
+        noise sigma = ``scale_z × Z²`` is added where Z is the depth in
+        metres.  This models the degradation of stereo matching at greater
+        distances where disparity shrinks and sub-pixel accuracy drops.
+        Typical value: 0.001–0.01.  ``0`` = constant noise only.
     min_depth_m:
         Minimum valid depth. Pixels closer than this receive zero disparity.
     max_depth_m:
@@ -165,6 +171,7 @@ class StereoCameraModel(BaseSensor):
         baseline_m: float = 0.06,
         hfov_deg: float = 90.0,
         disparity_noise_sigma_px: float = 0.5,
+        disparity_noise_scale_z: float = 0.0,
         min_depth_m: float = _MIN_DEPTH_M,
         max_depth_m: float = 20.0,
         left_config: "StereoCameraConfig | None" = None,
@@ -177,6 +184,7 @@ class StereoCameraModel(BaseSensor):
         self.baseline_m = float(baseline_m)
         self.hfov_deg = float(hfov_deg)
         self.disparity_noise_sigma_px = float(max(0.0, disparity_noise_sigma_px))
+        self.disparity_noise_scale_z = float(max(0.0, disparity_noise_scale_z))
         self.min_depth_m = float(min_depth_m)
         self.max_depth_m = float(max_depth_m)
         self._seed = seed
@@ -237,6 +245,7 @@ class StereoCameraModel(BaseSensor):
             baseline_m=config.baseline_m,
             hfov_deg=config.hfov_deg,
             disparity_noise_sigma_px=config.disparity_noise_sigma_px,
+            disparity_noise_scale_z=getattr(config, "disparity_noise_scale_z", 0.0),
             min_depth_m=config.min_depth_m,
             max_depth_m=config.max_depth_m,
             seed=config.seed,
@@ -253,6 +262,7 @@ class StereoCameraModel(BaseSensor):
             baseline_m=self.baseline_m,
             hfov_deg=self.hfov_deg,
             disparity_noise_sigma_px=self.disparity_noise_sigma_px,
+            disparity_noise_scale_z=self.disparity_noise_scale_z,
             min_depth_m=self.min_depth_m,
             max_depth_m=self.max_depth_m,
             seed=self._seed,
@@ -297,9 +307,16 @@ class StereoCameraModel(BaseSensor):
             depth_ideal = np.asarray(depth_raw, dtype=np.float32)
             # Compute ideal disparity from depth
             d_ideal = _depth_to_disparity(depth_ideal, self.focal_px, self.baseline_m)
-            # Add sub-pixel disparity noise
-            if self.disparity_noise_sigma_px > 0.0:
-                noise = self._rng.normal(0.0, self.disparity_noise_sigma_px, d_ideal.shape).astype(np.float32)
+            # Add sub-pixel disparity noise (optionally range-dependent)
+            if self.disparity_noise_sigma_px > 0.0 or self.disparity_noise_scale_z > 0.0:
+                sigma_disp = self.disparity_noise_sigma_px
+                if self.disparity_noise_scale_z > 0.0:
+                    # Range-dependent: σ_total(Z) = σ_base + scale_z × Z²
+                    depth_clamped = np.clip(depth_ideal, _MIN_DEPTH_M, None)
+                    sigma_map = sigma_disp + self.disparity_noise_scale_z * depth_clamped**2
+                    noise = (self._rng.normal(0.0, 1.0, d_ideal.shape) * sigma_map).astype(np.float32)
+                else:
+                    noise = self._rng.normal(0.0, sigma_disp, d_ideal.shape).astype(np.float32)
                 d_noisy = np.clip(d_ideal + noise, 0.0, _MAX_DISPARITY_PX).astype(np.float32)
             else:
                 d_noisy = d_ideal.copy()

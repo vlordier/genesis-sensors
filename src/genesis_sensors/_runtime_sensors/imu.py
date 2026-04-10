@@ -107,6 +107,33 @@ class IMUModel(BaseSensor):
         ``state["gravity_body"]`` or the default ENU level-flight value) to
         the ideal acceleration before applying noise.  This replicates how a
         real accelerometer measures specific force.
+    max_acc_mps2:
+        Accelerometer saturation limit per axis (m/s²).  Readings are
+        clipped to ``[−max_acc, +max_acc]``.  ``0`` = no saturation.
+        Typical MEMS devices: 160 m/s² (±16 g).
+    max_gyr_rads:
+        Gyroscope saturation limit per axis (rad/s).  Readings are clipped
+        to ``[−max_gyr, +max_gyr]``.  ``0`` = no saturation.
+        Typical MEMS devices: 34.9 rad/s (±2000 °/s).
+    g_sensitivity_mps3:
+        Gyroscope g-sensitivity in (rad/s)/(m/s²).  Models the rectification
+        error where linear acceleration couples into the gyroscope output.
+        Typical MEMS value: 0.005–0.015 (rad/s)/(m/s²).  ``0`` = disabled.
+    temp_coeff_bias_acc:
+        Accelerometer bias temperature coefficient (m/s²/°C).  Shifts the
+        bias linearly when ``state["temperature_c"]`` differs from 25 °C.
+        ``0`` = disabled.
+    temp_coeff_bias_gyr:
+        Gyroscope bias temperature coefficient (rad/s/°C).  ``0`` = disabled.
+    adc_resolution_acc:
+        Accelerometer ADC resolution (bits).  Output is quantised to the
+        LSB = 2 × full_scale / 2^bits.  ``0`` = no quantisation.
+    adc_resolution_gyr:
+        Gyroscope ADC resolution (bits).  ``0`` = no quantisation.
+    bandwidth_hz:
+        First-order low-pass filter bandwidth (Hz) on the output.
+        Models the anti-alias / digital filter inside real IMUs.
+        ``0`` = no filtering (infinite bandwidth).
     seed:
         Optional RNG seed for reproducibility.
     """
@@ -126,6 +153,14 @@ class IMUModel(BaseSensor):
         cross_axis_sensitivity_acc: float = 0.0,
         cross_axis_sensitivity_gyr: float = 0.0,
         add_gravity: bool = True,
+        max_acc_mps2: float = 0.0,
+        max_gyr_rads: float = 0.0,
+        g_sensitivity_mps3: float = 0.0,
+        temp_coeff_bias_acc: float = 0.0,
+        temp_coeff_bias_gyr: float = 0.0,
+        adc_resolution_acc: int = 0,
+        adc_resolution_gyr: int = 0,
+        bandwidth_hz: float = 0.0,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
@@ -140,6 +175,14 @@ class IMUModel(BaseSensor):
         self.cross_axis_sensitivity_acc = float(cross_axis_sensitivity_acc)
         self.cross_axis_sensitivity_gyr = float(cross_axis_sensitivity_gyr)
         self.add_gravity = bool(add_gravity)
+        self.max_acc_mps2 = float(max(max_acc_mps2, 0.0))
+        self.max_gyr_rads = float(max(max_gyr_rads, 0.0))
+        self.g_sensitivity_mps3 = float(g_sensitivity_mps3)
+        self.temp_coeff_bias_acc = float(temp_coeff_bias_acc)
+        self.temp_coeff_bias_gyr = float(temp_coeff_bias_gyr)
+        self.adc_resolution_acc = int(max(0, adc_resolution_acc))
+        self.adc_resolution_gyr = int(max(0, adc_resolution_gyr))
+        self.bandwidth_hz = float(max(0.0, bandwidth_hz))
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
 
@@ -182,6 +225,19 @@ class IMUModel(BaseSensor):
             np.full(3, self._gain_gyr - self.cross_axis_sensitivity_gyr)
         )
 
+        # ADC quantisation steps (LSB = 2*full_scale / 2^bits)
+        self._lsb_acc: float = 0.0
+        if self.adc_resolution_acc > 0 and self.max_acc_mps2 > 0.0:
+            self._lsb_acc = 2.0 * self.max_acc_mps2 / (2**self.adc_resolution_acc)
+        self._lsb_gyr: float = 0.0
+        if self.adc_resolution_gyr > 0 and self.max_gyr_rads > 0.0:
+            self._lsb_gyr = 2.0 * self.max_gyr_rads / (2**self.adc_resolution_gyr)
+
+        # Bandwidth LPF state
+        self._lpf_acc: Float64Array = np.zeros(3, dtype=np.float64)
+        self._lpf_gyr: Float64Array = np.zeros(3, dtype=np.float64)
+        self._lpf_initialized: bool = False
+
         self._last_obs: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
@@ -211,6 +267,14 @@ class IMUModel(BaseSensor):
             cross_axis_sensitivity_acc=self.cross_axis_sensitivity_acc,
             cross_axis_sensitivity_gyr=self.cross_axis_sensitivity_gyr,
             add_gravity=self.add_gravity,
+            max_acc_mps2=self.max_acc_mps2,
+            max_gyr_rads=self.max_gyr_rads,
+            g_sensitivity_mps3=self.g_sensitivity_mps3,
+            temp_coeff_bias_acc=self.temp_coeff_bias_acc,
+            temp_coeff_bias_gyr=self.temp_coeff_bias_gyr,
+            adc_resolution_acc=self.adc_resolution_acc,
+            adc_resolution_gyr=self.adc_resolution_gyr,
+            bandwidth_hz=self.bandwidth_hz,
             seed=self._seed,
         )
 
@@ -237,6 +301,9 @@ class IMUModel(BaseSensor):
         # experiences independent, realistic initial conditions.
         self._bias_process_acc.reset(self.bias_sigma_acc)
         self._bias_process_gyr.reset(self.bias_sigma_gyr)
+        self._lpf_acc = np.zeros(3, dtype=np.float64)
+        self._lpf_gyr = np.zeros(3, dtype=np.float64)
+        self._lpf_initialized = False
         self._last_obs = {}
         self._last_update_time = -1.0
 
@@ -288,10 +355,59 @@ class IMUModel(BaseSensor):
         bias_gyr = self._bias_process_gyr.step()
 
         # ------------------------------------------------------------------
+        # Temperature-dependent bias shift
+        # ------------------------------------------------------------------
+        if self.temp_coeff_bias_acc != 0.0 or self.temp_coeff_bias_gyr != 0.0:
+            temp_c = float(state.get("temperature_c", 25.0))
+            delta_t = temp_c - 25.0  # reference temperature = 25 °C
+            if self.temp_coeff_bias_acc != 0.0:
+                bias_acc = bias_acc + self.temp_coeff_bias_acc * delta_t
+            if self.temp_coeff_bias_gyr != 0.0:
+                bias_gyr = bias_gyr + self.temp_coeff_bias_gyr * delta_t
+
+        # ------------------------------------------------------------------
+        # G-sensitivity: linear acceleration coupling into gyroscope
+        # ------------------------------------------------------------------
+        if self.g_sensitivity_mps3 != 0.0:
+            bias_gyr = bias_gyr + self.g_sensitivity_mps3 * true_acc
+
+        # ------------------------------------------------------------------
         # White noise (angle/velocity random walk)
         # ------------------------------------------------------------------
         noisy_acc: Float64Array = true_acc + bias_acc + self._rng.normal(0.0, self._sigma_acc, 3)
         noisy_gyr: Float64Array = true_gyr + bias_gyr + self._rng.normal(0.0, self._sigma_gyr, 3)
+
+        # ------------------------------------------------------------------
+        # Saturation / clipping
+        # ------------------------------------------------------------------
+        if self.max_acc_mps2 > 0.0:
+            noisy_acc = np.clip(noisy_acc, -self.max_acc_mps2, self.max_acc_mps2)
+        if self.max_gyr_rads > 0.0:
+            noisy_gyr = np.clip(noisy_gyr, -self.max_gyr_rads, self.max_gyr_rads)
+
+        # ------------------------------------------------------------------
+        # ADC quantisation
+        # ------------------------------------------------------------------
+        if self._lsb_acc > 0.0:
+            noisy_acc = np.round(noisy_acc / self._lsb_acc) * self._lsb_acc
+        if self._lsb_gyr > 0.0:
+            noisy_gyr = np.round(noisy_gyr / self._lsb_gyr) * self._lsb_gyr
+
+        # ------------------------------------------------------------------
+        # Output bandwidth LPF (first-order IIR)
+        # ------------------------------------------------------------------
+        if self.bandwidth_hz > 0.0:
+            dt = 1.0 / self.update_rate_hz
+            alpha = min(1.0, dt * 2.0 * math.pi * self.bandwidth_hz / (1.0 + dt * 2.0 * math.pi * self.bandwidth_hz))
+            if not self._lpf_initialized:
+                self._lpf_acc = noisy_acc.copy()
+                self._lpf_gyr = noisy_gyr.copy()
+                self._lpf_initialized = True
+            else:
+                self._lpf_acc += alpha * (noisy_acc - self._lpf_acc)
+                self._lpf_gyr += alpha * (noisy_gyr - self._lpf_gyr)
+            noisy_acc = self._lpf_acc.copy()
+            noisy_gyr = self._lpf_gyr.copy()
 
         obs: ImuObservation = {
             "lin_acc": noisy_acc,

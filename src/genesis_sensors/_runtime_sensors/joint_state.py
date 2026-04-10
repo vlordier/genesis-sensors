@@ -61,6 +61,11 @@ class JointStateSensor(BaseSensor):
         First-order low-pass smoothing factor for velocity (0 = off,
         values > 0 apply  ``v_filt = (1-α) * v_filt_prev + α * v_raw``).
         Typical hardware values are in [0.1, 0.5].
+    encoder_cpr:
+        Encoder counts per revolution.  When > 0, position readings are
+        quantised to the nearest ``2π / encoder_cpr`` radians, simulating
+        a real incremental or absolute encoder.  ``0`` = no quantisation.
+        Typical values: 1024–16384 CPR.
     seed:
         Optional RNG seed for reproducibility.
     """
@@ -73,6 +78,7 @@ class JointStateSensor(BaseSensor):
         vel_noise_sigma_rads: float = 0.001,
         torque_noise_sigma_nm: float = 0.01,
         velocity_filter_alpha: float = 0.0,
+        encoder_cpr: int = 0,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
@@ -80,6 +86,7 @@ class JointStateSensor(BaseSensor):
         self.vel_noise_sigma_rads = float(vel_noise_sigma_rads)
         self.torque_noise_sigma_nm = float(torque_noise_sigma_nm)
         self.velocity_filter_alpha = float(velocity_filter_alpha)
+        self.encoder_cpr = int(max(encoder_cpr, 0))
         self._rng = np.random.default_rng(seed)
         self._seed = seed
         self._vel_filtered: np.ndarray | None = None  # lazy-initialised on first step
@@ -105,6 +112,7 @@ class JointStateSensor(BaseSensor):
             vel_noise_sigma_rads=self.vel_noise_sigma_rads,
             torque_noise_sigma_nm=self.torque_noise_sigma_nm,
             velocity_filter_alpha=self.velocity_filter_alpha,
+            encoder_cpr=self.encoder_cpr,
             seed=self._seed,
         )
 
@@ -145,6 +153,11 @@ class JointStateSensor(BaseSensor):
 
         # --- Position noise ---
         noisy_pos = raw_pos + self._rng.normal(0.0, self.pos_noise_sigma_rad, size=n).astype(np.float32)
+
+        # --- Encoder quantization ---
+        if self.encoder_cpr > 0:
+            lsb = (2.0 * np.pi) / self.encoder_cpr
+            noisy_pos = np.round(noisy_pos / lsb).astype(np.float32) * np.float32(lsb)
 
         # --- Velocity noise + optional LP filter ---
         noisy_vel = raw_vel + self._rng.normal(0.0, self.vel_noise_sigma_rads, size=n).astype(np.float32)

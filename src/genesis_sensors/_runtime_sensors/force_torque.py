@@ -58,6 +58,15 @@ class ForceTorqueSensorModel(BaseSensor):
         ``[−force_range_n, +force_range_n]``.
     torque_range_nm:
         Torque saturation threshold per axis (Nm).
+    cross_coupling_matrix:
+        Optional 6×6 cross-axis coupling matrix.  Applied as::
+
+            [F'; T'] = C @ [F; T]
+
+        where ``C`` is a 6×6 matrix and the identity = no coupling.  This
+        models mechanical cross-talk between axes in real strain-gauge
+        based F/T sensors.  If ``None``, cross-coupling is disabled (identity).
+        Typical off-diagonal values: 1–5 % of diagonal.
     seed:
         Optional RNG seed.
     """
@@ -72,6 +81,7 @@ class ForceTorqueSensorModel(BaseSensor):
         torque_bias_nm: tuple[float, float, float] | None = None,
         force_range_n: float = 200.0,
         torque_range_nm: float = 10.0,
+        cross_coupling_matrix: list[list[float]] | None = None,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
@@ -83,6 +93,15 @@ class ForceTorqueSensorModel(BaseSensor):
         self._torque_bias = np.asarray(_tb, dtype=np.float32)
         self.force_range_n = float(force_range_n)
         self.torque_range_nm = float(torque_range_nm)
+        # Cross-coupling matrix: 6×6 (identity = no coupling)
+        if cross_coupling_matrix is not None:
+            self._cross_coupling = np.asarray(cross_coupling_matrix, dtype=np.float32)
+            if self._cross_coupling.shape != (6, 6):
+                raise ValueError(f"cross_coupling_matrix must be 6×6, got shape {self._cross_coupling.shape}")
+            self._cross_coupling_cfg = [list(row) for row in self._cross_coupling]
+        else:
+            self._cross_coupling = None
+            self._cross_coupling_cfg = None
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
         self._last_obs: dict[str, Any] = {}
@@ -120,6 +139,7 @@ class ForceTorqueSensorModel(BaseSensor):
             torque_bias_nm=self._torque_bias_cfg,
             force_range_n=self.force_range_n,
             torque_range_nm=self.torque_range_nm,
+            cross_coupling_matrix=self._cross_coupling_cfg,
             seed=self._seed,
         )
 
@@ -155,6 +175,13 @@ class ForceTorqueSensorModel(BaseSensor):
 
         force_noise = self._rng.normal(0.0, self.force_noise_sigma_n, 3).astype(np.float32)
         torque_noise = self._rng.normal(0.0, self.torque_noise_sigma_nm, 3).astype(np.float32)
+
+        # Apply 6×6 cross-axis coupling if configured
+        if self._cross_coupling is not None:
+            ft_vec = np.concatenate([force, torque]).astype(np.float32)
+            ft_coupled = self._cross_coupling @ ft_vec
+            force = ft_coupled[:3]
+            torque = ft_coupled[3:]
 
         force_out = np.clip(
             force + self._force_bias + force_noise,

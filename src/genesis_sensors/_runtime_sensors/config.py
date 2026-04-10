@@ -48,6 +48,7 @@ class BaseModel(PydanticBaseModel):
         description="Scale multiplier for those rare outlier events.",
     )
 
+
 # ---------------------------------------------------------------------------
 # CameraConfig
 # ---------------------------------------------------------------------------
@@ -207,6 +208,21 @@ class LidarConfig(BaseModel):
         ge=0.0,
         description="Half-angle beam divergence (mrad).  0 = off; typical spinning LiDAR: 1.5–3.0 mrad.",
     )
+    multi_return: int = Field(
+        default=1,
+        ge=1,
+        le=4,
+        description="Number of returns per beam. 1 = strongest only; 2+ = multi-return.",
+    )
+    multi_return_split_m: float = Field(
+        default=2.0,
+        ge=0.0,
+        description="Range discontinuity threshold (m) for secondary returns.",
+    )
+    reflectance_model: bool = Field(
+        default=False,
+        description="Enable reflectance-dependent noise (SNR scales with intensity).",
+    )
     seed: int | None = None
 
     @model_validator(mode="after")
@@ -254,6 +270,16 @@ class GNSSConfig(BaseModel):
     origin_llh: tuple[float, float, float] = Field(
         default=(0.0, 0.0, 0.0),
         description="(lat_deg, lon_deg, alt_m) of world origin.",
+    )
+    ionospheric_delay_m: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Zenith ionospheric delay (m). Typical single-freq GPS: 2–5 m.",
+    )
+    tropospheric_delay_m: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Zenith tropospheric delay (m). Typical: 2.3 m dry + 0.1–0.5 m wet.",
     )
     seed: int | None = None
 
@@ -378,6 +404,44 @@ class IMUConfig(BaseModel):
     add_gravity: bool = Field(
         default=True,
         description="Add gravity vector (from state['gravity_body']) to acceleration, mimicking specific-force output.",
+    )
+    max_acc_mps2: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Accelerometer saturation limit (m/s²). 0 = no saturation.",
+    )
+    max_gyr_rads: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Gyroscope saturation limit (rad/s). 0 = no saturation.",
+    )
+    g_sensitivity_mps3: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Gyroscope g-sensitivity (rad/s per m/s²). Couples linear acceleration into gyro output.",
+    )
+    temp_coeff_bias_acc: float = Field(
+        default=0.0,
+        description="Accelerometer bias temperature coefficient (m/s² per °C).",
+    )
+    temp_coeff_bias_gyr: float = Field(
+        default=0.0,
+        description="Gyroscope bias temperature coefficient (rad/s per °C).",
+    )
+    adc_resolution_acc: int = Field(
+        default=0,
+        ge=0,
+        description="Accelerometer ADC bits. 0 = no quantisation.",
+    )
+    adc_resolution_gyr: int = Field(
+        default=0,
+        ge=0,
+        description="Gyroscope ADC bits. 0 = no quantisation.",
+    )
+    bandwidth_hz: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Output LPF bandwidth (Hz). 0 = infinite (no filtering).",
     )
     seed: int | None = None
 
@@ -549,6 +613,9 @@ class DVLConfig(BaseModel):
     water_track_blend: float = Field(
         default=0.20, ge=0.0, le=1.0, description="Blend factor for water-track fallback when bottom lock is lost."
     )
+    nominal_sos_ms: float = Field(
+        default=1500.0, gt=0.0, description="Nominal speed of sound for Doppler correction (m/s)."
+    )
     seed: int | None = None
 
     @model_validator(mode="after")
@@ -676,6 +743,15 @@ class BarometerConfig(BaseModel):
         description="Reference ground altitude (m MSL) added to the ENU z-axis to obtain MSL altitude.",
     )
     resolution_m: float = Field(default=0.0, ge=0.0, description="Quantisation step (m). 0 = off.")
+    qnh_pa: float = Field(
+        default=101_325.0,
+        gt=0.0,
+        description="Sea-level reference pressure (Pa). Default ISA 101325.",
+    )
+    temp_cross_sensitivity_m_per_c: float = Field(
+        default=0.0,
+        description="Altitude temperature cross-sensitivity (m/°C, ref 25°C).",
+    )
     seed: int | None = None
 
 
@@ -712,6 +788,25 @@ class MagnetometerConfig(BaseModel):
     soft_iron_scale: list[float] = Field(
         default=[1.0, 1.0, 1.0],
         description="Per-axis soft-iron scale factors (> 0). Must have exactly 3 elements.",
+    )
+    bias_drift_sigma_ut: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Gauss-Markov bias drift sigma (µT). 0 = disabled.",
+    )
+    bias_drift_tau_s: float = Field(
+        default=600.0,
+        gt=0.0,
+        description="Gauss-Markov bias drift correlation time (s).",
+    )
+    temp_coeff_ut_per_c: float = Field(
+        default=0.0,
+        description="Temperature coefficient on hard-iron (µT/°C, ref 25°C).",
+    )
+    emi_current_scale_ut_per_a: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="EMI from motor current (µT per A). 0 = disabled.",
     )
     seed: int | None = None
 
@@ -801,6 +896,14 @@ class BatteryConfig(BaseModel):
     current_noise_a: float = Field(default=0.05, ge=0.0, description="Gaussian current measurement noise sigma (A).")
     voltage_noise_v: float = Field(default=0.01, ge=0.0, description="Gaussian voltage measurement noise sigma (V).")
     initial_soc: float = Field(default=1.0, ge=0.0, le=1.0, description="Starting state of charge (0–1).")
+    temp_coeff_resistance: float = Field(
+        default=0.0,
+        description="Internal resistance temperature coefficient (/°C). R_eff = R × (1 + coeff × (T-25)).",
+    )
+    temp_coeff_capacity: float = Field(
+        default=0.0,
+        description="Capacity temperature coefficient (/°C). C_eff = C × max(0.1, 1 + coeff × (T-25)).",
+    )
     seed: int | None = None
 
 
@@ -839,6 +942,11 @@ class StereoCameraConfig(BaseModel):
     read_noise_sigma: float = Field(default=1.5, ge=0, description="Read-noise sigma (electrons) per eye.")
     vignetting_strength: float = Field(default=0.0, ge=0.0, description="Radial vignetting (0 = off).")
     chromatic_aberration_px: float = Field(default=0.0, ge=0.0, description="CA chromatic shift at corner (px).")
+    disparity_noise_scale_z: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Range-dependent disparity noise coefficient: σ_total = σ_base + scale_z × Z² (px).",
+    )
     seed: int | None = Field(default=None, description="RNG seed; each eye gets an independent child seed.")
 
     @field_validator("resolution")
@@ -888,6 +996,12 @@ class WheelOdometryConfig(BaseModel):
         ge=0.0,
         description="Wheel-slip standard deviation as a fraction of instantaneous speed (dimensionless).",
     )
+    slip_correlation: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=0.999,
+        description="AR(1) autocorrelation coefficient for temporal slip. 0 = iid, 0.9–0.99 = sustained slip.",
+    )
     seed: int | None = None
 
 
@@ -913,6 +1027,10 @@ class ForceTorqueConfig(BaseModel):
     )
     force_range_n: float = Field(default=200.0, gt=0, description="Force saturation threshold per axis (N).")
     torque_range_nm: float = Field(default=10.0, gt=0, description="Torque saturation threshold per axis (Nm).")
+    cross_coupling_matrix: list[list[float]] | None = Field(
+        default=None,
+        description="6×6 cross-axis coupling matrix. Applied as [F';T'] = C @ [F;T] before noise.",
+    )
     seed: int | None = None
 
 
@@ -939,6 +1057,11 @@ class JointStateConfig(BaseModel):
         le=1.0,
         description="First-order LP smoothing factor for velocity (0 = off).",
     )
+    encoder_cpr: int = Field(
+        default=0,
+        ge=0,
+        description="Encoder counts per revolution. Position is quantised to LSB = 2π/CPR. 0 = no quantisation.",
+    )
     seed: int | None = None
 
 
@@ -963,6 +1086,11 @@ class ContactSensorConfig(BaseModel):
     )
     debounce_steps: int = Field(
         default=0, ge=0, description="Minimum consecutive steps new state must persist before toggling."
+    )
+    release_threshold_n: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Force below which contact is released (N). None = same as force_threshold_n (no hysteresis).",
     )
     seed: int | None = None
 
@@ -989,6 +1117,16 @@ class DepthCameraConfig(BaseModel):
     missing_edge_px: int = Field(default=2, ge=0, description="Width of invalid-depth border in pixels (0 = disabled).")
     min_depth_m: float = Field(default=0.2, gt=0, description="Minimum measurable range (m).")
     max_depth_m: float = Field(default=10.0, gt=0, description="Maximum measurable range (m).")
+    multipath_bias_m: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="ToF multipath constant bias (m). Typical indoor ToF: 0.005–0.02 m.",
+    )
+    multipath_noise_sigma_m: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="ToF multipath noise sigma (m). Added on top of range-dependent noise.",
+    )
     seed: int | None = None
 
     @field_validator("resolution")
@@ -1014,6 +1152,15 @@ class TactileArrayConfig(BaseModel):
     taxel_area_mm2: float = Field(default=4.0, gt=0, description="Physical taxel area (mm²) for force integration.")
     dead_zone_fraction: float = Field(
         default=0.0, ge=0.0, le=1.0, description="Fraction of taxels permanently disabled [0, 1]."
+    )
+    shear_enabled: bool = Field(
+        default=False,
+        description="Enable shear/tangential force sensing (GelSight/DIGIT style).",
+    )
+    crosstalk_sigma: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Inter-taxel mechanical crosstalk Gaussian sigma (in taxels). 0 = off.",
     )
     seed: int | None = None
 
@@ -1048,6 +1195,169 @@ class RPMSensorConfig(BaseModel):
     cpr: int = Field(default=1024, ge=0, description="Counts per revolution (0 = no quantisation).")
     noise_sigma_rpm: float = Field(default=5.0, ge=0.0, description="Gaussian speed noise 1-σ (RPM).")
     rpm_range: float = Field(default=20_000.0, gt=0, description="Maximum measurable speed (RPM).")
+    seed: int | None = None
+
+
+# ---------------------------------------------------------------------------
+# WaterPressureConfig
+# ---------------------------------------------------------------------------
+
+
+class WaterPressureConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.WaterPressureModel`."""
+
+    name: str = "water_pressure"
+    update_rate_hz: float = Field(default=10.0, gt=0, description="Measurement rate (Hz).")
+    noise_sigma_kpa: float = Field(default=0.5, ge=0.0, description="Gaussian pressure noise 1-σ (kPa).")
+    resolution_kpa: float = Field(default=0.0, ge=0.0, description="ADC quantisation step (kPa). 0 = off.")
+    temp_sensitivity_kpa_per_c: float = Field(default=0.0, description="Temperature cross-sensitivity (kPa/°C).")
+    max_depth_m: float = Field(default=300.0, gt=0, description="Maximum rated depth (m).")
+    seed: int | None = None
+
+
+# ---------------------------------------------------------------------------
+# HydrophoneConfig
+# ---------------------------------------------------------------------------
+
+
+class HydrophoneConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.HydrophoneModel`."""
+
+    name: str = "hydrophone"
+    update_rate_hz: float = Field(default=10.0, gt=0, description="Detection scan rate (Hz).")
+    sensitivity_db: float = Field(default=-180.0, description="Hydrophone sensitivity (dB re 1 V/µPa).")
+    detection_threshold_db: float = Field(default=80.0, description="Min received level for detection (dB re 1 µPa).")
+    bearing_noise_deg: float = Field(default=5.0, ge=0.0, description="Bearing estimation noise 1-σ (degrees).")
+    frequency_range_hz: tuple[float, float] = Field(default=(100.0, 100_000.0), description="Passband (Hz).")
+    seed: int | None = None
+
+
+# ---------------------------------------------------------------------------
+# LeakDetectorConfig
+# ---------------------------------------------------------------------------
+
+
+class LeakDetectorConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.LeakDetectorModel`."""
+
+    name: str = "leak_detector"
+    update_rate_hz: float = Field(default=5.0, gt=0, description="Polling rate (Hz).")
+    volume_threshold_ml: float = Field(default=1.0, gt=0.0, description="Water volume to trigger alarm (mL).")
+    false_alarm_prob: float = Field(default=0.001, ge=0.0, le=1.0, description="Per-step false alarm probability.")
+    seed: int | None = None
+
+
+# ---------------------------------------------------------------------------
+# MotorTemperatureConfig
+# ---------------------------------------------------------------------------
+
+
+class MotorTemperatureConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.MotorTemperatureModel`."""
+
+    name: str = "motor_temperature"
+    update_rate_hz: float = Field(default=10.0, gt=0, description="Measurement rate (Hz).")
+    winding_resistance_ohm: float = Field(default=0.5, gt=0.0, description="Winding resistance (Ω).")
+    thermal_resistance_cw: float = Field(
+        default=2.0, gt=0.0, description="Winding-to-ambient thermal resistance (°C/W)."
+    )
+    thermal_capacitance_j_per_c: float = Field(default=50.0, gt=0.0, description="Winding thermal mass (J/°C).")
+    friction_heat_coeff: float = Field(default=0.01, ge=0.0, description="Friction heating coefficient (W·s/rad).")
+    noise_sigma_c: float = Field(default=0.5, ge=0.0, description="Temperature noise 1-σ (°C).")
+    overtemp_threshold_c: float = Field(default=130.0, gt=0.0, description="Over-temperature alarm threshold (°C).")
+    seed: int | None = None
+
+
+# ---------------------------------------------------------------------------
+# InclinometerConfig
+# ---------------------------------------------------------------------------
+
+
+class InclinometerConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.InclinometerModel`."""
+
+    name: str = "inclinometer"
+    update_rate_hz: float = Field(default=20.0, gt=0, description="Output rate (Hz).")
+    range_deg: float = Field(default=90.0, gt=0.0, le=180.0, description="Measurement range (±degrees).")
+    noise_sigma_deg: float = Field(default=0.05, ge=0.0, description="White noise 1-σ (degrees).")
+    bias_deg: float = Field(default=0.0, description="Fixed zero-offset bias (degrees).")
+    response_tau_s: float = Field(default=0.1, gt=0.0, description="Foam-damped response time constant (s).")
+    resolution_deg: float = Field(default=0.0, ge=0.0, description="ADC quantisation step (degrees). 0 = off.")
+    seed: int | None = None
+
+
+# ---------------------------------------------------------------------------
+# ProximityToFArrayConfig
+# ---------------------------------------------------------------------------
+
+
+class ProximityToFArrayConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.ProximityToFArrayModel`."""
+
+    name: str = "proximity_tof"
+    update_rate_hz: float = Field(default=15.0, gt=0, description="Ranging rate (Hz).")
+    rows: int = Field(default=8, ge=1, description="Number of zone rows.")
+    cols: int = Field(default=8, ge=1, description="Number of zone columns.")
+    max_range_m: float = Field(default=4.0, gt=0, description="Maximum measurable range (m).")
+    noise_sigma_base_m: float = Field(default=0.005, ge=0.0, description="Base range noise 1-σ (m).")
+    noise_sigma_scale: float = Field(default=0.001, ge=0.0, description="Range-squared noise coefficient.")
+    crosstalk_fraction: float = Field(default=0.02, ge=0.0, le=1.0, description="Optical inter-zone crosstalk.")
+    seed: int | None = None
+
+
+# ---------------------------------------------------------------------------
+# LoadCellConfig
+# ---------------------------------------------------------------------------
+
+
+class LoadCellConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.LoadCellModel`."""
+
+    name: str = "load_cell"
+    update_rate_hz: float = Field(default=80.0, gt=0, description="Sampling rate (Hz).")
+    capacity_n: float = Field(default=500.0, gt=0, description="Full-scale capacity (N).")
+    noise_sigma_n: float = Field(default=0.1, ge=0.0, description="Load noise 1-σ (N).")
+    creep_rate_per_s: float = Field(default=1e-5, ge=0.0, description="Creep rate (fraction/s).")
+    temp_coeff_n_per_c: float = Field(default=0.0, description="Temperature drift (N/°C, ref 25°C).")
+    resolution_n: float = Field(default=0.0, ge=0.0, description="ADC quantisation step (N). 0 = off.")
+    seed: int | None = None
+
+
+# ---------------------------------------------------------------------------
+# UnderwaterModemConfig
+# ---------------------------------------------------------------------------
+
+
+class UnderwaterModemConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.UnderwaterModemModel`."""
+
+    name: str = "underwater_modem"
+    update_rate_hz: float = Field(default=1.0, gt=0, description="Communication cycle rate (Hz).")
+    frequency_hz: float = Field(default=25_000.0, gt=0.0, description="Carrier frequency (Hz).")
+    source_level_db: float = Field(default=170.0, description="Transmit source level (dB re 1 µPa @ 1 m).")
+    spreading_factor: float = Field(default=1.5, ge=1.0, le=2.0, description="Geometric spreading (1=cyl, 2=sph).")
+    noise_level_db: float = Field(default=60.0, description="Ambient acoustic noise (dB re 1 µPa).")
+    data_rate_bps: int = Field(default=9600, gt=0, description="Nominal data rate (bits/s).")
+    packet_size_bits: int = Field(default=256, gt=0, description="Packet size (bits).")
+    seed: int | None = None
+
+
+# ---------------------------------------------------------------------------
+# WireEncoderConfig
+# ---------------------------------------------------------------------------
+
+
+class WireEncoderConfig(BaseModel):
+    """Configuration for :class:`~genesis.sensors.WireEncoderModel`."""
+
+    name: str = "wire_encoder"
+    update_rate_hz: float = Field(default=100.0, gt=0, description="Sampling rate (Hz).")
+    stroke_m: float = Field(default=1.0, gt=0.0, description="Maximum cable travel length (m).")
+    noise_sigma_m: float = Field(default=0.0005, ge=0.0, description="Extension noise 1-σ (m).")
+    nonlinearity_amplitude: float = Field(default=0.001, ge=0.0, description="Sinusoidal non-linearity peak (m).")
+    hysteresis_m: float = Field(default=0.0002, ge=0.0, description="Direction-dependent hysteresis dead-band (m).")
+    thermal_expansion_coeff: float = Field(default=12e-6, ge=0.0, description="Cable CTE (1/°C).")
+    resolution_m: float = Field(default=0.0, ge=0.0, description="ADC quantisation step (m). 0 = off.")
     seed: int | None = None
 
 
@@ -1142,6 +1452,33 @@ class SensorSuiteConfig(BaseModel):
         default=None, description="Current and power monitor (None = disabled)."
     )
     rpm: RPMSensorConfig | None = Field(default=None, description="Motor / rotor RPM sensor (None = disabled).")
+    water_pressure: WaterPressureConfig | None = Field(
+        default=None, description="Submersible pressure/depth gauge (None = disabled)."
+    )
+    hydrophone: HydrophoneConfig | None = Field(
+        default=None, description="Passive acoustic hydrophone (None = disabled)."
+    )
+    leak_detector: LeakDetectorConfig | None = Field(
+        default=None, description="Hull water ingress detector (None = disabled)."
+    )
+    motor_temperature: MotorTemperatureConfig | None = Field(
+        default=None, description="Motor winding temperature monitor (None = disabled)."
+    )
+    inclinometer: InclinometerConfig | None = Field(
+        default=None, description="Dual-axis tilt sensor (None = disabled)."
+    )
+    proximity_tof: ProximityToFArrayConfig | None = Field(
+        default=None, description="Multi-zone ToF proximity array (None = disabled)."
+    )
+    load_cell: LoadCellConfig | None = Field(
+        default=None, description="Single-axis load/weight cell (None = disabled)."
+    )
+    underwater_modem: UnderwaterModemConfig | None = Field(
+        default=None, description="Acoustic underwater modem (None = disabled)."
+    )
+    wire_encoder: WireEncoderConfig | None = Field(
+        default=None, description="Cable-extension draw-wire encoder (None = disabled)."
+    )
 
     @classmethod
     def minimal(cls) -> "SensorSuiteConfig":
@@ -1180,6 +1517,15 @@ class SensorSuiteConfig(BaseModel):
             tactile_array=None,
             current=None,
             rpm=None,
+            water_pressure=None,
+            hydrophone=None,
+            leak_detector=None,
+            motor_temperature=None,
+            inclinometer=None,
+            proximity_tof=None,
+            load_cell=None,
+            underwater_modem=None,
+            wire_encoder=None,
         )
 
     @classmethod
@@ -1220,6 +1566,15 @@ class SensorSuiteConfig(BaseModel):
             tactile_array=None,
             current=None,
             rpm=None,
+            water_pressure=None,
+            hydrophone=None,
+            leak_detector=None,
+            motor_temperature=None,
+            inclinometer=None,
+            proximity_tof=None,
+            load_cell=None,
+            underwater_modem=None,
+            wire_encoder=None,
         )
 
     @classmethod
@@ -1260,6 +1615,15 @@ class SensorSuiteConfig(BaseModel):
             tactile_array=TactileArrayConfig(),
             current=CurrentSensorConfig(),
             rpm=RPMSensorConfig(),
+            water_pressure=WaterPressureConfig(),
+            hydrophone=HydrophoneConfig(),
+            leak_detector=LeakDetectorConfig(),
+            motor_temperature=MotorTemperatureConfig(),
+            inclinometer=InclinometerConfig(),
+            proximity_tof=ProximityToFArrayConfig(),
+            load_cell=LoadCellConfig(),
+            underwater_modem=UnderwaterModemConfig(),
+            wire_encoder=WireEncoderConfig(),
         )
 
 
@@ -1278,14 +1642,20 @@ __all__ = [
     "ForceTorqueConfig",
     "GasSensorConfig",
     "GNSSConfig",
+    "HydrophoneConfig",
     "HygrometerConfig",
     "IMUConfig",
     "ImagingSonarConfig",
+    "InclinometerConfig",
     "JointStateConfig",
+    "LeakDetectorConfig",
     "LidarConfig",
     "LightSensorConfig",
+    "LoadCellConfig",
     "MagnetometerConfig",
+    "MotorTemperatureConfig",
     "OpticalFlowConfig",
+    "ProximityToFArrayConfig",
     "RadarConfig",
     "RPMSensorConfig",
     "RadioConfig",
@@ -1297,6 +1667,9 @@ __all__ = [
     "TactileArrayConfig",
     "ThermalCameraConfig",
     "ThermometerConfig",
+    "UnderwaterModemConfig",
     "UWBRangeConfig",
+    "WaterPressureConfig",
     "WheelOdometryConfig",
+    "WireEncoderConfig",
 ]

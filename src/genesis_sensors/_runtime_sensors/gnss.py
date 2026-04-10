@@ -103,6 +103,16 @@ class GNSSModel(BaseSensor):
         ``(lat_deg, lon_deg, alt_m)`` of the simulation world origin.
         Used to convert XYZ to lat/lon/height.  The coordinate convention
         is ENU: world-frame x = East, y = North, z = Up.
+    ionospheric_delay_m:
+        Zenith ionospheric delay in metres.  Scaled by an obliquity factor
+        ``1 / cos(elev)`` where ``elev`` is derived from the satellite
+        geometry (a heuristic elevation of 60° is assumed when no explicit
+        satellite model is available).  Typical single-frequency L1 delay:
+        1–10 m at zenith.  ``0`` = disabled.
+    tropospheric_delay_m:
+        Zenith tropospheric (wet + dry) delay in metres.  Same obliquity
+        scaling as ionospheric delay.  Typical dry-component delay: ~2.3 m;
+        wet component: 0.1–0.5 m.  ``0`` = disabled.
     seed:
         Optional seed for the random-number generator (reproducibility).
     """
@@ -119,6 +129,8 @@ class GNSSModel(BaseSensor):
         min_fix_altitude_m: float = 0.5,
         jammer_zones: list[JammerZone] | None = None,
         origin_llh: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        ionospheric_delay_m: float = 0.0,
+        tropospheric_delay_m: float = 0.0,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
@@ -130,6 +142,8 @@ class GNSSModel(BaseSensor):
         self.min_fix_altitude_m = float(min_fix_altitude_m)
         self.jammer_zones: list[JammerZone] = jammer_zones or []
         self.origin_llh = tuple(origin_llh)
+        self.ionospheric_delay_m = float(max(ionospheric_delay_m, 0.0))
+        self.tropospheric_delay_m = float(max(tropospheric_delay_m, 0.0))
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
 
@@ -191,6 +205,8 @@ class GNSSModel(BaseSensor):
                 (centre.tolist(), radius) for centre, radius in zip(self._jammer_centres, self._jammer_radii)
             ],
             origin_llh=self.origin_llh,
+            ionospheric_delay_m=self.ionospheric_delay_m,
+            tropospheric_delay_m=self.tropospheric_delay_m,
             seed=self._seed,
         )
 
@@ -275,7 +291,22 @@ class GNSSModel(BaseSensor):
             multipath: Float64Array = self._rng.normal(0.0, self.multipath_sigma_m * obstruction, 3)
         else:
             multipath = np.zeros(3, dtype=np.float64)
-        noisy_pos: Float64Array = true_pos + bias + white + multipath
+
+        # Atmospheric propagation delays (ionospheric + tropospheric).
+        # Modelled as a zenith delay scaled by 1/cos(elev); we use a
+        # heuristic average satellite elevation of 60° (obliquity ≈ 2.0)
+        # and spread the delay randomly across XYZ with a slight vertical
+        # bias (ratio 1:1:1.5) matching real GNSS error distributions.
+        atmo_delay = np.zeros(3, dtype=np.float64)
+        total_zenith_delay = self.ionospheric_delay_m + self.tropospheric_delay_m
+        if total_zenith_delay > 0.0:
+            obliquity = 2.0  # 1/cos(60°)
+            slant_delay = total_zenith_delay * obliquity
+            # Distribute with random sign per axis; vertical component larger
+            atmo_delay = self._rng.normal(0.0, slant_delay * 0.3, 3)
+            atmo_delay[2] += slant_delay * 0.5  # systematic vertical bias
+
+        noisy_pos: Float64Array = true_pos + bias + white + multipath + atmo_delay
 
         # Velocity error
         noisy_vel: Float64Array = true_vel + self._rng.normal(0.0, self.vel_noise_ms, 3)
@@ -322,6 +353,7 @@ class GNSSModel(BaseSensor):
             "n_satellites": n_sat,
             "hdop": hdop,
             "vdop": vdop,
+            "pdop": math.sqrt(hdop**2 + vdop**2),
         }
         self._last_obs = obs
         self._mark_updated(sim_time)

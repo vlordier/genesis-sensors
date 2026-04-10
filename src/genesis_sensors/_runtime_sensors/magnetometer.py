@@ -146,6 +146,18 @@ class MagnetometerModel(BaseSensor):
         3-element list/array of per-axis soft-iron scale factors (dimensionless,
         all > 0).  Models asymmetric permeability of nearby soft-iron material.
         Default: [1, 1, 1] (no distortion).
+    bias_drift_sigma_ut:
+        Steady-state Gauss-Markov bias drift sigma per axis (µT).
+        0 = no drift.  Typical MEMS: 0.05–0.3 µT.
+    bias_drift_tau_s:
+        Gauss-Markov bias drift correlation time (s).  Default 300.
+    temp_coeff_ut_per_c:
+        Temperature coefficient for hard-iron offset (µT/°C, ref 25 °C).
+        Models calibration shift over temperature.
+    emi_current_scale_ut_per_a:
+        Electromagnetic interference scale (µT per A of motor current).
+        Models dynamic interference from nearby motors/ESCs.
+        Applied along all axes proportionally.  0 = off.
     seed:
         Optional RNG seed for reproducibility.
     """
@@ -160,6 +172,10 @@ class MagnetometerModel(BaseSensor):
         inclination_deg: float = 60.0,
         hard_iron_ut: list[float] | None = None,
         soft_iron_scale: list[float] | None = None,
+        bias_drift_sigma_ut: float = 0.0,
+        bias_drift_tau_s: float = 300.0,
+        temp_coeff_ut_per_c: float = 0.0,
+        emi_current_scale_ut_per_a: float = 0.0,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
@@ -179,6 +195,10 @@ class MagnetometerModel(BaseSensor):
         )
         if self.soft_iron_scale.shape != (3,):
             raise ValueError(f"soft_iron_scale must be a 3-element array, got shape {self.soft_iron_scale.shape}")
+        self.bias_drift_sigma_ut = float(max(0.0, bias_drift_sigma_ut))
+        self.bias_drift_tau_s = float(max(1e-3, bias_drift_tau_s))
+        self.temp_coeff_ut_per_c = float(temp_coeff_ut_per_c)
+        self.emi_current_scale_ut_per_a = float(max(0.0, emi_current_scale_ut_per_a))
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
 
@@ -188,6 +208,8 @@ class MagnetometerModel(BaseSensor):
             self.declination_deg,
             self.inclination_deg,
         )
+        self._bias_drift: Float64Array = np.zeros(3, dtype=np.float64)
+        self._prev_time: float | None = None
         self._last_obs: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
@@ -212,6 +234,10 @@ class MagnetometerModel(BaseSensor):
             inclination_deg=self.inclination_deg,
             hard_iron_ut=self.hard_iron_ut.tolist(),
             soft_iron_scale=self.soft_iron_scale.tolist(),
+            bias_drift_sigma_ut=self.bias_drift_sigma_ut,
+            bias_drift_tau_s=self.bias_drift_tau_s,
+            temp_coeff_ut_per_c=self.temp_coeff_ut_per_c,
+            emi_current_scale_ut_per_a=self.emi_current_scale_ut_per_a,
             seed=self._seed,
         )
 
@@ -222,6 +248,8 @@ class MagnetometerModel(BaseSensor):
     def reset(self, env_id: int = 0) -> None:
         self._last_obs = {}
         self._last_update_time = -1.0
+        self._bias_drift = np.zeros(3, dtype=np.float64)
+        self._prev_time = None
 
     def step(self, sim_time: float, state: dict[str, Any]) -> MagnetometerObservation | dict[str, Any]:
         """
@@ -279,6 +307,33 @@ class MagnetometerModel(BaseSensor):
         # Hard-iron bias (constant per-axis offset)
         # ------------------------------------------------------------------
         field_biased: Float64Array = field_distorted + self.hard_iron_ut
+
+        # ------------------------------------------------------------------
+        # Temperature-dependent hard-iron shift
+        # ------------------------------------------------------------------
+        if self.temp_coeff_ut_per_c != 0.0:
+            temp_c = float(state.get("temperature_c", 25.0))
+            field_biased = field_biased + self.temp_coeff_ut_per_c * (temp_c - 25.0)
+
+        # ------------------------------------------------------------------
+        # Gauss-Markov bias drift
+        # ------------------------------------------------------------------
+        if self.bias_drift_sigma_ut > 0.0 and self._prev_time is not None:
+            dt = sim_time - self._prev_time
+            if dt > 0.0:
+                alpha = 1.0 - math.exp(-dt / self.bias_drift_tau_s)
+                drive = math.sqrt(2.0 * alpha) * self.bias_drift_sigma_ut
+                self._bias_drift = (1.0 - alpha) * self._bias_drift + drive * self._rng.normal(0.0, 1.0, 3)
+        self._prev_time = sim_time
+        field_biased = field_biased + self._bias_drift
+
+        # ------------------------------------------------------------------
+        # EMI from motor current
+        # ------------------------------------------------------------------
+        if self.emi_current_scale_ut_per_a > 0.0:
+            motor_current = float(state.get("motor_current_a", state.get("current_a", 0.0)))
+            emi = self.emi_current_scale_ut_per_a * abs(motor_current)
+            field_biased = field_biased + self._rng.normal(0.0, max(emi, 1e-9), 3)
 
         # ------------------------------------------------------------------
         # Gaussian white noise

@@ -241,6 +241,7 @@ class DVLObservation(TypedDict):
     velocity_body_ms: FloatArray  # shape (3,) — measured platform velocity relative to bottom / water (m/s)
     water_track_velocity_ms: FloatArray  # shape (3,) — measured velocity relative to the water mass (m/s)
     beam_ranges_m: FloatArray  # shape (N,) — slant ranges from each DVL beam (m)
+    beam_velocities_ms: FloatArray  # shape (N,) — per-beam along-beam velocity (m/s)
     altitude_m: float  # inferred altitude above the seabed (m)
     speed_ms: float  # norm of the reported platform velocity (m/s)
     bottom_lock: bool  # True when the DVL has a valid bottom-track solution
@@ -397,11 +398,12 @@ class ThermalObservation(TypedDict):
 # ---------------------------------------------------------------------------
 
 
-class LidarObservation(TypedDict):
+class LidarObservation(TypedDict, total=False):
     """Observation emitted by :class:`~genesis.sensors.LidarModel`."""
 
-    points: FloatArray  # shape (N, 4) — x, y, z, intensity
-    range_image: FloatArray  # shape (n_channels, h_resolution) — processed ranges
+    points: FloatArray  # shape (N, 4) — x, y, z, intensity  (required)
+    range_image: FloatArray  # shape (n_channels, h_resolution) — processed ranges  (required)
+    secondary_points: FloatArray  # shape (M, 4) — secondary returns; present only when multi_return > 1
 
 
 # ---------------------------------------------------------------------------
@@ -419,6 +421,7 @@ class GnssObservation(TypedDict):
     n_satellites: int
     hdop: float
     vdop: float  # vertical DOP; typically ~1.5× HDOP for single-constellation
+    pdop: float  # position DOP; sqrt(hdop² + vdop²)
 
 
 # ---------------------------------------------------------------------------
@@ -586,6 +589,118 @@ class RPMObservation(TypedDict):
     speed_rads: float  # equivalent angular velocity (rad/s)
 
 
+# ---------------------------------------------------------------------------
+# Water pressure sensor
+# ---------------------------------------------------------------------------
+
+
+class WaterPressureObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.WaterPressureModel`."""
+
+    pressure_kpa: float  # measured water pressure (kPa)
+    depth_m: float  # inferred depth from pressure (m)
+
+
+# ---------------------------------------------------------------------------
+# Hydrophone
+# ---------------------------------------------------------------------------
+
+
+class HydrophoneObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.HydrophoneModel`."""
+
+    detections: list  # list of dicts with received_level_db, bearing_deg, frequency_hz, range_m
+    n_detections: int  # number of detected acoustic sources
+
+
+# ---------------------------------------------------------------------------
+# Leak detector
+# ---------------------------------------------------------------------------
+
+
+class LeakDetectorObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.LeakDetectorModel`."""
+
+    leak_detected: bool  # True when water ingress exceeds threshold or false alarm
+    conductivity_raw: float  # raw conductivity reading (normalised 0–1)
+
+
+# ---------------------------------------------------------------------------
+# Motor temperature
+# ---------------------------------------------------------------------------
+
+
+class MotorTemperatureObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.MotorTemperatureModel`."""
+
+    temperature_c: float  # measured winding temperature (°C)
+    overtemp_alarm: bool  # True when winding T exceeds threshold
+
+
+# ---------------------------------------------------------------------------
+# Inclinometer / tilt sensor
+# ---------------------------------------------------------------------------
+
+
+class InclinometerObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.InclinometerModel`."""
+
+    roll_deg: float  # measured roll / tilt-x (degrees)
+    pitch_deg: float  # measured pitch / tilt-y (degrees)
+
+
+# ---------------------------------------------------------------------------
+# Proximity Time-of-Flight array
+# ---------------------------------------------------------------------------
+
+
+class ProximityToFObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.ProximityToFArrayModel`."""
+
+    range_image_m: FloatArray  # shape (rows, cols) — measured range per zone (m)
+    min_range_m: float  # closest detected range across all zones (m)
+
+
+# ---------------------------------------------------------------------------
+# Load cell
+# ---------------------------------------------------------------------------
+
+
+class LoadCellObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.LoadCellModel`."""
+
+    force_n: float  # measured load force (N)
+    overload: bool  # True when load exceeds ~95% of capacity
+
+
+# ---------------------------------------------------------------------------
+# Underwater modem
+# ---------------------------------------------------------------------------
+
+
+class UnderwaterModemObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.UnderwaterModemModel`."""
+
+    range_m: float  # one-way range to remote node (m)
+    propagation_delay_s: float  # acoustic propagation latency (s)
+    bit_error_rate: float  # estimated BER
+    packet_error_rate: float  # estimated PER
+    received_level_db: float  # signal received level (dB re 1 µPa)
+    doppler_shift_hz: float  # Doppler frequency shift (Hz)
+
+
+# ---------------------------------------------------------------------------
+# Wire / draw-wire encoder
+# ---------------------------------------------------------------------------
+
+
+class WireEncoderObservation(TypedDict):
+    """Observation emitted by :class:`~genesis.sensors.WireEncoderModel`."""
+
+    extension_m: float  # measured cable extension (m)
+    velocity_ms: float  # estimated extension rate (m/s)
+
+
 __all__ = [
     # Array type aliases
     "ArrayLike",
@@ -614,14 +729,20 @@ __all__ = [
     "ForceTorqueObservation",
     "GasObservation",
     "GnssObservation",
+    "HydrophoneObservation",
     "HygrometerObservation",
     "ImuObservation",
     "ImagingSonarObservation",
+    "InclinometerObservation",
     "JointStateObservation",
+    "LeakDetectorObservation",
     "LidarObservation",
     "LightSensorObservation",
+    "LoadCellObservation",
     "MagnetometerObservation",
+    "MotorTemperatureObservation",
     "OpticalFlowObservation",
+    "ProximityToFObservation",
     "RPMObservation",
     "RadarObservation",
     "RadioObservation",
@@ -633,5 +754,8 @@ __all__ = [
     "ThermometerObservation",
     "UltrasonicObservation",
     "UWBObservation",
+    "UnderwaterModemObservation",
+    "WaterPressureObservation",
     "WheelOdometryObservation",
+    "WireEncoderObservation",
 ]

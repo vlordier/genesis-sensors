@@ -159,6 +159,20 @@ class LidarModel(BaseSensor):
         effect at surface edges by applying a Gaussian blur to the range
         image before the noise pipeline, with sigma computed from the
         divergence and the sensor's angular resolution.
+    multi_return:
+        Number of returns per beam.  ``1`` = strongest return only (default).
+        ``2`` = dual return (strongest + last); beams are split at
+        range discontinuities exceeding ``multi_return_split_m``.
+    multi_return_split_m:
+        Minimum range difference between adjacent pixels (in the elevation
+        direction) for a beam to report a secondary return.  Only used when
+        ``multi_return >= 2``.
+    reflectance_model:
+        When ``True``, modulate range noise inversely with intensity to
+        simulate reflectance-dependent SNR.  High-reflectance targets (white
+        surfaces, retroreflectors) produce lower noise; low-reflectance
+        targets (dark asphalt, vegetation) produce higher noise.  Default
+        ``False`` keeps the constant ``range_noise_sigma_m``.
     seed:
         Optional seed for the random-number generator (reproducibility).
     """
@@ -179,6 +193,9 @@ class LidarModel(BaseSensor):
         fog_density: float = 0.0,
         channel_offsets_m: list[float] | None = None,
         beam_divergence_mrad: float = 0.0,
+        multi_return: int = 1,
+        multi_return_split_m: float = 1.0,
+        reflectance_model: bool = False,
         seed: int | None = None,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
@@ -193,6 +210,9 @@ class LidarModel(BaseSensor):
         self.rain_rate_mm_h = float(rain_rate_mm_h)
         self.fog_density = float(fog_density)
         self.beam_divergence_mrad = float(max(0.0, beam_divergence_mrad))
+        self.multi_return = int(max(1, multi_return))
+        self.multi_return_split_m = float(max(0.0, multi_return_split_m))
+        self.reflectance_model = bool(reflectance_model)
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
 
@@ -275,6 +295,9 @@ class LidarModel(BaseSensor):
             fog_density=self.fog_density,
             channel_offsets_m=list(self._channel_offsets) if self._channel_offsets_m_given else None,
             beam_divergence_mrad=self.beam_divergence_mrad,
+            multi_return=self.multi_return,
+            multi_return_split_m=self.multi_return_split_m,
+            reflectance_model=self.reflectance_model,
             seed=self._seed,
         )
 
@@ -331,8 +354,15 @@ class LidarModel(BaseSensor):
         offsets = self._get_channel_offsets(n_ch)[:, np.newaxis]
         range_img = range_img + offsets
 
-        # 2. Range noise
-        noise = self._rng.normal(0.0, self.range_noise_sigma_m, range_img.shape).astype(np.float32)
+        # 2. Range noise — optionally modulated by reflectance (intensity)
+        if self.reflectance_model and intensity_img is not None:
+            # Reflectance-dependent SNR: sigma_eff = sigma_base / sqrt(max(intensity, 0.01))
+            # Low-reflectance targets get higher noise; high-reflectance get lower.
+            reflectance_factor = 1.0 / np.sqrt(np.clip(intensity_img, 0.01, 1.0))
+            range_sigma = self.range_noise_sigma_m * reflectance_factor
+            noise = (self._rng.normal(0.0, 1.0, range_img.shape) * range_sigma).astype(np.float32)
+        else:
+            noise = self._rng.normal(0.0, self.range_noise_sigma_m, range_img.shape).astype(np.float32)
         range_img = range_img + noise
 
         # 3. Rain + fog attenuation (exponential two-way path loss)
@@ -371,13 +401,28 @@ class LidarModel(BaseSensor):
         y = r * cos_elev * sin_azim
         z = r * sin_elev
 
-        # 8. Pack into Nx4 array
+        # 8. Pack into Nx4 array (strongest return)
         points: FloatArray = np.stack(
             [x[valid_mask], y[valid_mask], z[valid_mask], intensity_img[valid_mask]],
             axis=-1,
         ).astype(np.float32)
 
+        # 9. Multi-return: generate secondary (last) returns at range edges
+        secondary_points: FloatArray | None = None
+        if self.multi_return >= 2:
+            secondary_points = self._generate_secondary_returns(
+                range_img,
+                intensity_img,
+                valid_mask,
+                cos_elev,
+                sin_elev,
+                cos_azim,
+                sin_azim,
+            )
+
         result: LidarObservation = {"points": points, "range_image": range_img}
+        if secondary_points is not None and secondary_points.shape[0] > 0:
+            result["secondary_points"] = secondary_points
         self._last_obs = result
         self._mark_updated(sim_time)
         return result
@@ -388,6 +433,60 @@ class LidarModel(BaseSensor):
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    def _generate_secondary_returns(
+        self,
+        range_img: "FloatArray",
+        intensity_img: "FloatArray",
+        valid_mask: "np.ndarray",
+        cos_elev: "FloatArray",
+        sin_elev: "FloatArray",
+        cos_azim: "FloatArray",
+        sin_azim: "FloatArray",
+    ) -> "FloatArray":
+        """Generate secondary (last) returns at range discontinuities.
+
+        At pixels where the range difference to the next elevation row
+        exceeds ``multi_return_split_m``, a secondary return is produced
+        at the farther range with attenuated intensity.
+        """
+        n_ch, n_az = range_img.shape
+        if n_ch < 2:
+            return np.empty((0, 4), dtype=np.float32)
+
+        # Range difference along elevation axis
+        diff = np.abs(np.diff(range_img, axis=0))  # (n_ch-1, n_az)
+        split_mask = diff > self.multi_return_split_m
+
+        # For each split pixel, the secondary return is the farther range
+        # between rows i and i+1
+        rows, cols = np.where(split_mask)
+        if len(rows) == 0:
+            return np.empty((0, 4), dtype=np.float32)
+
+        r_a = range_img[rows, cols]
+        r_b = range_img[rows + 1, cols]
+        # Secondary = the farther of the two
+        sec_range = np.maximum(r_a, r_b)
+        # Attenuate intensity (secondary returns are weaker)
+        sec_intensity = np.minimum(intensity_img[rows, cols], intensity_img[rows + 1, cols]) * 0.3
+
+        # Only keep valid secondary returns
+        sec_valid = (sec_range > 0) & (sec_range < self.max_range_m)
+        sec_range = sec_range[sec_valid]
+        sec_intensity = sec_intensity[sec_valid]
+        sec_rows = rows[sec_valid]
+        sec_cols = cols[sec_valid]
+
+        if len(sec_range) == 0:
+            return np.empty((0, 4), dtype=np.float32)
+
+        # Convert to Cartesian
+        sx = sec_range * cos_elev[sec_rows, sec_cols] * cos_azim[sec_rows, sec_cols]
+        sy = sec_range * cos_elev[sec_rows, sec_cols] * sin_azim[sec_rows, sec_cols]
+        sz = sec_range * sin_elev[sec_rows, sec_cols]
+
+        return np.stack([sx, sy, sz, sec_intensity], axis=-1).astype(np.float32)
 
     def _get_channel_offsets(self, n_ch: int) -> FloatArray:
         """Return per-channel offsets matching the incoming range-image shape."""

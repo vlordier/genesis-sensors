@@ -100,14 +100,20 @@ from .config import (
     ForceTorqueConfig,
     GasSensorConfig,
     GNSSConfig,
+    HydrophoneConfig,
     HygrometerConfig,
     IMUConfig,
     ImagingSonarConfig,
+    InclinometerConfig,
     JointStateConfig,
+    LeakDetectorConfig,
     LidarConfig,
     LightSensorConfig,
+    LoadCellConfig,
     MagnetometerConfig,
+    MotorTemperatureConfig,
     OpticalFlowConfig,
+    ProximityToFArrayConfig,
     RadarConfig,
     RadioConfig,
     RangefinderConfig,
@@ -118,9 +124,12 @@ from .config import (
     TactileArrayConfig,
     ThermalCameraConfig,
     ThermometerConfig,
+    UnderwaterModemConfig,
     UWBRangeConfig,
     UltrasonicArrayConfig,
+    WaterPressureConfig,
     WheelOdometryConfig,
+    WireEncoderConfig,
 )
 from .contact_sensor import ContactSensor
 from .current_sensor import CurrentSensor
@@ -129,16 +138,25 @@ from .event_camera import Event, EventCameraModel
 from .environmental import AnemometerModel, GasSensorModel, HygrometerModel, LightSensorModel, ThermometerModel
 from .force_torque import ForceTorqueSensorModel
 from .gnss import GNSSModel, GnssFixQuality
+from .hydrophone import HydrophoneModel
 from .imu import IMUModel
+from .inclinometer import InclinometerModel
 from .joint_state import JointStateSensor
+from .leak_detector import LeakDetectorModel
 from .lidar import LidarModel, LidarPoint
+from .load_cell import LoadCellModel
 from .magnetometer import MagnetometerModel
+from .motor_temperature import MotorTemperatureModel
 from .optical_flow import OpticalFlowModel
+from .proximity_tof import ProximityToFArrayModel
 from .radio import RadioLinkModel, ScheduledPacket
 from .rangefinder import RangefinderModel
 from .rpm_sensor import RPMSensor
 from .tactile_array import TactileArraySensor
+from .underwater_modem import UnderwaterModemModel
+from .water_pressure import WaterPressureModel
 from .wheel_odometry import WheelOdometryModel
+from .wire_encoder import WireEncoderModel
 from .presets import (
     ACS712_5A,
     AS5048A_MAG_ENC,
@@ -268,17 +286,23 @@ from .types import (
     ForceTorqueObservation,
     GasObservation,
     GnssObservation,
+    HydrophoneObservation,
     HygrometerObservation,
     ImagingSonarObservation,
     ImuObservation,
+    InclinometerObservation,
     Int32Array,
     JammerZone,
     JointStateObservation,
+    LeakDetectorObservation,
     LidarObservation,
     LightSensorObservation,
+    LoadCellObservation,
     MagnetometerObservation,
+    MotorTemperatureObservation,
     OpticalFlowObservation,
     Polarity,
+    ProximityToFObservation,
     RadarObservation,
     RadioObservation,
     RangefinderObservation,
@@ -293,7 +317,10 @@ from .types import (
     UWBObservation,
     UInt8Array,
     UltrasonicObservation,
+    UnderwaterModemObservation,
+    WaterPressureObservation,
     WheelOdometryObservation,
+    WireEncoderObservation,
 )
 
 __all__ = [
@@ -448,15 +475,21 @@ __all__ = [
     "GasSensorModel",
     "GNSSModel",
     "GnssFixQuality",
+    "HydrophoneModel",
     "HygrometerModel",
     "IMUModel",
     "ImagingSonarModel",
+    "InclinometerModel",
     "JointStateSensor",
+    "LeakDetectorModel",
     "LidarModel",
     "LidarPoint",
     "LightSensorModel",
+    "LoadCellModel",
     "MagnetometerModel",
+    "MotorTemperatureModel",
     "OpticalFlowModel",
+    "ProximityToFArrayModel",
     "RadarModel",
     "RadioLinkModel",
     "RangefinderModel",
@@ -470,8 +503,11 @@ __all__ = [
     "ThermalCameraModel",
     "ThermometerModel",
     "UltrasonicArrayModel",
+    "UnderwaterModemModel",
     "UWBRangingModel",
+    "WaterPressureModel",
     "WheelOdometryModel",
+    "WireEncoderModel",
     # Config classes
     "AcousticCurrentProfilerConfig",
     "AirspeedConfig",
@@ -487,14 +523,20 @@ __all__ = [
     "ForceTorqueConfig",
     "GasSensorConfig",
     "GNSSConfig",
+    "HydrophoneConfig",
     "HygrometerConfig",
     "IMUConfig",
     "ImagingSonarConfig",
+    "InclinometerConfig",
     "JointStateConfig",
+    "LeakDetectorConfig",
     "LidarConfig",
     "LightSensorConfig",
+    "LoadCellConfig",
     "MagnetometerConfig",
+    "MotorTemperatureConfig",
     "OpticalFlowConfig",
+    "ProximityToFArrayConfig",
     "RadarConfig",
     "RadioConfig",
     "RangefinderConfig",
@@ -505,9 +547,12 @@ __all__ = [
     "TactileArrayConfig",
     "ThermalCameraConfig",
     "ThermometerConfig",
+    "UnderwaterModemConfig",
     "UWBRangeConfig",
     "UltrasonicArrayConfig",
+    "WaterPressureConfig",
     "WheelOdometryConfig",
+    "WireEncoderConfig",
     # Type aliases and TypedDicts
     "AcousticCurrentProfilerObservation",
     "AirspeedObservation",
@@ -527,17 +572,23 @@ __all__ = [
     "ForceTorqueObservation",
     "GasObservation",
     "GnssObservation",
+    "HydrophoneObservation",
     "HygrometerObservation",
     "ImagingSonarObservation",
     "ImuObservation",
+    "InclinometerObservation",
     "Int32Array",
     "JammerZone",
     "JointStateObservation",
+    "LeakDetectorObservation",
     "LidarObservation",
     "LightSensorObservation",
+    "LoadCellObservation",
     "MagnetometerObservation",
+    "MotorTemperatureObservation",
     "OpticalFlowObservation",
     "Polarity",
+    "ProximityToFObservation",
     "RadarObservation",
     "RadioObservation",
     "RangefinderObservation",
@@ -554,5 +605,8 @@ __all__ = [
     "UInt8Array",
     "UWBObservation",
     "UltrasonicObservation",
+    "UnderwaterModemObservation",
+    "WaterPressureObservation",
     "WheelOdometryObservation",
+    "WireEncoderObservation",
 ]

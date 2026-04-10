@@ -483,7 +483,9 @@ class SensorSuite:
         """Configure the shared white-noise model for one or all registered sensors."""
         if isinstance(noise_model, Mapping):
             for name, model in noise_model.items():
-                self.get_sensor(name).configure_noise_model(model, outlier_prob=outlier_prob, outlier_scale=outlier_scale)
+                self.get_sensor(name).configure_noise_model(
+                    model, outlier_prob=outlier_prob, outlier_scale=outlier_scale
+                )
             return
         for name in self.sensor_names():
             self.get_sensor(name).configure_noise_model(
