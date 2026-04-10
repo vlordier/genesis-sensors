@@ -139,7 +139,12 @@ def _load_doc_assets_module():
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except ImportError as exc:
+        if "torch" in str(exc).lower() or "genesis" in str(exc).lower():
+            pytest.skip("Genesis/Torch runtime is not available in the current environment")
+        raise
     return module
 
 
