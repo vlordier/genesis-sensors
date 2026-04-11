@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import Enum
 from importlib import import_module
 from typing import Any
 
@@ -65,6 +67,13 @@ _PERCEPTION_MOTION = DroneMotionProfile(0.02, 0.55, 0.015, 0.35)
 ObservationCallback = Callable[[int, dict[str, Any]], None]
 
 
+class SceneRuntimeMode(str, Enum):
+    """Runtime category for a built-in demo scene."""
+
+    RUNTIME = "runtime"
+    HEADLESS = "headless"
+
+
 @dataclass(frozen=True, slots=True)
 class DemoSceneSpec:
     """Metadata describing the built-in demo scenes exposed by the package."""
@@ -74,6 +83,79 @@ class DemoSceneSpec:
     profile: RigProfile
     requires_runtime: bool
     default_dt: float
+
+    @property
+    def runtime_mode(self) -> SceneRuntimeMode:
+        """Return whether the scene needs the Genesis runtime or can run headlessly."""
+        return SceneRuntimeMode.RUNTIME if self.requires_runtime else SceneRuntimeMode.HEADLESS
+
+    @property
+    def is_headless(self) -> bool:
+        """Return ``True`` when the scene can run without Genesis."""
+        return not self.requires_runtime
+
+    def matches(
+        self,
+        *,
+        profile: RigProfile | None = None,
+        requires_runtime: bool | None = None,
+        query: str | None = None,
+    ) -> bool:
+        """Check whether the scene metadata matches a catalog filter."""
+        if profile is not None and self.profile is not profile:
+            return False
+        if requires_runtime is not None and self.requires_runtime is not requires_runtime:
+            return False
+        if query is None:
+            return True
+        normalized_query = query.strip().casefold()
+        if not normalized_query:
+            return True
+        haystack = f"{self.name} {self.description} {self.profile.value}".casefold()
+        return normalized_query in haystack
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return a JSON-friendly representation of the scene metadata."""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "profile": self.profile.value,
+            "requires_runtime": self.requires_runtime,
+            "runtime_mode": self.runtime_mode.value,
+            "is_headless": self.is_headless,
+            "default_dt": self.default_dt,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class DemoCatalogSummary:
+    """Compact summary of the built-in demo catalog for automation and docs."""
+
+    scene_count: int
+    profile_counts: dict[str, int]
+    runtime_counts: dict[str, int]
+    scene_names: tuple[str, ...]
+    headless_scenes: tuple[str, ...]
+    runtime_scenes: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return a JSON-friendly summary payload."""
+        return {
+            "scene_count": self.scene_count,
+            "profile_counts": dict(self.profile_counts),
+            "runtime_counts": dict(self.runtime_counts),
+            "scene_names": list(self.scene_names),
+            "headless_scenes": list(self.headless_scenes),
+            "runtime_scenes": list(self.runtime_scenes),
+        }
+
+    def headless_scene_names(self) -> tuple[str, ...]:
+        """Return the names of headless scenes in the summarized catalog."""
+        return self.headless_scenes
+
+    def runtime_scene_names(self) -> tuple[str, ...]:
+        """Return the names of runtime-backed scenes in the summarized catalog."""
+        return self.runtime_scenes
 
 
 _DEMO_SCENE_SPECS: tuple[DemoSceneSpec, ...] = (
@@ -96,18 +178,53 @@ def list_demo_scenes() -> tuple[DemoSceneSpec, ...]:
     return _DEMO_SCENE_SPECS
 
 
+def list_demo_scene_names(
+    *,
+    profile: RigProfile | None = None,
+    requires_runtime: bool | None = None,
+    query: str | None = None,
+) -> tuple[str, ...]:
+    """Return only the scene names for a filtered view of the built-in catalog."""
+    return tuple(
+        spec.name for spec in filter_demo_scenes(profile=profile, requires_runtime=requires_runtime, query=query)
+    )
+
+
 def filter_demo_scenes(
     *,
     profile: RigProfile | None = None,
     requires_runtime: bool | None = None,
+    query: str | None = None,
 ) -> tuple[DemoSceneSpec, ...]:
-    """Filter the built-in demo catalog by rig profile or runtime requirement."""
-    specs: tuple[DemoSceneSpec, ...] = _DEMO_SCENE_SPECS
-    if profile is not None:
-        specs = tuple(spec for spec in specs if spec.profile == profile)
-    if requires_runtime is not None:
-        specs = tuple(spec for spec in specs if spec.requires_runtime is requires_runtime)
-    return specs
+    """Filter the built-in demo catalog by rig profile, runtime requirement, or text query."""
+    return tuple(
+        spec
+        for spec in _DEMO_SCENE_SPECS
+        if spec.matches(profile=profile, requires_runtime=requires_runtime, query=query)
+    )
+
+
+def describe_demo_catalog(
+    *,
+    profile: RigProfile | None = None,
+    requires_runtime: bool | None = None,
+    query: str | None = None,
+) -> DemoCatalogSummary:
+    """Summarize the built-in demo catalog for docs, CLIs, and automation."""
+    specs = filter_demo_scenes(profile=profile, requires_runtime=requires_runtime, query=query)
+    scene_names = tuple(spec.name for spec in specs)
+    headless_scenes = tuple(spec.name for spec in specs if spec.is_headless)
+    runtime_scenes = tuple(spec.name for spec in specs if spec.requires_runtime)
+    profile_counts = dict(sorted(Counter(spec.profile.value for spec in specs).items()))
+    runtime_counts = dict(sorted(Counter(spec.runtime_mode.value for spec in specs).items()))
+    return DemoCatalogSummary(
+        scene_count=len(specs),
+        profile_counts=profile_counts,
+        runtime_counts=runtime_counts,
+        scene_names=scene_names,
+        headless_scenes=headless_scenes,
+        runtime_scenes=runtime_scenes,
+    )
 
 
 def get_demo_scene_spec(name: str) -> DemoSceneSpec:
@@ -201,10 +318,16 @@ class DemoScene:
 
     def describe(self) -> dict[str, Any]:
         """Return a structured summary of the demo scene and its sensor rig."""
+        try:
+            scene_spec = get_demo_scene_spec(self.name).as_dict()
+        except KeyError:
+            scene_spec = {"name": self.name}
+
         return {
             "scene": self.name,
             "entity_present": self.entity is not None,
             "has_controller": self.controller is not None,
+            "scene_spec": scene_spec,
             "rig": self.rig.describe().as_dict(),
         }
 

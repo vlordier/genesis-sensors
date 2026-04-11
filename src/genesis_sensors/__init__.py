@@ -33,6 +33,7 @@ summarize_synthetic_rollout = _synthetic.summarize_synthetic_rollout
 _COMPAT_EXPORTS = set(getattr(_sensor_backend, "__all__", []))
 
 _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
+    "DemoCatalogSummary": (".scenes", "DemoCatalogSummary"),
     "DemoScene": (".scenes", "DemoScene"),
     "DemoSceneSpec": (".scenes", "DemoSceneSpec"),
     "HeadlessScene": (".scenes", "HeadlessScene"),
@@ -40,6 +41,7 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "ObservationMetadata": (".robustness", "ObservationMetadata"),
     "ObservationStatus": (".robustness", "ObservationStatus"),
     "RigProfile": (".rigs", "RigProfile"),
+    "SceneRuntimeMode": (".scenes", "SceneRuntimeMode"),
     "RobustSensorWrapper": (".robustness", "RobustSensorWrapper"),
     "SensorFaultConfig": (".robustness", "SensorFaultConfig"),
     "SensorRig": (".rigs", "SensorRig"),
@@ -50,8 +52,10 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "build_go2_demo": (".scenes", "build_go2_demo"),
     "build_perception_demo": (".scenes", "build_perception_demo"),
     "build_synthetic_demo": (".scenes", "build_synthetic_demo"),
+    "describe_demo_catalog": (".scenes", "describe_demo_catalog"),
     "filter_demo_scenes": (".scenes", "filter_demo_scenes"),
     "get_demo_scene_spec": (".scenes", "get_demo_scene_spec"),
+    "list_demo_scene_names": (".scenes", "list_demo_scene_names"),
     "list_demo_scenes": (".scenes", "list_demo_scenes"),
     "make_drone_navigation_rig": (".rigs", "make_drone_navigation_rig"),
     "make_drone_perception_rig": (".rigs", "make_drone_perception_rig"),
@@ -88,6 +92,7 @@ def __dir__() -> list[str]:
 __all__ = sorted(
     {
         "__version__",
+        "DemoCatalogSummary",
         "DemoScene",
         "DemoSceneSpec",
         "GNSS_ORIGIN_LLH",
@@ -97,6 +102,7 @@ __all__ = sorted(
         "ObservationStatus",
         "RigProfile",
         "RobustSensorWrapper",
+        "SceneRuntimeMode",
         "SENSOR_BACKEND",
         "ScenarioPhase",
         "SensorFaultConfig",
@@ -112,10 +118,12 @@ __all__ = sorted(
         "build_go2_demo",
         "build_perception_demo",
         "build_synthetic_demo",
+        "describe_demo_catalog",
         "filter_demo_scenes",
         "get_demo_scene_spec",
         "get_scenario_phase",
         "has_upstream_sensors",
+        "list_demo_scene_names",
         "list_demo_scenes",
         "list_scenario_windows",
         "make_drone_navigation_rig",

@@ -3,17 +3,21 @@ from __future__ import annotations
 import pytest
 
 from genesis_sensors import (
+    DemoCatalogSummary,
     DemoSceneSpec,
     HeadlessScene,
     ObservationStatus,
     RigProfile,
     ScenarioPhase,
+    SceneRuntimeMode,
     SensorRigSummary,
     SyntheticRolloutSummary,
     SyntheticScenarioConfig,
     build_synthetic_demo,
+    describe_demo_catalog,
     filter_demo_scenes,
     get_demo_scene_spec,
+    list_demo_scene_names,
     list_demo_scenes,
     list_scenario_windows,
     make_synthetic_rollout,
@@ -140,6 +144,20 @@ def test_list_demo_scenes_exposes_catalog_metadata() -> None:
     synthetic = next(spec for spec in specs if spec.name == "synthetic")
     assert synthetic.requires_runtime is False
     assert synthetic.profile == RigProfile.SYNTHETIC_MULTIMODAL
+    assert synthetic.runtime_mode == SceneRuntimeMode.HEADLESS
+    assert synthetic.is_headless is True
+    assert synthetic.as_dict()["runtime_mode"] == SceneRuntimeMode.HEADLESS.value
 
     assert get_demo_scene_spec("synthetic").name == "synthetic"
     assert filter_demo_scenes(profile=RigProfile.SYNTHETIC_MULTIMODAL, requires_runtime=False) == (synthetic,)
+
+
+def test_demo_catalog_summary_helpers_are_public() -> None:
+    summary = describe_demo_catalog()
+
+    assert summary.__class__.__name__ == DemoCatalogSummary.__name__
+    assert summary.scene_count == len(list_demo_scenes())
+    assert summary.profile_counts[RigProfile.SYNTHETIC_MULTIMODAL.value] == 1
+    assert "synthetic" in summary.headless_scene_names()
+    assert "drone" in summary.runtime_scene_names()
+    assert list_demo_scene_names(query="syn") == ("synthetic",)

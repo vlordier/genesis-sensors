@@ -34,6 +34,8 @@ _EXAMPLES = (
     "Examples:\n"
     "  genesis-sensors --list-scenes\n"
     "  genesis-sensors --list-scenes --profile perception --summary-format json\n"
+    "  genesis-sensors --list-profiles --summary-format json\n"
+    "  genesis-sensors --describe-scene synthetic --summary-format json\n"
     "  genesis-sensors --list-phases --summary-format json\n"
     "  genesis-sensors drone --steps 200\n"
     "  genesis-sensors perception --gpu --vis\n"
@@ -69,12 +71,15 @@ class CLIRunConfig:
     summary_every: int
     summary_format: SummaryFormat
     profile_filter: RigProfile | None
+    search: str | None
     headless_only: bool
     show_viewer: bool
     use_gpu: bool
     dry_run: bool
     list_scenes: bool
     list_phases: bool
+    list_profiles: bool
+    describe_scene: ScenePreset | None
     write_summary: str | None
 
     @classmethod
@@ -88,18 +93,21 @@ class CLIRunConfig:
             summary_every=args.summary_every,
             summary_format=SummaryFormat(args.summary_format),
             profile_filter=RigProfile(args.profile) if args.profile is not None else None,
+            search=args.search.strip() or None if args.search is not None else None,
             headless_only=args.headless_only,
             show_viewer=args.vis,
             use_gpu=args.gpu,
             dry_run=args.dry_run,
             list_scenes=args.list_scenes,
             list_phases=args.list_phases,
+            list_profiles=args.list_profiles,
+            describe_scene=ScenePreset(args.describe_scene) if args.describe_scene is not None else None,
             write_summary=args.write_summary,
         )
 
 
 _SCENE_CHOICES = tuple(preset.value for preset in ScenePreset)
-_PROFILE_CHOICES = tuple(profile.value for profile in RigProfile)
+_PROFILE_CHOICES = RigProfile.values()
 _SUMMARY_FORMAT_CHOICES = tuple(fmt.value for fmt in SummaryFormat)
 
 
@@ -171,6 +179,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Render dry-run and scene-list summaries as text or JSON",
     )
     parser.add_argument("--profile", choices=_PROFILE_CHOICES, help="Filter listed scenes by rig profile")
+    parser.add_argument("--search", help="Filter listed scenes by name, description, or profile text")
     parser.add_argument("--headless-only", action="store_true", help="Only list scenes that do not require Genesis")
     parser.add_argument("--write-summary", help="Write the dry-run or scene-list summary to a file")
     parser.add_argument(
@@ -178,6 +187,10 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--list-scenes", action="store_true", help="List the built-in scene presets and exit")
     parser.add_argument("--list-phases", action="store_true", help="List the synthetic scenario phases and exit")
+    parser.add_argument("--list-profiles", action="store_true", help="List the available rig profiles and exit")
+    parser.add_argument(
+        "--describe-scene", choices=_SCENE_CHOICES, help="Print metadata for one built-in scene and exit"
+    )
     parser.add_argument("--vis", action="store_true", help="Open the Genesis viewer")
     parser.add_argument("--gpu", action="store_true", help="Use the GPU backend when available")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -210,6 +223,7 @@ def _print_scene_catalog(
     *,
     summary_format: SummaryFormat,
     profile_filter: RigProfile | None,
+    search: str | None,
     headless_only: bool,
     write_summary: str | None,
 ) -> None:
@@ -219,31 +233,85 @@ def _print_scene_catalog(
     specs = filter_demo_scenes(
         profile=profile_filter,
         requires_runtime=False if headless_only else None,
+        query=search,
     )
     if summary_format is SummaryFormat.JSON:
-        payload = [
-            {
-                "name": spec.name,
-                "description": spec.description,
-                "profile": spec.profile.value,
-                "requires_runtime": spec.requires_runtime,
-                "default_dt": spec.default_dt,
-            }
-            for spec in specs
-        ]
+        payload = [spec.as_dict() for spec in specs]
         _emit_output(json.dumps(payload, indent=2, sort_keys=True), write_summary=write_summary)
         return
 
     lines = []
     for spec in specs:
-        runtime_label = "runtime" if spec.requires_runtime else "headless"
         lines.append(
             f"{spec.name:<{_SCENE_NAME_WIDTH}} "
-            f"{runtime_label:<{_RUNTIME_MODE_WIDTH}} "
+            f"{spec.runtime_mode.value:<{_RUNTIME_MODE_WIDTH}} "
             f"dt={spec.default_dt:.2f} "
             f"profile={spec.profile.value}  {spec.description}"
         )
+    _emit_output("\n".join(lines) if lines else "No scenes matched the current filters.", write_summary=write_summary)
+
+
+def _print_profile_catalog(
+    *,
+    summary_format: SummaryFormat,
+    search: str | None,
+    write_summary: str | None,
+) -> None:
+    """Print the available demo rig profiles and their scene counts."""
+    from .scenes import describe_demo_catalog, filter_demo_scenes
+
+    summary = describe_demo_catalog(query=search)
+    profiles: list[tuple[RigProfile, tuple[str, ...]]] = []
+    for profile in RigProfile:
+        scene_names = tuple(spec.name for spec in filter_demo_scenes(profile=profile, query=search))
+        if not scene_names:
+            continue
+        profiles.append((profile, scene_names))
+
+    if summary_format is SummaryFormat.JSON:
+        payload = [
+            {
+                "profile": profile.value,
+                "label": profile.label,
+                "scene_count": len(scene_names),
+                "scene_names": list(scene_names),
+            }
+            for profile, scene_names in profiles
+        ]
+        _emit_output(json.dumps(payload, indent=2, sort_keys=True), write_summary=write_summary)
+        return
+
+    lines = [f"matched_scenes={summary.scene_count}"]
+    for profile, scene_names in profiles:
+        lines.append(f"{profile.value:<22} scenes={len(scene_names)} names={', '.join(scene_names)}")
     _emit_output("\n".join(lines), write_summary=write_summary)
+
+
+def _print_scene_description(
+    scene_name: ScenePreset,
+    *,
+    summary_format: SummaryFormat,
+    write_summary: str | None,
+) -> None:
+    """Print metadata for a single built-in scene without constructing the runtime demo."""
+    from .scenes import get_demo_scene_spec
+
+    spec = get_demo_scene_spec(scene_name.value)
+    payload = spec.as_dict()
+    if summary_format is SummaryFormat.JSON:
+        _emit_output(json.dumps(payload, indent=2, sort_keys=True), write_summary=write_summary)
+        return
+
+    _emit_output(
+        "\n".join(
+            [
+                f"scene={payload['name']} runtime={payload['runtime_mode']} profile={payload['profile']}",
+                f"default_dt={payload['default_dt']:.2f} headless={payload['is_headless']}",
+                payload["description"],
+            ]
+        ),
+        write_summary=write_summary,
+    )
 
 
 def _print_phase_catalog(*, summary_format: SummaryFormat, write_summary: str | None) -> None:
@@ -353,6 +421,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         _print_scene_catalog(
             summary_format=config.summary_format,
             profile_filter=config.profile_filter,
+            search=config.search,
             headless_only=config.headless_only,
             write_summary=config.write_summary,
         )
@@ -360,8 +429,22 @@ def main(argv: Sequence[str] | None = None) -> None:
     if config.list_phases:
         _print_phase_catalog(summary_format=config.summary_format, write_summary=config.write_summary)
         return
+    if config.list_profiles:
+        _print_profile_catalog(
+            summary_format=config.summary_format,
+            search=config.search,
+            write_summary=config.write_summary,
+        )
+        return
+    if config.describe_scene is not None:
+        _print_scene_description(
+            config.describe_scene,
+            summary_format=config.summary_format,
+            write_summary=config.write_summary,
+        )
+        return
     if config.scene is None:
-        parser.error("scene is required unless --list-scenes is used")
+        parser.error("scene is required unless a catalog option like --list-scenes is used")
 
     try:
         builders = _get_scene_builders()

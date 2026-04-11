@@ -104,6 +104,16 @@ class RigProfile(str, Enum):
     PERCEPTION = "perception"
     QUADRUPED = "quadruped"
 
+    @property
+    def label(self) -> str:
+        """Return a human-friendly profile label for text output."""
+        return self.value.replace("_", " ")
+
+    @classmethod
+    def values(cls) -> tuple[str, ...]:
+        """Return the serialized enum values in declaration order."""
+        return tuple(profile.value for profile in cls)
+
 
 @dataclass(frozen=True, slots=True)
 class SensorRigSummary:

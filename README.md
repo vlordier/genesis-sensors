@@ -22,7 +22,7 @@ Inspired by the standalone feel of `GenesisDroneEnv`, this package wraps the Gen
 - **Headless synthetic rigs and state builders** for quickly exercising the full sensor surface
 - **Synthetic rollout planning helpers** via `SyntheticScenarioConfig`, `make_synthetic_rollout()`, `summarize_synthetic_rollout()`, and `genesis-sensors --list-phases`
 - **Headless CLI synthetic demo** via `genesis-sensors synthetic`, useful for smoke tests even before installing the full Genesis runtime
-- **Scene catalog and dry-run summaries** via `list_demo_scenes()`, `filter_demo_scenes()`, `genesis-sensors --list-scenes`, and `SensorRig.describe()`
+- **Scene catalog and dry-run summaries** via `list_demo_scenes()`, `list_demo_scene_names()`, `describe_demo_catalog()`, `genesis-sensors --list-scenes`, `genesis-sensors --list-profiles`, and `SensorRig.describe()`
 - **Robustness wrappers** for latency injection, packet dropouts, and per-observation health metadata
 - **Common noise-model controls** for every sensor: `gaussian`, `laplace`, `uniform`, or `none`, plus rare outlier injection for heavier-tailed realism
 - **Preset-friendly helpers** via `get_preset()` and `list_presets()` re-exported from the companion package
@@ -136,11 +136,15 @@ demo.rig.reset()
 
 from genesis_sensors import (
     SyntheticScenarioConfig,
+    describe_demo_catalog,
+    list_demo_scene_names,
     list_demo_scenes,
     summarize_synthetic_rollout,
 )
 
 print(list_demo_scenes()[0])
+print(list_demo_scene_names(query="syn"))
+print(describe_demo_catalog().as_dict())
 print(demo.rig.describe().as_dict())
 print(summarize_synthetic_rollout(frame_count=8, config=SyntheticScenarioConfig()).as_dict())
 ```
@@ -205,6 +209,9 @@ genesis-sensors franka --steps 200
 genesis-sensors go2 --steps 200
 genesis-sensors synthetic --steps 24 --summary-every 6
 genesis-sensors --list-scenes
+genesis-sensors --list-scenes --search syn --summary-format json
+genesis-sensors --list-profiles --summary-format json
+genesis-sensors --describe-scene synthetic --summary-format json
 genesis-sensors --list-phases --summary-format json
 genesis-sensors --list-scenes --profile synthetic_multimodal --headless-only --summary-format json
 genesis-sensors synthetic --dry-run --summary-format json --write-summary /tmp/synthetic.json

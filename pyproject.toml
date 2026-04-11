@@ -142,6 +142,8 @@ api_docs = { shell = "PYTHONPATH=src python scripts/gen_api_docs.py" }
 package = { shell = "python -m build && python -m twine check dist/*" }
 smoke_cli = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --version" }
 list_scenes = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --list-scenes" }
+list_profiles = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --list-profiles --summary-format json" }
+describe_synthetic_scene = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --describe-scene synthetic --summary-format json" }
 list_phases = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --list-phases --summary-format json" }
 synthetic_demo = { shell = "PYTHONPATH=src python -m genesis_sensors.cli synthetic --steps 8 --summary-every 4" }
 synthetic_dry_run = { shell = "PYTHONPATH=src python -m genesis_sensors.cli synthetic --dry-run --summary-format json" }

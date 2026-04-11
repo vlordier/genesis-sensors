@@ -27,6 +27,9 @@ def test_cli_help_lists_available_scenes(capsys: pytest.CaptureFixture[str]) -> 
     assert "--summary-every" in help_text
     assert "--list-scenes" in help_text
     assert "--list-phases" in help_text
+    assert "--list-profiles" in help_text
+    assert "--describe-scene" in help_text
+    assert "--search" in help_text
     assert "--dry-run" in help_text
     assert "--summary-format" in help_text
     assert "--profile" in help_text
@@ -93,6 +96,31 @@ def test_cli_lists_synthetic_phases_as_json(capsys: pytest.CaptureFixture[str]) 
     assert payload[0]["phase"] == "takeoff"
     assert payload[-1]["phase"] == "signal_recovery"
     assert payload[0]["duration"] == pytest.approx(0.2)
+
+
+def test_cli_lists_profile_catalog_as_json(capsys: pytest.CaptureFixture[str]) -> None:
+    cli.main(["--list-profiles", "--summary-format", "json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert any(item["profile"] == "synthetic_multimodal" for item in payload)
+    assert all(item["scene_count"] >= 1 for item in payload)
+
+
+def test_cli_describes_single_scene_as_json(capsys: pytest.CaptureFixture[str]) -> None:
+    cli.main(["--describe-scene", "synthetic", "--summary-format", "json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["name"] == "synthetic"
+    assert payload["runtime_mode"] == "headless"
+    assert payload["profile"] == "synthetic_multimodal"
+
+
+def test_cli_search_filters_scene_catalog(capsys: pytest.CaptureFixture[str]) -> None:
+    cli.main(["--list-scenes", "--search", "syn", "--summary-format", "json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert len(payload) == 1
+    assert payload[0]["name"] == "synthetic"
 
 
 def test_cli_runs_selected_builder(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
