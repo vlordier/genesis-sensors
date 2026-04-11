@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, TypeAlias
 
 import numpy as np
@@ -94,6 +95,47 @@ ObservationMap: TypeAlias = dict[str, Mapping[str, Any]]
 _DEFAULT_GO2_FEET = ("FR_calf", "FL_calf", "RR_calf", "RL_calf")
 
 
+class RigProfile(str, Enum):
+    """High-level rig families used by the demo builders and metadata summaries."""
+
+    NAVIGATION = "navigation"
+    MANIPULATION = "manipulation"
+    SYNTHETIC_MULTIMODAL = "synthetic_multimodal"
+    PERCEPTION = "perception"
+    QUADRUPED = "quadruped"
+
+
+@dataclass(frozen=True, slots=True)
+class SensorRigSummary:
+    """Structured description of a `SensorRig` for logs, docs, and CLI dry-runs."""
+
+    name: str
+    profile: RigProfile | None
+    sensor_names: tuple[str, ...]
+    sensor_count: int
+    metadata: dict[str, Any]
+    has_custom_reset: bool
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return a JSON-friendly representation of the rig summary."""
+
+        def _normalize(value: Any) -> Any:
+            if isinstance(value, Enum):
+                return value.value
+            if isinstance(value, tuple):
+                return list(value)
+            return value
+
+        return {
+            "name": self.name,
+            "profile": self.profile.value if self.profile is not None else None,
+            "sensor_names": list(self.sensor_names),
+            "sensor_count": self.sensor_count,
+            "metadata": {key: _normalize(value) for key, value in self.metadata.items()},
+            "has_custom_reset": self.has_custom_reset,
+        }
+
+
 @dataclass
 class VelocityCache:
     """Track motion state used by higher-level demo rig builders."""
@@ -128,6 +170,27 @@ class SensorRig:
 
     def sensor_names(self) -> list[str]:
         return self.suite.sensor_names()
+
+    def describe(self) -> SensorRigSummary:
+        """Summarize the rig for docs, CLI dry-runs, and downstream inspection."""
+        profile_value = self.metadata.get("profile")
+        if isinstance(profile_value, RigProfile):
+            profile = profile_value
+        else:
+            try:
+                profile = RigProfile(str(profile_value))
+            except (TypeError, ValueError):
+                profile = None
+
+        sensor_names = tuple(self.sensor_names())
+        return SensorRigSummary(
+            name=self.name,
+            profile=profile,
+            sensor_names=sensor_names,
+            sensor_count=len(sensor_names),
+            metadata=dict(self.metadata),
+            has_custom_reset=self.reset_fn is not None,
+        )
 
     def step(self, sim_time: float, extra_state: Mapping[str, Any] | None = None) -> ObservationMap:
         state = self.state_fn()
@@ -179,6 +242,11 @@ def _reset_motion_cache(cache: VelocityCache) -> None:
     """Reset cached motion state when a rig is reset."""
     cache.prev_world_vel = np.zeros(3, dtype=np.float64)
     cache.frame_idx = 0
+
+
+def _rig_metadata(profile: RigProfile, **extra: Any) -> dict[str, Any]:
+    """Create typed rig metadata without scattering magic profile strings."""
+    return {**extra, "profile": profile}
 
 
 def _make_perception_state(
@@ -520,7 +588,7 @@ def make_drone_navigation_rig(entity: Any, *, dt: float = 0.01, seed: int | None
         name="drone_navigation",
         suite=suite,
         state_fn=_state_fn,
-        metadata={"dt": dt, "profile": "navigation"},
+        metadata=_rig_metadata(RigProfile.NAVIGATION, dt=dt),
         reset_fn=lambda: _reset_motion_cache(cache),
     )
 
@@ -582,7 +650,7 @@ def make_franka_wrist_rig(
         name="franka_wrist",
         suite=suite,
         state_fn=_state_fn,
-        metadata={"hand_link": hand_link, "profile": "manipulation"},
+        metadata=_rig_metadata(RigProfile.MANIPULATION, hand_link=hand_link),
         reset_fn=lambda: _reset_motion_cache(cache),
     )
 
@@ -631,7 +699,7 @@ def make_synthetic_multimodal_rig(*, dt: float = 0.05, seed: int | None = 0) -> 
         name="synthetic_multimodal",
         suite=suite,
         state_fn=_state_fn,
-        metadata={"dt": dt, "profile": "synthetic_multimodal"},
+        metadata=_rig_metadata(RigProfile.SYNTHETIC_MULTIMODAL, dt=dt),
         reset_fn=lambda: _reset_motion_cache(cache),
     )
 
@@ -665,7 +733,7 @@ def make_drone_perception_rig(entity: Any, *, dt: float = 0.01, seed: int | None
         name="drone_perception",
         suite=suite,
         state_fn=_state_fn,
-        metadata={"dt": dt, "profile": "perception"},
+        metadata=_rig_metadata(RigProfile.PERCEPTION, dt=dt),
         reset_fn=lambda: _reset_motion_cache(cache),
     )
 
@@ -722,14 +790,16 @@ def make_go2_rig(
         name="go2_proprioception",
         suite=suite,
         state_fn=_state_fn,
-        metadata={"foot_links": foot_links, "profile": "quadruped"},
+        metadata=_rig_metadata(RigProfile.QUADRUPED, foot_links=foot_links),
         reset_fn=lambda: _reset_motion_cache(cache),
     )
 
 
 __all__ = [
     "NamedContactSensor",
+    "RigProfile",
     "SensorRig",
+    "SensorRigSummary",
     "make_drone_navigation_rig",
     "make_drone_perception_rig",
     "make_franka_wrist_rig",

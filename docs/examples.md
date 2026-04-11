@@ -31,7 +31,9 @@ If you want to exercise the full multimodal stack before configuring the full Ge
 use the built-in synthetic demo:
 
 ```bash
+PYTHONPATH=src python -m genesis_sensors.cli --list-scenes
 PYTHONPATH=src python -m genesis_sensors.cli synthetic --steps 8 --summary-every 4
+PYTHONPATH=src python -m genesis_sensors.cli synthetic --dry-run --summary-format json
 ```
 
 ```python
@@ -43,7 +45,8 @@ print(sorted(observations[-1])[:6])
 ```
 
 This is a convenient feature for CI smoke tests, quick local debugging, and downstream pipeline
-bring-up when you want realistic sensor shapes without a live `gs.Scene`.
+bring-up when you want realistic sensor shapes without a live `gs.Scene`. The dry-run JSON summary
+is also useful when auto-configuring downstream consumers that need the available sensor names first.
 
 ---
 

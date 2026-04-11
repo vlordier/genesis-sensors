@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -21,13 +23,18 @@ _RUNTIME_ERROR = (
 DEFAULT_STEPS = 200
 DEFAULT_DT_S = 0.01
 DEFAULT_SUMMARY_EVERY = 0
+_SCENE_DEFAULT_DT_MARKER = "scene-default"
+_SCENE_NAME_WIDTH = 10
+_RUNTIME_MODE_WIDTH = 8
 _SUMMARY_KEY_LIMIT = 6
 _SUMMARY_PRIORITY_KEYS = ("imu", "gnss", "lidar", "rgb", "thermal", "radio")
 _EXAMPLES = (
     "Examples:\n"
+    "  genesis-sensors --list-scenes\n"
     "  genesis-sensors drone --steps 200\n"
     "  genesis-sensors perception --gpu --vis\n"
-    "  genesis-sensors synthetic --steps 24 --summary-every 6"
+    "  genesis-sensors synthetic --steps 24 --summary-every 6\n"
+    "  genesis-sensors synthetic --dry-run --summary-format json"
 )
 
 
@@ -41,7 +48,46 @@ class ScenePreset(str, Enum):
     SYNTHETIC = "synthetic"
 
 
+class SummaryFormat(str, Enum):
+    """Output format for structured CLI summaries."""
+
+    TEXT = "text"
+    JSON = "json"
+
+
+@dataclass(frozen=True, slots=True)
+class CLIRunConfig:
+    """Validated runtime configuration derived from CLI arguments."""
+
+    scene: ScenePreset | None
+    steps: int
+    dt: float
+    summary_every: int
+    summary_format: SummaryFormat
+    show_viewer: bool
+    use_gpu: bool
+    dry_run: bool
+    list_scenes: bool
+
+    @classmethod
+    def from_namespace(cls, args: argparse.Namespace) -> "CLIRunConfig":
+        scene = ScenePreset(args.scene) if args.scene is not None else None
+        dt = _default_dt_for_scene(scene) if args.dt == _SCENE_DEFAULT_DT_MARKER else float(args.dt)
+        return cls(
+            scene=scene,
+            steps=args.steps,
+            dt=dt,
+            summary_every=args.summary_every,
+            summary_format=SummaryFormat(args.summary_format),
+            show_viewer=args.vis,
+            use_gpu=args.gpu,
+            dry_run=args.dry_run,
+            list_scenes=args.list_scenes,
+        )
+
+
 _SCENE_CHOICES = tuple(preset.value for preset in ScenePreset)
+_SUMMARY_FORMAT_CHOICES = tuple(fmt.value for fmt in SummaryFormat)
 
 
 def _positive_int(value: str) -> int:
@@ -52,8 +98,10 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
-def _positive_float(value: str) -> float:
+def _positive_float(value: str) -> float | str:
     """Argparse validator for strictly positive floating-point arguments."""
+    if value == _SCENE_DEFAULT_DT_MARKER:
+        return value
     parsed = float(value)
     if parsed <= 0.0:
         raise argparse.ArgumentTypeError(f"expected a positive float, got {value!r}")
@@ -68,6 +116,19 @@ def _non_negative_int(value: str) -> int:
     return parsed
 
 
+def _default_dt_for_scene(scene: ScenePreset | None) -> float:
+    """Return the recommended timestep for the selected scene preset."""
+    if scene is None:
+        return DEFAULT_DT_S
+
+    from .scenes import list_demo_scenes
+
+    for spec in list_demo_scenes():
+        if spec.name == scene.value:
+            return spec.default_dt
+    return DEFAULT_DT_S
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """Create the CLI parser so tests and other entry points can reuse it."""
     parser = argparse.ArgumentParser(
@@ -76,15 +137,28 @@ def _build_parser() -> argparse.ArgumentParser:
         epilog=_EXAMPLES,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("scene", choices=_SCENE_CHOICES, help="Scene preset to run")
+    parser.add_argument("scene", nargs="?", choices=_SCENE_CHOICES, help="Scene preset to run")
     parser.add_argument("--steps", type=_positive_int, default=DEFAULT_STEPS, help="Number of simulation steps")
-    parser.add_argument("--dt", type=_positive_float, default=DEFAULT_DT_S, help="Simulation timestep")
+    parser.add_argument(
+        "--dt",
+        type=_positive_float,
+        default=_SCENE_DEFAULT_DT_MARKER,
+        help="Simulation timestep (uses the scene default when omitted)",
+    )
     parser.add_argument(
         "--summary-every",
         type=_non_negative_int,
         default=DEFAULT_SUMMARY_EVERY,
         help="Print observed sensor keys every N steps (0 disables)",
     )
+    parser.add_argument(
+        "--summary-format",
+        choices=_SUMMARY_FORMAT_CHOICES,
+        default=SummaryFormat.TEXT.value,
+        help="Render dry-run summaries as text or JSON",
+    )
+    parser.add_argument("--dry-run", action="store_true", help="Build the demo and print its summary without stepping it")
+    parser.add_argument("--list-scenes", action="store_true", help="List the built-in scene presets and exit")
     parser.add_argument("--vis", action="store_true", help="Open the Genesis viewer")
     parser.add_argument("--gpu", action="store_true", help="Use the GPU backend when available")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -102,6 +176,20 @@ def _get_scene_builders() -> dict[ScenePreset, Callable[..., DemoScene]]:
         ScenePreset.GO2: build_go2_demo,
         ScenePreset.SYNTHETIC: build_synthetic_demo,
     }
+
+
+def _print_scene_catalog() -> None:
+    """Print the built-in scene catalog without requiring the Genesis runtime."""
+    from .scenes import list_demo_scenes
+
+    for spec in list_demo_scenes():
+        runtime_label = "runtime" if spec.requires_runtime else "headless"
+        print(
+            f"{spec.name:<{_SCENE_NAME_WIDTH}} "
+            f"{runtime_label:<{_RUNTIME_MODE_WIDTH}} "
+            f"dt={spec.default_dt:.2f} "
+            f"profile={spec.profile.value}  {spec.description}"
+        )
 
 
 def _make_summary_callback(
@@ -126,6 +214,32 @@ def _make_summary_callback(
     return _callback
 
 
+def _print_demo_summary(demo: DemoScene, *, summary_format: SummaryFormat) -> None:
+    """Print a structured description of the selected demo without running it."""
+    describe_demo = getattr(demo, "describe", None)
+    if callable(describe_demo):
+        summary = dict(describe_demo())
+    else:
+        summary = {
+            "scene": demo.name,
+            "entity_present": demo.entity is not None,
+            "has_controller": demo.controller is not None,
+            "rig": demo.rig.describe().as_dict(),
+        }
+
+    if summary_format is SummaryFormat.JSON:
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return
+
+    rig = dict(summary["rig"])
+    sensor_names = ", ".join(rig["sensor_names"])
+    print(
+        f"scene={summary['scene']} profile={rig['profile']} sensors={rig['sensor_count']} "
+        f"controller={summary['has_controller']}"
+    )
+    print(f"sensor_names={sensor_names}")
+
+
 def _run_demo(demo: DemoScene, *, steps: int, dt: float, summary_every: int) -> None:
     """Run a demo scene with optional periodic observation summaries."""
     on_step = _make_summary_callback(demo.name, summary_every=summary_every)
@@ -147,23 +261,42 @@ def _run_demo(demo: DemoScene, *, steps: int, dt: float, summary_every: int) -> 
 def main(argv: Sequence[str] | None = None) -> None:
     parser = _build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
+    config = CLIRunConfig.from_namespace(args)
+
+    if config.list_scenes:
+        _print_scene_catalog()
+        return
+    if config.scene is None:
+        parser.error("scene is required unless --list-scenes is used")
 
     try:
         builders = _get_scene_builders()
     except ImportError as exc:  # pragma: no cover - depends on optional runtime deps
         raise SystemExit(_RUNTIME_ERROR) from exc
 
-    demo_builder = builders[ScenePreset(args.scene)]
+    demo_builder = builders[config.scene]
     try:
-        demo: DemoScene = demo_builder(dt=args.dt, show_viewer=args.vis, use_gpu=args.gpu)
+        demo: DemoScene = demo_builder(dt=config.dt, show_viewer=config.show_viewer, use_gpu=config.use_gpu)
     except ImportError as exc:  # pragma: no cover - depends on optional runtime deps
         raise SystemExit(_RUNTIME_ERROR) from exc
 
-    _run_demo(demo, steps=args.steps, dt=args.dt, summary_every=args.summary_every)
+    if config.dry_run:
+        _print_demo_summary(demo, summary_format=config.summary_format)
+        return
+
+    _run_demo(demo, steps=config.steps, dt=config.dt, summary_every=config.summary_every)
 
 
 if __name__ == "__main__":
     main()
 
 
-__all__ = ["DEFAULT_DT_S", "DEFAULT_STEPS", "DEFAULT_SUMMARY_EVERY", "ScenePreset", "main"]
+__all__ = [
+    "CLIRunConfig",
+    "DEFAULT_DT_S",
+    "DEFAULT_STEPS",
+    "DEFAULT_SUMMARY_EVERY",
+    "ScenePreset",
+    "SummaryFormat",
+    "main",
+]

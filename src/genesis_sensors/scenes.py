@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 
 from .rigs import (
+    RigProfile,
     SensorRig,
     make_drone_navigation_rig,
     make_drone_perception_rig,
@@ -19,6 +20,8 @@ from .rigs import (
 )
 
 _HOVER_RPM = 14_468.43
+_DEFAULT_DEMO_DT = 0.01
+_DEFAULT_SYNTHETIC_DT = 0.05
 _SCENE_SUBSTEPS = 2
 _DRONE_START_POS = (0.0, 0.0, 0.5)
 _PERCEPTION_START_POS = (0.0, 0.0, 0.7)
@@ -55,6 +58,37 @@ _DRONE_MOTION = DroneMotionProfile(0.012, 0.4, 0.012, 0.4)
 _PERCEPTION_MOTION = DroneMotionProfile(0.02, 0.55, 0.015, 0.35)
 
 ObservationCallback = Callable[[int, dict[str, Any]], None]
+
+
+@dataclass(frozen=True, slots=True)
+class DemoSceneSpec:
+    """Metadata describing the built-in demo scenes exposed by the package."""
+
+    name: str
+    description: str
+    profile: RigProfile
+    requires_runtime: bool
+    default_dt: float
+
+
+_DEMO_SCENE_SPECS = (
+    DemoSceneSpec("drone", "Navigation-focused quadrotor demo", RigProfile.NAVIGATION, True, _DEFAULT_DEMO_DT),
+    DemoSceneSpec("perception", "Multimodal drone perception stack", RigProfile.PERCEPTION, True, _DEFAULT_DEMO_DT),
+    DemoSceneSpec("franka", "Manipulation and wrist-sensing demo", RigProfile.MANIPULATION, True, _DEFAULT_DEMO_DT),
+    DemoSceneSpec("go2", "Quadruped proprioception and contact demo", RigProfile.QUADRUPED, True, _DEFAULT_DEMO_DT),
+    DemoSceneSpec(
+        "synthetic",
+        "Headless multimodal smoke test without Genesis runtime",
+        RigProfile.SYNTHETIC_MULTIMODAL,
+        False,
+        _DEFAULT_SYNTHETIC_DT,
+    ),
+)
+
+
+def list_demo_scenes() -> tuple[DemoSceneSpec, ...]:
+    """Return the built-in demo catalog for CLI help, docs, and automation."""
+    return _DEMO_SCENE_SPECS
 
 
 def _make_viewer_options(gs: Any, preset: ViewerCameraPreset) -> Any:
@@ -130,6 +164,15 @@ class DemoScene:
                 on_step(step, observation)
         return observations
 
+    def describe(self) -> dict[str, Any]:
+        """Return a structured summary of the demo scene and its sensor rig."""
+        return {
+            "scene": self.name,
+            "entity_present": self.entity is not None,
+            "has_controller": self.controller is not None,
+            "rig": self.rig.describe().as_dict(),
+        }
+
 
 def _get_genesis() -> Any:
     """Import Genesis lazily so module import remains lightweight without Torch."""
@@ -149,7 +192,9 @@ def _init_genesis(*, use_gpu: bool, logging_level: str = "warning") -> Any:
     return gs
 
 
-def build_drone_demo(*, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0) -> DemoScene:
+def build_drone_demo(
+    *, dt: float = _DEFAULT_DEMO_DT, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0
+) -> DemoScene:
     """Build a small drone scene plus a navigation sensor rig."""
     gs = _init_genesis(use_gpu=use_gpu)
 
@@ -191,7 +236,7 @@ def build_drone_demo(*, dt: float = 0.01, show_viewer: bool = False, use_gpu: bo
 
 
 def build_perception_demo(
-    *, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0
+    *, dt: float = _DEFAULT_DEMO_DT, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0
 ) -> DemoScene:
     """Build a drone scene showcasing the richer multimodal perception stack."""
     gs = _init_genesis(use_gpu=use_gpu)
@@ -234,7 +279,7 @@ def build_perception_demo(
 
 
 def build_franka_demo(
-    *, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0
+    *, dt: float = _DEFAULT_DEMO_DT, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0
 ) -> DemoScene:
     """Build a Franka arm scene plus a wrist/proprioception sensor rig."""
     gs = _init_genesis(use_gpu=use_gpu)
@@ -285,7 +330,9 @@ def build_franka_demo(
     )
 
 
-def build_go2_demo(*, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0) -> DemoScene:
+def build_go2_demo(
+    *, dt: float = _DEFAULT_DEMO_DT, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0
+) -> DemoScene:
     """Build a Go2 quadruped scene plus a proprioception/contact rig."""
     gs = _init_genesis(use_gpu=use_gpu)
 
@@ -314,7 +361,7 @@ def build_go2_demo(*, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool
 
 
 def build_synthetic_demo(
-    *, dt: float = 0.05, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0
+    *, dt: float = _DEFAULT_SYNTHETIC_DT, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0
 ) -> DemoScene:
     """Build a headless multimodal rig demo that does not require a Genesis runtime."""
     del show_viewer, use_gpu
@@ -329,10 +376,12 @@ def build_synthetic_demo(
 
 __all__ = [
     "DemoScene",
+    "DemoSceneSpec",
     "HeadlessScene",
     "build_drone_demo",
     "build_perception_demo",
     "build_franka_demo",
     "build_go2_demo",
     "build_synthetic_demo",
+    "list_demo_scenes",
 ]

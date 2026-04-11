@@ -2,7 +2,16 @@ from __future__ import annotations
 
 import pytest
 
-from genesis_sensors import HeadlessScene, ObservationStatus, ScenarioPhase, build_synthetic_demo
+from genesis_sensors import (
+    DemoSceneSpec,
+    HeadlessScene,
+    ObservationStatus,
+    RigProfile,
+    ScenarioPhase,
+    SensorRigSummary,
+    build_synthetic_demo,
+    list_demo_scenes,
+)
 from genesis_sensors import config as config_module
 from genesis_sensors import genesis_bridge as bridge_module
 from genesis_sensors import presets as presets_module
@@ -90,3 +99,18 @@ def test_build_synthetic_demo_is_headless_and_public() -> None:
     assert demo.scene.__class__.__name__ == HeadlessScene.__name__
     assert demo.name == "synthetic"
     assert demo.rig.name == "synthetic_multimodal"
+
+    summary = demo.rig.describe()
+    assert summary.__class__.__name__ == SensorRigSummary.__name__
+    assert summary.profile == RigProfile.SYNTHETIC_MULTIMODAL
+
+
+def test_list_demo_scenes_exposes_catalog_metadata() -> None:
+    specs = list_demo_scenes()
+
+    assert specs
+    assert specs[0].__class__.__name__ == DemoSceneSpec.__name__
+    assert {spec.name for spec in specs} >= {"drone", "perception", "franka", "go2", "synthetic"}
+    synthetic = next(spec for spec in specs if spec.name == "synthetic")
+    assert synthetic.requires_runtime is False
+    assert synthetic.profile == RigProfile.SYNTHETIC_MULTIMODAL

@@ -17,7 +17,7 @@ from genesis_sensors import (
     list_presets,
     make_synthetic_sensor_state,
 )
-from genesis_sensors.rigs import NamedContactSensor, SensorRig, make_synthetic_multimodal_rig
+from genesis_sensors.rigs import NamedContactSensor, RigProfile, SensorRig, make_synthetic_multimodal_rig
 
 
 def test_named_contact_sensor_reads_only_its_link_force() -> None:
@@ -94,6 +94,16 @@ def test_synthetic_multimodal_rig_surfaces_more_upstream_sensors() -> None:
     assert "port_intensity" in obs0["side_scan"]
     assert "bottom_lock" in obs0["dvl"]
     assert "current_profile_ms" in obs0["current_profiler"]
+
+
+def test_sensor_rig_describe_reports_typed_profile_and_sensor_count() -> None:
+    rig = make_synthetic_multimodal_rig(dt=0.05, seed=0)
+
+    summary = rig.describe()
+    assert summary.profile == RigProfile.SYNTHETIC_MULTIMODAL
+    assert summary.sensor_count == len(summary.sensor_names)
+    assert summary.as_dict()["profile"] == "synthetic_multimodal"
+    assert summary.as_dict()["sensor_count"] >= 10
 
 
 def test_synthetic_state_and_preset_helpers_expose_upstream_surface() -> None:

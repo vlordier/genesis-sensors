@@ -134,7 +134,9 @@ check_fast = { shell = "pre-commit run --all-files && PYTHONPATH=src pytest test
 api_docs = { shell = "PYTHONPATH=src python scripts/gen_api_docs.py" }
 package = { shell = "python -m build && python -m twine check dist/*" }
 smoke_cli = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --version" }
+list_scenes = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --list-scenes" }
 synthetic_demo = { shell = "PYTHONPATH=src python -m genesis_sensors.cli synthetic --steps 8 --summary-every 4" }
+synthetic_dry_run = { shell = "PYTHONPATH=src python -m genesis_sensors.cli synthetic --dry-run --summary-format json" }
 fault_demo = { shell = "PYTHONPATH=src python examples/fault_tolerant_sensors.py --frames 8 --dropout 0.2" }
 environment_demo = { shell = "PYTHONPATH=src python examples/environmental_sensors.py --frames 8" }
 wireless_demo = { shell = "PYTHONPATH=src python examples/sensor_usage_patterns.py --frames 8" }

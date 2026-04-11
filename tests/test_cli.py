@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -23,6 +24,9 @@ def test_cli_help_lists_available_scenes(capsys: pytest.CaptureFixture[str]) -> 
     assert "Examples:" in help_text
     assert "--steps" in help_text
     assert "--summary-every" in help_text
+    assert "--list-scenes" in help_text
+    assert "--dry-run" in help_text
+    assert "--summary-format" in help_text
 
 
 def test_cli_version_reports_package_version(capsys: pytest.CaptureFixture[str]) -> None:
@@ -57,6 +61,15 @@ def test_cli_rejects_non_positive_numeric_args(argv: list[str], capsys: pytest.C
         assert "expected a non-negative" in error_text
     else:
         assert "expected a positive" in error_text
+
+
+def test_cli_lists_built_in_scenes_without_runtime(capsys: pytest.CaptureFixture[str]) -> None:
+    cli.main(["--list-scenes"])
+
+    output = capsys.readouterr().out
+    assert "synthetic" in output
+    assert "headless" in output
+    assert "navigation" in output
 
 
 def test_cli_runs_selected_builder(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -115,3 +128,13 @@ def test_cli_builtin_synthetic_demo_runs_headless(capsys: pytest.CaptureFixture[
     output = capsys.readouterr().out
     assert "[synthetic] step=000" in output
     assert "imu" in output
+
+
+def test_cli_builtin_synthetic_dry_run_outputs_json(capsys: pytest.CaptureFixture[str]) -> None:
+    cli.main(["synthetic", "--dry-run", "--summary-format", "json"])
+
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["scene"] == "synthetic"
+    assert summary["rig"]["profile"] == "synthetic_multimodal"
+    assert summary["rig"]["metadata"]["dt"] == pytest.approx(0.05)
+    assert summary["rig"]["sensor_count"] >= 10
