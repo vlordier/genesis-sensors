@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from genesis_sensors import ObservationStatus, ScenarioPhase
+from genesis_sensors import HeadlessScene, ObservationStatus, ScenarioPhase, build_synthetic_demo
 from genesis_sensors import config as config_module
 from genesis_sensors import genesis_bridge as bridge_module
 from genesis_sensors import presets as presets_module
@@ -82,3 +82,11 @@ def test_public_enums_expose_expected_values() -> None:
     assert ObservationStatus.DROPOUT_HOLD.value == "dropout_hold"
     assert ScenarioPhase.TAKEOFF.value == "takeoff"
     assert ScenarioPhase.SIGNAL_RECOVERY.value == "signal_recovery"
+
+
+def test_build_synthetic_demo_is_headless_and_public() -> None:
+    demo = build_synthetic_demo(dt=0.02, seed=0)
+
+    assert demo.scene.__class__.__name__ == HeadlessScene.__name__
+    assert demo.name == "synthetic"
+    assert demo.rig.name == "synthetic_multimodal"

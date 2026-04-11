@@ -28,6 +28,7 @@ _COMPAT_EXPORTS = set(getattr(_sensor_backend, "__all__", []))
 
 _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "DemoScene": (".scenes", "DemoScene"),
+    "HeadlessScene": (".scenes", "HeadlessScene"),
     "NamedContactSensor": (".rigs", "NamedContactSensor"),
     "ObservationMetadata": (".robustness", "ObservationMetadata"),
     "ObservationStatus": (".robustness", "ObservationStatus"),
@@ -39,6 +40,7 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "build_franka_demo": (".scenes", "build_franka_demo"),
     "build_go2_demo": (".scenes", "build_go2_demo"),
     "build_perception_demo": (".scenes", "build_perception_demo"),
+    "build_synthetic_demo": (".scenes", "build_synthetic_demo"),
     "make_drone_navigation_rig": (".rigs", "make_drone_navigation_rig"),
     "make_drone_perception_rig": (".rigs", "make_drone_perception_rig"),
     "make_franka_wrist_rig": (".rigs", "make_franka_wrist_rig"),
@@ -76,6 +78,7 @@ __all__ = sorted(
         "__version__",
         "DemoScene",
         "GNSS_ORIGIN_LLH",
+        "HeadlessScene",
         "NamedContactSensor",
         "ObservationMetadata",
         "ObservationStatus",
@@ -91,6 +94,7 @@ __all__ = sorted(
         "build_franka_demo",
         "build_go2_demo",
         "build_perception_demo",
+        "build_synthetic_demo",
         "get_scenario_phase",
         "has_upstream_sensors",
         "make_drone_navigation_rig",

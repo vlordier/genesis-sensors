@@ -9,7 +9,14 @@ from typing import Any
 
 import numpy as np
 
-from .rigs import SensorRig, make_drone_navigation_rig, make_drone_perception_rig, make_franka_wrist_rig, make_go2_rig
+from .rigs import (
+    SensorRig,
+    make_drone_navigation_rig,
+    make_drone_perception_rig,
+    make_franka_wrist_rig,
+    make_go2_rig,
+    make_synthetic_multimodal_rig,
+)
 
 _HOVER_RPM = 14_468.43
 _SCENE_SUBSTEPS = 2
@@ -47,6 +54,8 @@ _GO2_VIEW = ViewerCameraPreset((2.8, 0.0, 1.5), (0.0, 0.0, 0.35), 45)
 _DRONE_MOTION = DroneMotionProfile(0.012, 0.4, 0.012, 0.4)
 _PERCEPTION_MOTION = DroneMotionProfile(0.02, 0.55, 0.015, 0.35)
 
+ObservationCallback = Callable[[int, dict[str, Any]], None]
+
 
 def _make_viewer_options(gs: Any, preset: ViewerCameraPreset) -> Any:
     """Build Genesis viewer options from a named camera preset."""
@@ -57,6 +66,19 @@ def _make_viewer_options(gs: Any, preset: ViewerCameraPreset) -> Any:
     )
 
 
+@dataclass(slots=True)
+class HeadlessScene:
+    """Minimal scene-like container for headless synthetic demos."""
+
+    step_count: int = 0
+
+    def reset(self) -> None:
+        self.step_count = 0
+
+    def step(self) -> None:
+        self.step_count += 1
+
+
 @dataclass
 class DemoScene:
     """Container bundling a Genesis scene, its main entity, and the attached sensor rig.
@@ -64,9 +86,9 @@ class DemoScene:
     Examples
     --------
     >>> demo = build_drone_demo(show_viewer=False)
-    >>> demo.rig.reset()
-    >>> demo.scene.step()
-    >>> _ = demo.rig.step(0.0)
+    >>> observations = demo.run(steps=1, dt=0.01)
+    >>> len(observations) == 1
+    True
     """
 
     name: str
@@ -74,6 +96,39 @@ class DemoScene:
     entity: Any
     rig: SensorRig
     controller: Callable[[int], None] | None = None
+
+    def reset(self) -> None:
+        """Reset the scene if possible and always reset the sensor rig."""
+        reset_scene = getattr(self.scene, "reset", None)
+        if callable(reset_scene):
+            reset_scene()
+        self.rig.reset()
+
+    def step_once(self, step: int, *, dt: float) -> dict[str, Any]:
+        """Advance the controller, scene, and rig by one timestep."""
+        if self.controller is not None:
+            self.controller(step)
+        step_scene = getattr(self.scene, "step", None)
+        if callable(step_scene):
+            step_scene()
+        return self.rig.step(step * dt)
+
+    def run(
+        self,
+        *,
+        steps: int,
+        dt: float,
+        on_step: ObservationCallback | None = None,
+    ) -> list[dict[str, Any]]:
+        """Run the demo for a fixed number of steps and collect sensor observations."""
+        self.reset()
+        observations: list[dict[str, Any]] = []
+        for step in range(steps):
+            observation = self.step_once(step, dt=dt)
+            observations.append(observation)
+            if on_step is not None:
+                on_step(step, observation)
+        return observations
 
 
 def _get_genesis() -> Any:
@@ -258,10 +313,26 @@ def build_go2_demo(*, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool
     )
 
 
+def build_synthetic_demo(
+    *, dt: float = 0.05, show_viewer: bool = False, use_gpu: bool = False, seed: int = 0
+) -> DemoScene:
+    """Build a headless multimodal rig demo that does not require a Genesis runtime."""
+    del show_viewer, use_gpu
+    return DemoScene(
+        name="synthetic",
+        scene=HeadlessScene(),
+        entity=None,
+        rig=make_synthetic_multimodal_rig(dt=dt, seed=seed),
+        controller=None,
+    )
+
+
 __all__ = [
     "DemoScene",
+    "HeadlessScene",
     "build_drone_demo",
     "build_perception_demo",
     "build_franka_demo",
     "build_go2_demo",
+    "build_synthetic_demo",
 ]

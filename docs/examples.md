@@ -25,6 +25,28 @@ Genesis-backed demo scenes used by the documentation asset pipeline.
 
 ---
 
+## Headless synthetic smoke test
+
+If you want to exercise the full multimodal stack before configuring the full Genesis runtime,
+use the built-in synthetic demo:
+
+```bash
+PYTHONPATH=src python -m genesis_sensors.cli synthetic --steps 8 --summary-every 4
+```
+
+```python
+from genesis_sensors import build_synthetic_demo
+
+demo = build_synthetic_demo(dt=0.02, seed=0)
+observations = demo.run(steps=4, dt=0.02)
+print(sorted(observations[-1])[:6])
+```
+
+This is a convenient feature for CI smoke tests, quick local debugging, and downstream pipeline
+bring-up when you want realistic sensor shapes without a live `gs.Scene`.
+
+---
+
 ## Drone perception stack
 
 Run the standalone example:
