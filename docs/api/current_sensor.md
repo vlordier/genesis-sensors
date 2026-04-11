@@ -8,6 +8,10 @@
 
 ![Current-sensor generated example](../assets/sensors/current_sensor.svg)
 
+## Public symbols
+
+`CurrentSensor`
+
 ::: genesis_sensors._runtime_sensors.current_sensor
     options:
       show_root_heading: true

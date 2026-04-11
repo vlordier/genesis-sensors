@@ -1,5 +1,9 @@
 # Gauss-Markov Process
 
+## Public symbols
+
+`GaussMarkovProcess`
+
 ::: genesis_sensors._runtime_sensors._gauss_markov
     options:
       show_root_heading: true

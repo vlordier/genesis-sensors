@@ -8,6 +8,10 @@
 
 ![Water-pressure generated example](../assets/sensors/water_pressure.svg)
 
+## Public symbols
+
+`WaterPressureModel`
+
 ::: genesis_sensors._runtime_sensors.water_pressure
     options:
       show_root_heading: true

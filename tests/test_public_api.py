@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import pytest
+
 from genesis_sensors import config as config_module
 from genesis_sensors import genesis_bridge as bridge_module
 from genesis_sensors import presets as presets_module
+from genesis_sensors import synthetic as synthetic_module
 
 
 def test_config_module_reexports_extended_sensor_configs() -> None:
@@ -48,3 +51,25 @@ def test_genesis_bridge_module_reexports_state_helpers() -> None:
     assert expected.issubset(set(dir(bridge_module)))
     for name in expected:
         assert callable(getattr(bridge_module, name))
+
+
+@pytest.mark.parametrize("module", [config_module, presets_module, bridge_module])
+def test_public_api_modules_raise_attribute_error_for_unknown_names(module: object) -> None:
+    with pytest.raises(AttributeError):
+        getattr(module, "definitely_missing_symbol")
+
+
+def test_synthetic_module_exports_defaults_and_helpers() -> None:
+    expected = {
+        "DEFAULT_DT",
+        "DEFAULT_LIDAR_SHAPE",
+        "DEFAULT_RESOLUTION",
+        "DEFAULT_TOTAL_FRAMES",
+        "GNSS_ORIGIN_LLH",
+        "get_scenario_phase",
+        "make_synthetic_sensor_state",
+    }
+
+    assert expected.issubset(set(synthetic_module.__all__))
+    for name in expected:
+        assert getattr(synthetic_module, name) is not None

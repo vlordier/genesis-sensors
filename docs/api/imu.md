@@ -8,6 +8,10 @@
 
 ![IMU generated example](../assets/sensors/imu.svg)
 
+## Public symbols
+
+`IMUModel`
+
 ::: genesis_sensors._runtime_sensors.imu
     options:
       show_root_heading: true

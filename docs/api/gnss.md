@@ -8,6 +8,10 @@
 
 ![GNSS generated example](../assets/sensors/gnss.svg)
 
+## Public symbols
+
+`GNSSModel`, `GnssFixQuality`
+
 ::: genesis_sensors._runtime_sensors.gnss
     options:
       show_root_heading: true

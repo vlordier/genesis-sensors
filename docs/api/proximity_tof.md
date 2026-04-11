@@ -8,6 +8,10 @@
 
 ![Proximity-ToF generated example](../assets/sensors/proximity_tof.svg)
 
+## Public symbols
+
+`ProximityToFArrayModel`
+
 ::: genesis_sensors._runtime_sensors.proximity_tof
     options:
       show_root_heading: true

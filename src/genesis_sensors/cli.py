@@ -17,13 +17,36 @@ _RUNTIME_ERROR = (
     "Install torch in the target environment first."
 )
 
+_EXAMPLES = "Examples:\n  genesis-sensors drone --steps 200\n  genesis-sensors perception --gpu --vis"
+
+
+def _positive_int(value: str) -> int:
+    """Argparse validator for strictly positive integer arguments."""
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError(f"expected a positive integer, got {value!r}")
+    return parsed
+
+
+def _positive_float(value: str) -> float:
+    """Argparse validator for strictly positive floating-point arguments."""
+    parsed = float(value)
+    if parsed <= 0.0:
+        raise argparse.ArgumentTypeError(f"expected a positive float, got {value!r}")
+    return parsed
+
 
 def _build_parser() -> argparse.ArgumentParser:
     """Create the CLI parser so tests and other entry points can reuse it."""
-    parser = argparse.ArgumentParser(description="Run Genesis Sensors example scenes")
+    parser = argparse.ArgumentParser(
+        prog="genesis-sensors",
+        description="Run Genesis Sensors example scenes",
+        epilog=_EXAMPLES,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument("scene", choices=("drone", "perception", "franka", "go2"), help="Scene preset to run")
-    parser.add_argument("--steps", type=int, default=200, help="Number of simulation steps")
-    parser.add_argument("--dt", type=float, default=0.01, help="Simulation timestep")
+    parser.add_argument("--steps", type=_positive_int, default=200, help="Number of simulation steps")
+    parser.add_argument("--dt", type=_positive_float, default=0.01, help="Simulation timestep")
     parser.add_argument("--vis", action="store_true", help="Open the Genesis viewer")
     parser.add_argument("--gpu", action="store_true", help="Use the GPU backend when available")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")

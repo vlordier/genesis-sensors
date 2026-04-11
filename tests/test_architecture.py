@@ -320,6 +320,14 @@ def test_make_synthetic_sensor_state_clamps_negative_frame_to_takeoff_phase() ->
     assert state["phase"] == "takeoff"
 
 
+def test_make_synthetic_sensor_state_exposes_rollout_metadata() -> None:
+    state = make_synthetic_sensor_state(5, dt=0.1, total_frames=20)
+    assert state["frame_idx"] == 5
+    assert state["sim_time"] == pytest.approx(0.5)
+    assert 0.0 <= state["scenario_progress"] <= 1.0
+    assert state["phase"] == get_scenario_phase(state["scenario_progress"])
+
+
 @pytest.mark.parametrize(
     "sensor_cls,sensor_name",
     STEPPABLE_SENSORS,

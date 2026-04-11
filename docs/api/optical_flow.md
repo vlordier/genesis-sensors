@@ -8,6 +8,10 @@
 
 ![Optical flow generated example](../assets/sensors/optical_flow.svg)
 
+## Public symbols
+
+`OpticalFlowModel`
+
 ::: genesis_sensors._runtime_sensors.optical_flow
     options:
       show_root_heading: true

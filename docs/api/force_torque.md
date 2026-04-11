@@ -8,6 +8,10 @@
 
 ![Force / torque generated example](../assets/sensors/force_torque.svg)
 
+## Public symbols
+
+`ForceTorqueSensorModel`
+
 ::: genesis_sensors._runtime_sensors.force_torque
     options:
       show_root_heading: true

@@ -1,5 +1,9 @@
 # Base Sensor
 
+## Public symbols
+
+`BaseSensor`, `SensorInput`, `SensorObservation`
+
 ::: genesis_sensors._runtime_sensors.base
     options:
       show_root_heading: true

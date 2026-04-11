@@ -8,6 +8,10 @@
 
 ![Motor-temperature generated example](../assets/sensors/motor_temperature.svg)
 
+## Public symbols
+
+`MotorTemperatureModel`
+
 ::: genesis_sensors._runtime_sensors.motor_temperature
     options:
       show_root_heading: true

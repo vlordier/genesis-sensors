@@ -8,6 +8,10 @@
 
 ![Ultrasonic array generated example](../assets/sensors/ultrasonic.svg)
 
+## Public symbols
+
+`UltrasonicArrayModel`
+
 ::: genesis_sensors._runtime_sensors.ultrasonic
     options:
       show_root_heading: true

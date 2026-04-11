@@ -8,6 +8,10 @@
 
 ![Rangefinder generated example](../assets/sensors/rangefinder.svg)
 
+## Public symbols
+
+`RangefinderModel`
+
 ::: genesis_sensors._runtime_sensors.rangefinder
     options:
       show_root_heading: true

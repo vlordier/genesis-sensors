@@ -12,6 +12,10 @@
 
 ![Side-scan sonar snapshot](../assets/sensors/side_scan_sonar.svg)
 
+## Public symbols
+
+`ImagingSonarModel`, `SideScanSonarModel`
+
 ::: genesis_sensors._runtime_sensors.sonar
     options:
       show_root_heading: true

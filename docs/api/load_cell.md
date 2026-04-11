@@ -8,6 +8,10 @@
 
 ![Load-cell generated example](../assets/sensors/load_cell.svg)
 
+## Public symbols
+
+`LoadCellModel`
+
 ::: genesis_sensors._runtime_sensors.load_cell
     options:
       show_root_heading: true

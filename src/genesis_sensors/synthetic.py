@@ -312,6 +312,9 @@ def make_synthetic_sensor_state(
         "wind_ms": wind_ms,
         "water_current_ms": water_current_ms,
         "current_layers": current_layers,
+        "frame_idx": frame_idx,
+        "sim_time": float(sim_time),
+        "scenario_progress": progress,
         "phase": phase_name,
         "fault_flags": [phase_name.replace("_", " ")] if phase_name not in {"takeoff", "cruise"} else [],
     }

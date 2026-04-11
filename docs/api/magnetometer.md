@@ -8,6 +8,10 @@
 
 ![Magnetometer generated example](../assets/sensors/magnetometer.svg)
 
+## Public symbols
+
+`MagnetometerModel`
+
 ::: genesis_sensors._runtime_sensors.magnetometer
     options:
       show_root_heading: true

@@ -14,10 +14,13 @@ def test_cli_help_lists_available_scenes(capsys: pytest.CaptureFixture[str]) -> 
 
     assert exc_info.value.code == 0
     help_text = capsys.readouterr().out
+    assert "genesis-sensors" in help_text
     assert "drone" in help_text
     assert "perception" in help_text
     assert "franka" in help_text
     assert "go2" in help_text
+    assert "Examples:" in help_text
+    assert "--steps" in help_text
 
 
 def test_cli_version_reports_package_version(capsys: pytest.CaptureFixture[str]) -> None:
@@ -36,6 +39,15 @@ def test_cli_surfaces_runtime_dependency_hint(monkeypatch: pytest.MonkeyPatch) -
 
     with pytest.raises(SystemExit, match="Install torch"):
         cli.main(["drone"])
+
+
+@pytest.mark.parametrize("argv", [["drone", "--steps", "0"], ["drone", "--dt", "0"]])
+def test_cli_rejects_non_positive_numeric_args(argv: list[str], capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main(argv)
+
+    assert exc_info.value.code == 2
+    assert "expected a positive" in capsys.readouterr().err
 
 
 def test_cli_runs_selected_builder(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -58,8 +70,10 @@ def test_cli_runs_selected_builder(monkeypatch: pytest.MonkeyPatch) -> None:
             self.step_calls += 1
 
     demo = SimpleNamespace(scene=_DummyScene(), rig=_DummyRig(), controller=None)
+    captured_kwargs: dict[str, object] = {}
 
-    def _builder(**_: object) -> SimpleNamespace:
+    def _builder(**kwargs: object) -> SimpleNamespace:
+        captured_kwargs.update(kwargs)
         return demo
 
     monkeypatch.setattr(
@@ -68,8 +82,11 @@ def test_cli_runs_selected_builder(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda: {"drone": _builder, "perception": _builder, "franka": _builder, "go2": _builder},
     )
 
-    cli.main(["drone", "--steps", "3", "--dt", "0.02"])
+    cli.main(["drone", "--steps", "3", "--dt", "0.02", "--gpu", "--vis"])
 
+    assert captured_kwargs["dt"] == pytest.approx(0.02)
+    assert captured_kwargs["show_viewer"] is True
+    assert captured_kwargs["use_gpu"] is True
     assert demo.rig.reset_calls == 1
     assert demo.scene.step_calls == 3
     assert demo.rig.step_times == [0.0, 0.02, 0.04]

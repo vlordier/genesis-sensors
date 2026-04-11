@@ -8,6 +8,10 @@
 
 ![Hydrophone generated example](../assets/sensors/hydrophone.svg)
 
+## Public symbols
+
+`HydrophoneModel`
+
 ::: genesis_sensors._runtime_sensors.hydrophone
     options:
       show_root_heading: true

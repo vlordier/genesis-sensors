@@ -24,6 +24,10 @@
 
 ![Anemometer generated example](../assets/sensors/anemometer.svg)
 
+## Public symbols
+
+`AnemometerModel`, `GasSensorModel`, `HygrometerModel`, `LightSensorModel`, `ThermometerModel`
+
 ::: genesis_sensors._runtime_sensors.environmental
     options:
       show_root_heading: true

@@ -12,6 +12,10 @@
 
 ![Radar snapshot](../assets/sensors/radar.svg)
 
+## Public symbols
+
+`RadarModel`, `UWBRangingModel`
+
 ::: genesis_sensors._runtime_sensors.wireless
     options:
       show_root_heading: true

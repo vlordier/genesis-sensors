@@ -8,6 +8,10 @@
 
 ![Leak-detector generated example](../assets/sensors/leak_detector.svg)
 
+## Public symbols
+
+`LeakDetectorModel`
+
 ::: genesis_sensors._runtime_sensors.leak_detector
     options:
       show_root_heading: true

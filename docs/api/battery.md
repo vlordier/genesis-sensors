@@ -8,6 +8,10 @@
 
 ![Battery generated example](../assets/sensors/battery.svg)
 
+## Public symbols
+
+`BatteryModel`
+
 ::: genesis_sensors._runtime_sensors.battery
     options:
       show_root_heading: true

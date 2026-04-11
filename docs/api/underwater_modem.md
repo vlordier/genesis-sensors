@@ -8,6 +8,10 @@
 
 ![Underwater-modem generated example](../assets/sensors/underwater_modem.svg)
 
+## Public symbols
+
+`UnderwaterModemModel`
+
 ::: genesis_sensors._runtime_sensors.underwater_modem
     options:
       show_root_heading: true

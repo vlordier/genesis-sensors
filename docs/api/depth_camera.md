@@ -8,6 +8,10 @@
 
 ![Depth camera snapshot](../assets/sensors/depth_camera.svg)
 
+## Public symbols
+
+`DepthCameraModel`
+
 ::: genesis_sensors._runtime_sensors.depth_camera
     options:
       show_root_heading: true

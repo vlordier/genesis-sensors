@@ -8,6 +8,10 @@
 
 ![Barometer generated example](../assets/sensors/barometer.svg)
 
+## Public symbols
+
+`BarometerModel`, `_altitude_to_pressure`, `_pressure_to_altitude`
+
 ::: genesis_sensors._runtime_sensors.barometer
     options:
       show_root_heading: true

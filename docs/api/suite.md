@@ -1,5 +1,9 @@
 # Sensor Suite
 
+## Public symbols
+
+`SensorSuite`
+
 ::: genesis_sensors._runtime_sensors.suite
     options:
       show_root_heading: true

@@ -8,6 +8,10 @@
 
 ![Radio link generated example](../assets/sensors/radio.svg)
 
+## Public symbols
+
+`RadioLinkModel`, `ScheduledPacket`
+
 ::: genesis_sensors._runtime_sensors.radio
     options:
       show_root_heading: true

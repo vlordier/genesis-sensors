@@ -8,6 +8,10 @@
 
 ![Wire-encoder generated example](../assets/sensors/wire_encoder.svg)
 
+## Public symbols
+
+`WireEncoderModel`
+
 ::: genesis_sensors._runtime_sensors.wire_encoder
     options:
       show_root_heading: true

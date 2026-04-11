@@ -8,6 +8,10 @@
 
 ![RPM-sensor generated example](../assets/sensors/rpm_sensor.svg)
 
+## Public symbols
+
+`RPMSensor`
+
 ::: genesis_sensors._runtime_sensors.rpm_sensor
     options:
       show_root_heading: true

@@ -8,6 +8,10 @@
 
 ![Contact-sensor generated example](../assets/sensors/contact_sensor.svg)
 
+## Public symbols
+
+`ContactSensor`
+
 ::: genesis_sensors._runtime_sensors.contact_sensor
     options:
       show_root_heading: true

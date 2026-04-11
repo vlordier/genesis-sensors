@@ -41,21 +41,22 @@ jobs:
           retry_pip install -e ".[dev]"
 
       - name: Ruff
-        run: ruff check .
+        run: poe lint
+
+      - name: API smoke tests
+        run: poe test_api
 
       - name: Tests
-        env:
-          PYTHONPATH: ${{ github.workspace }}/src
-        run: pytest tests --cov=genesis_sensors --cov-report=term-missing -q
+        run: poe coverage
+
+      - name: Smoke CLI entry point
+        run: poe smoke_cli
 
       - name: Build docs
-        run: mkdocs build --strict
+        run: poe docs
 
       - name: Build distributions
-        run: python -m build
-
-      - name: Validate package metadata
-        run: python -m twine check dist/*
+        run: poe package
 
   compatibility:
     runs-on: ubuntu-latest

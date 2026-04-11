@@ -12,6 +12,10 @@
 
 ![Current profiler generated example](../assets/sensors/acoustic_current_profiler.svg)
 
+## Public symbols
+
+`AcousticCurrentProfilerModel`, `DVLModel`
+
 ::: genesis_sensors._runtime_sensors.acoustic_navigation
     options:
       show_root_heading: true

@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import importlib
 import inspect
-import os
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -165,19 +164,29 @@ def _example_block(mod_name: str) -> list[str]:
 def _write_module_page(mod_name: str, title: str) -> str:
     """Write a single API reference page and return its relative path."""
     fqn = _module_path(mod_name)
+    public_names = _collect_public_names(mod_name)
 
-    lines = [
-        f"# {title}",
-        "",
-        *_example_block(mod_name),
-        f"::: {fqn}",
-        "    options:",
-        "      show_root_heading: true",
-        "      show_source: false",
-        "      members_order: source",
-        "      show_category_heading: true",
-        "      merge_init_into_class: true",
-    ]
+    lines = [f"# {title}", "", *_example_block(mod_name)]
+    if public_names:
+        lines.extend(
+            [
+                "## Public symbols",
+                "",
+                ", ".join(f"`{name}`" for name in public_names),
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            f"::: {fqn}",
+            "    options:",
+            "      show_root_heading: true",
+            "      show_source: false",
+            "      members_order: source",
+            "      show_category_heading: true",
+            "      merge_init_into_class: true",
+        ]
+    )
 
     filename = f"{mod_name.lstrip('_')}.md"
     filepath = API_DIR / filename
@@ -193,11 +202,25 @@ def _write_index(page_paths: list[tuple[str, str]]) -> None:
         "",
         "Auto-generated from source docstrings.",
         "",
-        "## Modules",
+        "## Regenerate locally",
+        "",
+        "```bash",
+        "PYTHONPATH=src python scripts/gen_api_docs.py",
+        "```",
+        "",
+        "## Top-level helper modules",
+        "",
+        "- `genesis_sensors.config` — backend-aware validated config shims",
+        "- `genesis_sensors.presets` — preset constants plus `get_preset()` / `list_presets()`",
+        "- `genesis_sensors.genesis_bridge` — helper functions for extracting Genesis state",
+        "- `genesis_sensors.synthetic` — headless synthetic-state builders for tests and demos",
+        "- `genesis_sensors.robustness` — latency/dropout wrappers and health metadata",
+        "",
+        "## Runtime sensor modules",
         "",
     ]
     for title, rel_path in page_paths:
-        basename = os.path.basename(rel_path).replace(".md", "")
+        basename = Path(rel_path).name.replace(".md", "")
         lines.append(f"- [{title}]({basename}.md)")
     lines.append("")
 

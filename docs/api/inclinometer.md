@@ -8,6 +8,10 @@
 
 ![Inclinometer generated example](../assets/sensors/inclinometer.svg)
 
+## Public symbols
+
+`InclinometerModel`
+
 ::: genesis_sensors._runtime_sensors.inclinometer
     options:
       show_root_heading: true
