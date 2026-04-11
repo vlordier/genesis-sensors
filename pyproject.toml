@@ -41,6 +41,7 @@ dev = [
     "poethepoet>=0.32.0",
     "pre-commit>=4.0.1",
     "pytest>=8.0",
+    "pytest-cov>=6.0",
     "rerun-sdk>=0.23",
     "python-semantic-release>=10.2.0",
     "ruff>=0.9",
@@ -126,6 +127,7 @@ output_format = "md"
 lint = { shell = "ruff check ." }
 docs = { shell = "mkdocs build --strict" }
 test = { shell = "PYTHONPATH=src pytest tests -q" }
+coverage = { shell = "PYTHONPATH=src pytest tests --cov=genesis_sensors --cov-report=term-missing -q" }
 test_fast = { shell = "PYTHONPATH=src pytest tests/test_compat.py tests/test_architecture.py tests/test_rigs.py -q" }
 check_fast = { shell = "pre-commit run --all-files && PYTHONPATH=src pytest tests/test_compat.py tests/test_architecture.py tests/test_rigs.py -q" }
 fault_demo = { shell = "PYTHONPATH=src python examples/fault_tolerant_sensors.py --frames 8 --dropout 0.2" }

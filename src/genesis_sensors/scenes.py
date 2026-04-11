@@ -16,7 +16,15 @@ _HOVER_RPM = 14_468.43
 
 @dataclass
 class DemoScene:
-    """Container bundling a Genesis scene, its main entity, and the attached sensor rig."""
+    """Container bundling a Genesis scene, its main entity, and the attached sensor rig.
+
+    Examples
+    --------
+    >>> demo = build_drone_demo(show_viewer=False)
+    >>> demo.rig.reset()
+    >>> demo.scene.step()
+    >>> _ = demo.rig.step(0.0)
+    """
 
     name: str
     scene: Any
@@ -213,3 +221,12 @@ def build_go2_demo(*, dt: float = 0.01, show_viewer: bool = False, use_gpu: bool
     return DemoScene(
         name="go2", scene=scene, entity=go2, rig=make_go2_rig(go2, dt=dt, seed=seed), controller=_controller
     )
+
+
+__all__ = [
+    "DemoScene",
+    "build_drone_demo",
+    "build_perception_demo",
+    "build_franka_demo",
+    "build_go2_demo",
+]

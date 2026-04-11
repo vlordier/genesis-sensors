@@ -29,14 +29,20 @@ from genesis_sensors._runtime_sensors import (  # noqa: E402
     ForceTorqueSensorModel,
     GasSensorModel,
     GNSSModel,
+    HydrophoneModel,
     HygrometerModel,
     IMUModel,
     ImagingSonarModel,
+    InclinometerModel,
     JointStateSensor,
+    LeakDetectorModel,
     LidarModel,
     LightSensorModel,
+    LoadCellModel,
     MagnetometerModel,
+    MotorTemperatureModel,
     OpticalFlowModel,
+    ProximityToFArrayModel,
     RadarModel,
     RadioLinkModel,
     RangefinderModel,
@@ -49,8 +55,11 @@ from genesis_sensors._runtime_sensors import (  # noqa: E402
     ThermalCameraModel,
     ThermometerModel,
     UltrasonicArrayModel,
+    UnderwaterModemModel,
     UWBRangingModel,
+    WaterPressureModel,
     WheelOdometryModel,
+    WireEncoderModel,
 )
 from genesis_sensors._runtime_sensors.config import (  # noqa: E402
     AcousticCurrentProfilerConfig,
@@ -67,14 +76,20 @@ from genesis_sensors._runtime_sensors.config import (  # noqa: E402
     ForceTorqueConfig,
     GasSensorConfig,
     GNSSConfig,
+    HydrophoneConfig,
     HygrometerConfig,
     IMUConfig,
     ImagingSonarConfig,
+    InclinometerConfig,
     JointStateConfig,
+    LeakDetectorConfig,
     LidarConfig,
     LightSensorConfig,
+    LoadCellConfig,
     MagnetometerConfig,
+    MotorTemperatureConfig,
     OpticalFlowConfig,
+    ProximityToFArrayConfig,
     RadarConfig,
     RadioConfig,
     RangefinderConfig,
@@ -85,8 +100,11 @@ from genesis_sensors._runtime_sensors.config import (  # noqa: E402
     ThermalCameraConfig,
     ThermometerConfig,
     UltrasonicArrayConfig,
+    UnderwaterModemConfig,
     UWBRangeConfig,
+    WaterPressureConfig,
     WheelOdometryConfig,
+    WireEncoderConfig,
 )
 from genesis_sensors._runtime_sensors.presets import list_presets  # noqa: E402
 
@@ -130,6 +148,15 @@ ALL_SENSOR_PAIRS: list[tuple[type, type]] = [
     (DVLModel, DVLConfig),
     (AcousticCurrentProfilerModel, AcousticCurrentProfilerConfig),
     (SideScanSonarModel, SideScanSonarConfig),
+    (WaterPressureModel, WaterPressureConfig),
+    (HydrophoneModel, HydrophoneConfig),
+    (LeakDetectorModel, LeakDetectorConfig),
+    (UnderwaterModemModel, UnderwaterModemConfig),
+    (InclinometerModel, InclinometerConfig),
+    (ProximityToFArrayModel, ProximityToFArrayConfig),
+    (LoadCellModel, LoadCellConfig),
+    (WireEncoderModel, WireEncoderConfig),
+    (MotorTemperatureModel, MotorTemperatureConfig),
 ]
 
 # Sensors that can step with a basic synthetic state dict.
@@ -160,6 +187,15 @@ STEPPABLE_SENSORS: list[tuple[type, str]] = [
     (RPMSensor, "rpm"),
     (DVLModel, "dvl"),
     (AcousticCurrentProfilerModel, "current_profiler"),
+    (WaterPressureModel, "water_pressure"),
+    (HydrophoneModel, "hydrophone"),
+    (LeakDetectorModel, "leak_detector"),
+    (UnderwaterModemModel, "underwater_modem"),
+    (InclinometerModel, "inclinometer"),
+    (ProximityToFArrayModel, "proximity_tof"),
+    (LoadCellModel, "load_cell"),
+    (WireEncoderModel, "wire_encoder"),
+    (MotorTemperatureModel, "motor_temperature"),
 ]
 
 
@@ -171,7 +207,7 @@ STEPPABLE_SENSORS: list[tuple[type, str]] = [
 @pytest.fixture()
 def synthetic_state() -> dict:
     """A rich synthetic state dict that satisfies all sensors."""
-    return make_synthetic_sensor_state(seed=42)
+    return make_synthetic_sensor_state(0)
 
 
 @pytest.fixture()

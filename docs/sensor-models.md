@@ -64,6 +64,13 @@ suite.configure_noise_models("uniform")
 - `uniform` — bounded noise with the same nominal σ
 - `none` — disable white noise for debugging and deterministic baselines
 
+| Noise model | Distribution shape | Best for | Trade-off |
+| --- | --- | --- | --- |
+| `gaussian` | light-tailed, symmetric | default sim-to-datasheet realism | under-represents rare spikes |
+| `laplace` | heavier-tailed, symmetric | perception stress tests and occasional bursts | more outliers by design |
+| `uniform` | hard-bounded | safety envelopes and deterministic fuzzing bounds | less physically realistic for many sensors |
+| `none` | no injected white noise | debugging and reproducible baselines | least realistic |
+
 These controls sit on top of each sensor's native parameters such as
 `noise_sigma_*`, `noise_density_*`, dropout, bias drift, and modality-specific
 corruption. They are available both through `sensor.configure_noise_model(...)`

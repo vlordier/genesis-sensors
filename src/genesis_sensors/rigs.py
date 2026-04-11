@@ -104,7 +104,16 @@ class VelocityCache:
 
 @dataclass
 class SensorRig:
-    """Small wrapper around a `SensorSuite` plus a state-building callback."""
+    """Small wrapper around a `SensorSuite` plus a state-building callback.
+
+    Examples
+    --------
+    >>> from genesis_sensors import SensorSuite, make_synthetic_sensor_state
+    >>> rig = SensorRig(name="demo", suite=SensorSuite.default(seed=0), state_fn=lambda: make_synthetic_sensor_state(0))
+    >>> rig.reset()
+    >>> isinstance(rig.step(0.0), dict)
+    True
+    """
 
     name: str
     suite: SensorSuite
@@ -716,3 +725,14 @@ def make_go2_rig(
         metadata={"foot_links": foot_links, "profile": "quadruped"},
         reset_fn=lambda: _reset_motion_cache(cache),
     )
+
+
+__all__ = [
+    "NamedContactSensor",
+    "SensorRig",
+    "make_drone_navigation_rig",
+    "make_drone_perception_rig",
+    "make_franka_wrist_rig",
+    "make_go2_rig",
+    "make_synthetic_multimodal_rig",
+]

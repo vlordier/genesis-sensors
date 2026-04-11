@@ -86,6 +86,11 @@ pip install -e .[dev]
 pip install -e .[rerun]
 # or: pip install rerun-sdk
 
+# 4c. Optional: use uv for fast local checks
+uv sync --extra dev
+uv run --extra dev poe test_fast
+uv run --extra dev poe coverage
+
 # 5. Or install the published package directly
 pip install genesis-sensors
 
@@ -202,6 +207,7 @@ python -m twine check dist/*
 uv run --extra dev poe lint
 uv run --extra dev poe docs
 uv run --extra dev poe test
+uv run --extra dev poe coverage
 uv run --extra dev poe test_fast
 uv run --extra dev poe fault_demo
 uv run --extra dev poe rerun_save
@@ -236,8 +242,12 @@ The docs site is built with **MkDocs Material** and published via **GitHub Pages
   `pip install torch --index-url https://download.pytorch.org/whl/cpu`
 - To confirm which sensor implementation is active, run:
   `python -c "import genesis_sensors as gs; print(gs.SENSOR_BACKEND)"`
+- To confirm the installed CLI entry point and package version, run:
+  `genesis-sensors --version`
 - For a fast local verification pass that does not require the full scene runtime, use:
   `uv run --extra dev poe test_fast`
+- To inspect coverage for the review branch locally, use:
+  `uv run --extra dev poe coverage`
 
 ## 🧭 Notes
 

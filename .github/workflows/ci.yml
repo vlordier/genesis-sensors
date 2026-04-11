@@ -46,7 +46,7 @@ jobs:
       - name: Tests
         env:
           PYTHONPATH: ${{ github.workspace }}/src
-        run: pytest tests -q
+        run: pytest tests --cov=genesis_sensors --cov-report=term-missing -q
 
       - name: Build docs
         run: mkdocs build --strict

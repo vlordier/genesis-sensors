@@ -36,6 +36,20 @@ module. If so, it uses the upstream version; otherwise it falls back to the
 bundled runtime. This makes the package work both standalone and as a Genesis
 companion.
 
+#### Backend selection decision tree
+
+```mermaid
+flowchart TD
+    A[import genesis.sensors] -->|ImportError| B[Use bundled _runtime_sensors]
+    A -->|Success| C{Has companion features?}
+    C -->|Yes| D[Use upstream genesis.sensors]
+    C -->|No| B
+```
+
+In practice, the bridge prefers upstream only when it exposes the expanded
+companion surface used by this repo: noise-model controls, richer
+`SensorSuite` kwargs, and the expected preset categories.
+
 ### 2. Registry-Driven Sensor Suite
 
 The `SensorSuite` uses a data-driven `_SENSOR_SLOTS` tuple to manage all 43
@@ -47,6 +61,12 @@ sensor types. Adding a new sensor requires:
 4. Import in `__init__.py`
 
 No if-statements, no manual wiring.
+
+#### Bundled runtime maintenance notes
+
+- keep `_compat.py` and `_runtime_sensors/` aligned whenever upstream gains or changes APIs
+- prefer lazy imports for docs-facing helpers so local docs/tests do not require the full Genesis + Torch runtime
+- extend the shared synthetic-state and roundtrip tests when adding a new sensor so coverage stays repo-wide
 
 ### 3. Multi-Rate Scheduling
 
