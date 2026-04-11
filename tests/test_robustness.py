@@ -122,3 +122,24 @@ def test_robust_wrapper_reset_replays_dropout_sequence_with_same_seed() -> None:
     second_run = [wrapped.step(t, {"range_m": 2.0})["_meta"]["dropped"] for t in times]
 
     assert first_run == second_run
+
+
+def test_robust_wrapper_metadata_statuses_stay_in_known_enum_space() -> None:
+    sensor = RangefinderModel(
+        update_rate_hz=20.0,
+        noise_floor_m=0.0,
+        noise_slope=0.0,
+        dropout_prob=0.0,
+        resolution_m=0.0,
+        seed=0,
+    )
+    wrapped = genesis_sensors.RobustSensorWrapper(sensor, latency_s=0.05, seed=0)
+
+    statuses = {
+        wrapped.step(0.0, {"range_m": 1.0})["_meta"]["status"],
+        wrapped.step(0.05, {"range_m": 1.5})["_meta"]["status"],
+        wrapped.step(0.10, {"range_m": 2.0})["_meta"]["status"],
+    }
+
+    known_statuses = {status.value for status in genesis_sensors.ObservationStatus}
+    assert statuses.issubset(known_statuses)

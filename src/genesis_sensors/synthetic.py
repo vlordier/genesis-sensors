@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 import numpy as np
@@ -16,12 +18,34 @@ DEFAULT_RESOLUTION = (96, 72)
 DEFAULT_LIDAR_SHAPE = (8, 64)
 GNSS_ORIGIN_LLH = (37.4275, -122.1697, 30.0)
 
+class ScenarioPhase(str, Enum):
+    """Named rollout phases used by the synthetic-state generator."""
+
+    TAKEOFF = "takeoff"
+    CRUISE = "cruise"
+    URBAN_CANYON = "urban_canyon"
+    RAIN_BURST = "rain_burst"
+    SIGNAL_RECOVERY = "signal_recovery"
+
+
+@dataclass(frozen=True, slots=True)
+class ScenarioWindow:
+    """A single progress interval mapped to a named scenario phase."""
+
+    phase: ScenarioPhase
+    start: float
+    end: float
+
+    def contains(self, progress: float) -> bool:
+        return self.start <= progress < self.end
+
+
 _SCENARIO_PHASES = (
-    ("takeoff", 0.00, 0.20),
-    ("cruise", 0.20, 0.45),
-    ("urban_canyon", 0.45, 0.70),
-    ("rain_burst", 0.70, 0.88),
-    ("signal_recovery", 0.88, 1.01),
+    ScenarioWindow(ScenarioPhase.TAKEOFF, 0.00, 0.20),
+    ScenarioWindow(ScenarioPhase.CRUISE, 0.20, 0.45),
+    ScenarioWindow(ScenarioPhase.URBAN_CANYON, 0.45, 0.70),
+    ScenarioWindow(ScenarioPhase.RAIN_BURST, 0.70, 0.88),
+    ScenarioWindow(ScenarioPhase.SIGNAL_RECOVERY, 0.88, 1.01),
 )
 
 
@@ -42,10 +66,10 @@ def get_scenario_phase(progress: float) -> str:
     the final interval resolve to ``"signal_recovery"``.
     """
     bounded_progress = max(0.0, float(progress))
-    for phase_name, start, end in _SCENARIO_PHASES:
-        if start <= bounded_progress < end:
-            return phase_name
-    return _SCENARIO_PHASES[-1][0]
+    for window in _SCENARIO_PHASES:
+        if window.contains(bounded_progress):
+            return window.phase.value
+    return _SCENARIO_PHASES[-1].phase.value
 
 
 def make_synthetic_sensor_state(
@@ -316,7 +340,11 @@ def make_synthetic_sensor_state(
         "sim_time": float(sim_time),
         "scenario_progress": progress,
         "phase": phase_name,
-        "fault_flags": [phase_name.replace("_", " ")] if phase_name not in {"takeoff", "cruise"} else [],
+        "fault_flags": (
+            [phase_name.replace("_", " ")]
+            if phase_name not in {ScenarioPhase.TAKEOFF.value, ScenarioPhase.CRUISE.value}
+            else []
+        ),
     }
 
 
@@ -326,6 +354,7 @@ __all__ = [
     "DEFAULT_RESOLUTION",
     "DEFAULT_TOTAL_FRAMES",
     "GNSS_ORIGIN_LLH",
+    "ScenarioPhase",
     "get_scenario_phase",
     "make_synthetic_sensor_state",
 ]

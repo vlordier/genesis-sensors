@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from genesis_sensors import ObservationStatus, ScenarioPhase
 from genesis_sensors import config as config_module
 from genesis_sensors import genesis_bridge as bridge_module
 from genesis_sensors import presets as presets_module
@@ -66,6 +67,7 @@ def test_synthetic_module_exports_defaults_and_helpers() -> None:
         "DEFAULT_RESOLUTION",
         "DEFAULT_TOTAL_FRAMES",
         "GNSS_ORIGIN_LLH",
+        "ScenarioPhase",
         "get_scenario_phase",
         "make_synthetic_sensor_state",
     }
@@ -73,3 +75,10 @@ def test_synthetic_module_exports_defaults_and_helpers() -> None:
     assert expected.issubset(set(synthetic_module.__all__))
     for name in expected:
         assert getattr(synthetic_module, name) is not None
+
+
+def test_public_enums_expose_expected_values() -> None:
+    assert ObservationStatus.OK.value == "ok"
+    assert ObservationStatus.DROPOUT_HOLD.value == "dropout_hold"
+    assert ScenarioPhase.TAKEOFF.value == "takeoff"
+    assert ScenarioPhase.SIGNAL_RECOVERY.value == "signal_recovery"
