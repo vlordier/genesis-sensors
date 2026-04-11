@@ -9,6 +9,7 @@ from genesis_sensors import (
     ObservationStatus,
     RigProfile,
     ScenarioPhase,
+    SceneCatalogFilter,
     SceneRuntimeMode,
     SensorRigSummary,
     SyntheticRolloutSummary,
@@ -17,6 +18,7 @@ from genesis_sensors import (
     describe_demo_catalog,
     filter_demo_scenes,
     get_demo_scene_spec,
+    list_demo_scene_commands,
     list_demo_scene_names,
     list_demo_scenes,
     list_scenario_windows,
@@ -161,3 +163,16 @@ def test_demo_catalog_summary_helpers_are_public() -> None:
     assert "synthetic" in summary.headless_scene_names()
     assert "drone" in summary.runtime_scene_names()
     assert list_demo_scene_names(query="syn") == ("synthetic",)
+
+
+def test_scene_catalog_filter_and_command_helpers_support_runtime_mode() -> None:
+    catalog_filter = SceneCatalogFilter(runtime_mode=SceneRuntimeMode.HEADLESS, query=" syn ")
+    summary = describe_demo_catalog(filters=catalog_filter)
+
+    assert summary.scene_count == 1
+    assert summary.headless_scene_names() == ("synthetic",)
+    assert list_demo_scene_names(filters=catalog_filter) == ("synthetic",)
+
+    commands = list_demo_scene_commands(runtime_mode=SceneRuntimeMode.HEADLESS)
+    assert commands == ("genesis-sensors synthetic --dry-run --summary-format json",)
+    assert summary.preview_commands(limit=1) == commands

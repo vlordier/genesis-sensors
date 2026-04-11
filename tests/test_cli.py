@@ -29,6 +29,9 @@ def test_cli_help_lists_available_scenes(capsys: pytest.CaptureFixture[str]) -> 
     assert "--list-phases" in help_text
     assert "--list-profiles" in help_text
     assert "--describe-scene" in help_text
+    assert "--catalog-summary" in help_text
+    assert "--runtime-mode" in help_text
+    assert "--show-commands" in help_text
     assert "--search" in help_text
     assert "--dry-run" in help_text
     assert "--summary-format" in help_text
@@ -80,6 +83,14 @@ def test_cli_lists_built_in_scenes_without_runtime(capsys: pytest.CaptureFixture
     assert "navigation" in output
 
 
+def test_cli_rejects_conflicting_runtime_filters(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main(["--list-scenes", "--headless-only", "--runtime-mode", "runtime"])
+
+    assert exc_info.value.code == 2
+    assert "conflicting runtime filters" in capsys.readouterr().err
+
+
 def test_cli_lists_filtered_scenes_as_json(capsys: pytest.CaptureFixture[str]) -> None:
     cli.main(["--list-scenes", "--profile", "synthetic_multimodal", "--headless-only", "--summary-format", "json"])
 
@@ -113,6 +124,16 @@ def test_cli_describes_single_scene_as_json(capsys: pytest.CaptureFixture[str]) 
     assert payload["name"] == "synthetic"
     assert payload["runtime_mode"] == "headless"
     assert payload["profile"] == "synthetic_multimodal"
+    assert payload["recommended_command"] == "genesis-sensors synthetic --dry-run --summary-format json"
+
+
+def test_cli_prints_catalog_summary_as_json(capsys: pytest.CaptureFixture[str]) -> None:
+    cli.main(["--catalog-summary", "--summary-format", "json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["scene_count"] >= 5
+    assert payload["runtime_counts"]["headless"] == 1
+    assert "genesis-sensors synthetic --dry-run --summary-format json" in payload["recommended_commands"]
 
 
 def test_cli_search_filters_scene_catalog(capsys: pytest.CaptureFixture[str]) -> None:
@@ -121,6 +142,15 @@ def test_cli_search_filters_scene_catalog(capsys: pytest.CaptureFixture[str]) ->
     payload = json.loads(capsys.readouterr().out)
     assert len(payload) == 1
     assert payload[0]["name"] == "synthetic"
+
+
+def test_cli_runtime_mode_and_command_preview_filter_scene_catalog(capsys: pytest.CaptureFixture[str]) -> None:
+    cli.main(["--list-scenes", "--runtime-mode", "headless", "--show-commands", "--summary-format", "json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert len(payload) == 1
+    assert payload[0]["runtime_mode"] == "headless"
+    assert payload[0]["recommended_command"] == "genesis-sensors synthetic --dry-run --summary-format json"
 
 
 def test_cli_runs_selected_builder(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:

@@ -143,6 +143,8 @@ package = { shell = "python -m build && python -m twine check dist/*" }
 smoke_cli = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --version" }
 list_scenes = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --list-scenes" }
 list_profiles = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --list-profiles --summary-format json" }
+catalog_summary = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --catalog-summary --summary-format json" }
+scene_commands = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --list-scenes --runtime-mode headless --show-commands --summary-format json" }
 describe_synthetic_scene = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --describe-scene synthetic --summary-format json" }
 list_phases = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --list-phases --summary-format json" }
 synthetic_demo = { shell = "PYTHONPATH=src python -m genesis_sensors.cli synthetic --steps 8 --summary-every 4" }

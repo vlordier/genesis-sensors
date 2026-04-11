@@ -24,6 +24,7 @@ from .rigs import (
 _HOVER_RPM = 14_468.43
 _DEFAULT_DEMO_DT = 0.01
 _DEFAULT_SYNTHETIC_DT = 0.05
+_DEFAULT_RUNTIME_STEPS = 200
 _SCENE_SUBSTEPS = 2
 _DRONE_START_POS = (0.0, 0.0, 0.5)
 _PERCEPTION_START_POS = (0.0, 0.0, 0.7)
@@ -73,6 +74,33 @@ class SceneRuntimeMode(str, Enum):
     RUNTIME = "runtime"
     HEADLESS = "headless"
 
+    @classmethod
+    def values(cls) -> tuple[str, ...]:
+        """Return the serialized runtime-mode values in declaration order."""
+        return tuple(mode.value for mode in cls)
+
+    @classmethod
+    def from_requires_runtime(cls, requires_runtime: bool) -> "SceneRuntimeMode":
+        """Map a legacy boolean runtime flag to the matching runtime mode."""
+        return cls.RUNTIME if requires_runtime else cls.HEADLESS
+
+
+@dataclass(frozen=True, slots=True)
+class SceneCatalogFilter:
+    """Typed filter bundle used by the demo catalog helpers and CLI."""
+
+    profile: RigProfile | None = None
+    runtime_mode: SceneRuntimeMode | None = None
+    query: str | None = None
+
+    @property
+    def normalized_query(self) -> str | None:
+        """Return the stripped case-folded query, or ``None`` if it is empty."""
+        if self.query is None:
+            return None
+        query = self.query.strip().casefold()
+        return query or None
+
 
 @dataclass(frozen=True, slots=True)
 class DemoSceneSpec:
@@ -87,7 +115,7 @@ class DemoSceneSpec:
     @property
     def runtime_mode(self) -> SceneRuntimeMode:
         """Return whether the scene needs the Genesis runtime or can run headlessly."""
-        return SceneRuntimeMode.RUNTIME if self.requires_runtime else SceneRuntimeMode.HEADLESS
+        return SceneRuntimeMode.from_requires_runtime(self.requires_runtime)
 
     @property
     def is_headless(self) -> bool:
@@ -99,12 +127,15 @@ class DemoSceneSpec:
         *,
         profile: RigProfile | None = None,
         requires_runtime: bool | None = None,
+        runtime_mode: SceneRuntimeMode | None = None,
         query: str | None = None,
     ) -> bool:
         """Check whether the scene metadata matches a catalog filter."""
-        if profile is not None and self.profile is not profile:
+        if profile is not None and self.profile != profile:
             return False
-        if requires_runtime is not None and self.requires_runtime is not requires_runtime:
+        if requires_runtime is not None and self.requires_runtime != requires_runtime:
+            return False
+        if runtime_mode is not None and self.runtime_mode != runtime_mode:
             return False
         if query is None:
             return True
@@ -113,6 +144,12 @@ class DemoSceneSpec:
             return True
         haystack = f"{self.name} {self.description} {self.profile.value}".casefold()
         return normalized_query in haystack
+
+    def recommended_command(self) -> str:
+        """Return a small copy-pasteable CLI command for this scene."""
+        if self.runtime_mode == SceneRuntimeMode.HEADLESS:
+            return f"genesis-sensors {self.name} --dry-run --summary-format json"
+        return f"genesis-sensors {self.name} --steps {_DEFAULT_RUNTIME_STEPS}"
 
     def as_dict(self) -> dict[str, Any]:
         """Return a JSON-friendly representation of the scene metadata."""
@@ -124,6 +161,7 @@ class DemoSceneSpec:
             "runtime_mode": self.runtime_mode.value,
             "is_headless": self.is_headless,
             "default_dt": self.default_dt,
+            "recommended_command": self.recommended_command(),
         }
 
 
@@ -137,6 +175,7 @@ class DemoCatalogSummary:
     scene_names: tuple[str, ...]
     headless_scenes: tuple[str, ...]
     runtime_scenes: tuple[str, ...]
+    recommended_commands: tuple[str, ...]
 
     def as_dict(self) -> dict[str, Any]:
         """Return a JSON-friendly summary payload."""
@@ -147,6 +186,7 @@ class DemoCatalogSummary:
             "scene_names": list(self.scene_names),
             "headless_scenes": list(self.headless_scenes),
             "runtime_scenes": list(self.runtime_scenes),
+            "recommended_commands": list(self.recommended_commands),
         }
 
     def headless_scene_names(self) -> tuple[str, ...]:
@@ -156,6 +196,12 @@ class DemoCatalogSummary:
     def runtime_scene_names(self) -> tuple[str, ...]:
         """Return the names of runtime-backed scenes in the summarized catalog."""
         return self.runtime_scenes
+
+    def preview_commands(self, limit: int = 3) -> tuple[str, ...]:
+        """Return a small preview of recommended CLI commands from the catalog."""
+        if limit <= 0:
+            return ()
+        return self.recommended_commands[:limit]
 
 
 _DEMO_SCENE_SPECS: tuple[DemoSceneSpec, ...] = (
@@ -178,15 +224,66 @@ def list_demo_scenes() -> tuple[DemoSceneSpec, ...]:
     return _DEMO_SCENE_SPECS
 
 
+def _coerce_catalog_filter(
+    *,
+    profile: RigProfile | None = None,
+    requires_runtime: bool | None = None,
+    runtime_mode: SceneRuntimeMode | None = None,
+    query: str | None = None,
+    filters: SceneCatalogFilter | None = None,
+) -> SceneCatalogFilter:
+    """Merge explicit filter arguments with an optional filter dataclass."""
+    if filters is not None:
+        if profile is None:
+            profile = filters.profile
+        if runtime_mode is None:
+            runtime_mode = filters.runtime_mode
+        if query is None:
+            query = filters.normalized_query
+    if runtime_mode is None and requires_runtime is not None:
+        runtime_mode = SceneRuntimeMode.from_requires_runtime(requires_runtime)
+    return SceneCatalogFilter(profile=profile, runtime_mode=runtime_mode, query=query)
+
+
 def list_demo_scene_names(
     *,
     profile: RigProfile | None = None,
     requires_runtime: bool | None = None,
+    runtime_mode: SceneRuntimeMode | None = None,
     query: str | None = None,
+    filters: SceneCatalogFilter | None = None,
 ) -> tuple[str, ...]:
     """Return only the scene names for a filtered view of the built-in catalog."""
     return tuple(
-        spec.name for spec in filter_demo_scenes(profile=profile, requires_runtime=requires_runtime, query=query)
+        spec.name
+        for spec in filter_demo_scenes(
+            profile=profile,
+            requires_runtime=requires_runtime,
+            runtime_mode=runtime_mode,
+            query=query,
+            filters=filters,
+        )
+    )
+
+
+def list_demo_scene_commands(
+    *,
+    profile: RigProfile | None = None,
+    requires_runtime: bool | None = None,
+    runtime_mode: SceneRuntimeMode | None = None,
+    query: str | None = None,
+    filters: SceneCatalogFilter | None = None,
+) -> tuple[str, ...]:
+    """Return recommended CLI commands for a filtered view of the built-in catalog."""
+    return tuple(
+        spec.recommended_command()
+        for spec in filter_demo_scenes(
+            profile=profile,
+            requires_runtime=requires_runtime,
+            runtime_mode=runtime_mode,
+            query=query,
+            filters=filters,
+        )
     )
 
 
@@ -194,13 +291,26 @@ def filter_demo_scenes(
     *,
     profile: RigProfile | None = None,
     requires_runtime: bool | None = None,
+    runtime_mode: SceneRuntimeMode | None = None,
     query: str | None = None,
+    filters: SceneCatalogFilter | None = None,
 ) -> tuple[DemoSceneSpec, ...]:
-    """Filter the built-in demo catalog by rig profile, runtime requirement, or text query."""
+    """Filter the built-in demo catalog by rig profile, runtime mode, or text query."""
+    catalog_filter = _coerce_catalog_filter(
+        profile=profile,
+        requires_runtime=requires_runtime,
+        runtime_mode=runtime_mode,
+        query=query,
+        filters=filters,
+    )
     return tuple(
         spec
         for spec in _DEMO_SCENE_SPECS
-        if spec.matches(profile=profile, requires_runtime=requires_runtime, query=query)
+        if spec.matches(
+            profile=catalog_filter.profile,
+            runtime_mode=catalog_filter.runtime_mode,
+            query=catalog_filter.normalized_query,
+        )
     )
 
 
@@ -208,13 +318,22 @@ def describe_demo_catalog(
     *,
     profile: RigProfile | None = None,
     requires_runtime: bool | None = None,
+    runtime_mode: SceneRuntimeMode | None = None,
     query: str | None = None,
+    filters: SceneCatalogFilter | None = None,
 ) -> DemoCatalogSummary:
     """Summarize the built-in demo catalog for docs, CLIs, and automation."""
-    specs = filter_demo_scenes(profile=profile, requires_runtime=requires_runtime, query=query)
+    specs = filter_demo_scenes(
+        profile=profile,
+        requires_runtime=requires_runtime,
+        runtime_mode=runtime_mode,
+        query=query,
+        filters=filters,
+    )
     scene_names = tuple(spec.name for spec in specs)
     headless_scenes = tuple(spec.name for spec in specs if spec.is_headless)
     runtime_scenes = tuple(spec.name for spec in specs if spec.requires_runtime)
+    recommended_commands = tuple(spec.recommended_command() for spec in specs)
     profile_counts = dict(sorted(Counter(spec.profile.value for spec in specs).items()))
     runtime_counts = dict(sorted(Counter(spec.runtime_mode.value for spec in specs).items()))
     return DemoCatalogSummary(
@@ -224,6 +343,7 @@ def describe_demo_catalog(
         scene_names=scene_names,
         headless_scenes=headless_scenes,
         runtime_scenes=runtime_scenes,
+        recommended_commands=recommended_commands,
     )
 
 
@@ -528,15 +648,21 @@ def build_synthetic_demo(
 
 
 __all__ = [
+    "DemoCatalogSummary",
     "DemoScene",
     "DemoSceneSpec",
     "HeadlessScene",
+    "SceneCatalogFilter",
+    "SceneRuntimeMode",
     "build_drone_demo",
     "build_perception_demo",
     "build_franka_demo",
     "build_go2_demo",
     "build_synthetic_demo",
+    "describe_demo_catalog",
     "filter_demo_scenes",
     "get_demo_scene_spec",
+    "list_demo_scene_commands",
+    "list_demo_scene_names",
     "list_demo_scenes",
 ]
