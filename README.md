@@ -20,6 +20,7 @@ Inspired by the standalone feel of `GenesisDroneEnv`, this package wraps the Gen
   - Go2 proprioception + per-leg contact sensing
 - **Bundled sensor runtime** so the package works with released `genesis-world` as-is
 - **Headless synthetic rigs and state builders** for quickly exercising the full sensor surface
+- **Synthetic rollout planning helpers** via `SyntheticScenarioConfig`, `make_synthetic_rollout()`, `summarize_synthetic_rollout()`, and `genesis-sensors --list-phases`
 - **Headless CLI synthetic demo** via `genesis-sensors synthetic`, useful for smoke tests even before installing the full Genesis runtime
 - **Scene catalog and dry-run summaries** via `list_demo_scenes()`, `filter_demo_scenes()`, `genesis-sensors --list-scenes`, and `SensorRig.describe()`
 - **Robustness wrappers** for latency injection, packet dropouts, and per-observation health metadata
@@ -133,9 +134,15 @@ demo.rig.reset()
 # Or smoke-test the full stack without Genesis/Torch:
 # genesis-sensors synthetic --steps 24 --summary-every 6
 
-from genesis_sensors import list_demo_scenes
+from genesis_sensors import (
+    SyntheticScenarioConfig,
+    list_demo_scenes,
+    summarize_synthetic_rollout,
+)
+
 print(list_demo_scenes()[0])
 print(demo.rig.describe().as_dict())
+print(summarize_synthetic_rollout(frame_count=8, config=SyntheticScenarioConfig()).as_dict())
 ```
 
 See `docs/examples.md` for the full `genesis-world` + `genesis_sensors` walkthroughs and the generated outputs embedded in the documentation.
@@ -198,6 +205,7 @@ genesis-sensors franka --steps 200
 genesis-sensors go2 --steps 200
 genesis-sensors synthetic --steps 24 --summary-every 6
 genesis-sensors --list-scenes
+genesis-sensors --list-phases --summary-format json
 genesis-sensors --list-scenes --profile synthetic_multimodal --headless-only --summary-format json
 genesis-sensors synthetic --dry-run --summary-format json --write-summary /tmp/synthetic.json
 

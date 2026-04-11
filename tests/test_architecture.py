@@ -16,12 +16,17 @@ import numpy as np
 import pytest
 
 from genesis_sensors import (
+    ScenarioPhase,
     SensorScheduler,
     SensorSuite,
     SensorSuiteConfig,
+    SyntheticScenarioConfig,
     get_scenario_phase,
     list_presets,
+    list_scenario_windows,
+    make_synthetic_rollout,
     make_synthetic_sensor_state,
+    summarize_synthetic_rollout,
 )
 
 from conftest import ALL_SENSOR_PAIRS, STEPPABLE_SENSORS  # type: ignore[import-not-found]
@@ -309,6 +314,8 @@ def test_get_scenario_phase_boundaries(progress: float, expected_phase: str) -> 
         ({"resolution": (96, 0)}, "resolution"),
         ({"lidar_shape": (0, 64)}, "lidar_shape"),
         ({"lidar_shape": (8, 0)}, "lidar_shape"),
+        ({"tof_shape": (0, 8)}, "tof_shape"),
+        ({"tof_shape": (8, 0)}, "tof_shape"),
     ],
 )
 def test_make_synthetic_sensor_state_validates_inputs(kwargs: dict[str, Any], match: str) -> None:
@@ -327,6 +334,44 @@ def test_make_synthetic_sensor_state_exposes_rollout_metadata() -> None:
     assert state["sim_time"] == pytest.approx(0.5)
     assert 0.0 <= state["scenario_progress"] <= 1.0
     assert state["phase"] == get_scenario_phase(state["scenario_progress"])
+
+
+def test_synthetic_scenario_config_and_phase_windows_are_consistent() -> None:
+    config = SyntheticScenarioConfig(
+        dt=0.02,
+        total_frames=12,
+        resolution=(32, 24),
+        lidar_shape=(4, 16),
+        tof_shape=(4, 4),
+    ).validated()
+    windows = list_scenario_windows()
+
+    assert windows[0].phase is ScenarioPhase.TAKEOFF
+    assert windows[-1].phase is ScenarioPhase.SIGNAL_RECOVERY
+    assert windows[0].duration == pytest.approx(0.20)
+    assert config.phase_for_frame(0) is ScenarioPhase.TAKEOFF
+    assert config.phase_for_frame(config.total_frames - 1) is ScenarioPhase.SIGNAL_RECOVERY
+
+
+def test_make_synthetic_rollout_and_summary_share_metadata() -> None:
+    config = SyntheticScenarioConfig(
+        dt=0.02,
+        total_frames=20,
+        resolution=(32, 24),
+        lidar_shape=(4, 16),
+        tof_shape=(4, 4),
+    ).validated()
+
+    rollout = make_synthetic_rollout(frame_count=6, config=config)
+    summary = summarize_synthetic_rollout(frame_count=6, config=config)
+
+    assert len(rollout) == 6
+    assert rollout[0]["rgb"].shape == (24, 32, 3)
+    assert rollout[-1]["tof_ranges_m"].shape == (4, 4)
+    assert summary.frame_count == 6
+    assert summary.has_sensor_key("rgb")
+    assert summary.phase_counts[ScenarioPhase.TAKEOFF.value] >= 1
+    assert summary.as_dict()["resolution"] == [32, 24]
 
 
 @pytest.mark.parametrize(

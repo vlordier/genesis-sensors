@@ -34,6 +34,7 @@ _EXAMPLES = (
     "Examples:\n"
     "  genesis-sensors --list-scenes\n"
     "  genesis-sensors --list-scenes --profile perception --summary-format json\n"
+    "  genesis-sensors --list-phases --summary-format json\n"
     "  genesis-sensors drone --steps 200\n"
     "  genesis-sensors perception --gpu --vis\n"
     "  genesis-sensors synthetic --steps 24 --summary-every 6\n"
@@ -73,6 +74,7 @@ class CLIRunConfig:
     use_gpu: bool
     dry_run: bool
     list_scenes: bool
+    list_phases: bool
     write_summary: str | None
 
     @classmethod
@@ -91,6 +93,7 @@ class CLIRunConfig:
             use_gpu=args.gpu,
             dry_run=args.dry_run,
             list_scenes=args.list_scenes,
+            list_phases=args.list_phases,
             write_summary=args.write_summary,
         )
 
@@ -174,6 +177,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dry-run", action="store_true", help="Build the demo and print its summary without stepping it"
     )
     parser.add_argument("--list-scenes", action="store_true", help="List the built-in scene presets and exit")
+    parser.add_argument("--list-phases", action="store_true", help="List the synthetic scenario phases and exit")
     parser.add_argument("--vis", action="store_true", help="Open the Genesis viewer")
     parser.add_argument("--gpu", action="store_true", help="Use the GPU backend when available")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -239,6 +243,28 @@ def _print_scene_catalog(
             f"dt={spec.default_dt:.2f} "
             f"profile={spec.profile.value}  {spec.description}"
         )
+    _emit_output("\n".join(lines), write_summary=write_summary)
+
+
+def _print_phase_catalog(*, summary_format: SummaryFormat, write_summary: str | None) -> None:
+    """Print the named synthetic scenario phases without requiring the Genesis runtime."""
+    from .synthetic import list_scenario_windows
+
+    windows = list_scenario_windows()
+    if summary_format is SummaryFormat.JSON:
+        payload = [
+            {
+                "phase": window.phase.value,
+                "start": round(window.start, 4),
+                "end": round(window.end, 4),
+                "duration": round(window.duration, 4),
+            }
+            for window in windows
+        ]
+        _emit_output(json.dumps(payload, indent=2, sort_keys=True), write_summary=write_summary)
+        return
+
+    lines = [f"{window.phase.value:<18} start={window.start:.2f} end={window.end:.2f}" for window in windows]
     _emit_output("\n".join(lines), write_summary=write_summary)
 
 
@@ -330,6 +356,9 @@ def main(argv: Sequence[str] | None = None) -> None:
             headless_only=config.headless_only,
             write_summary=config.write_summary,
         )
+        return
+    if config.list_phases:
+        _print_phase_catalog(summary_format=config.summary_format, write_summary=config.write_summary)
         return
     if config.scene is None:
         parser.error("scene is required unless --list-scenes is used")

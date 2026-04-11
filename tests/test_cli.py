@@ -26,6 +26,7 @@ def test_cli_help_lists_available_scenes(capsys: pytest.CaptureFixture[str]) -> 
     assert "--steps" in help_text
     assert "--summary-every" in help_text
     assert "--list-scenes" in help_text
+    assert "--list-phases" in help_text
     assert "--dry-run" in help_text
     assert "--summary-format" in help_text
     assert "--profile" in help_text
@@ -83,6 +84,15 @@ def test_cli_lists_filtered_scenes_as_json(capsys: pytest.CaptureFixture[str]) -
     assert len(payload) == 1
     assert payload[0]["name"] == "synthetic"
     assert payload[0]["requires_runtime"] is False
+
+
+def test_cli_lists_synthetic_phases_as_json(capsys: pytest.CaptureFixture[str]) -> None:
+    cli.main(["--list-phases", "--summary-format", "json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload[0]["phase"] == "takeoff"
+    assert payload[-1]["phase"] == "signal_recovery"
+    assert payload[0]["duration"] == pytest.approx(0.2)
 
 
 def test_cli_runs_selected_builder(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:

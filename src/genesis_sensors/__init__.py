@@ -21,8 +21,14 @@ require_upstream_sensors = _sensor_backend.require_upstream_sensors
 upstream_sensors_error = _sensor_backend.upstream_sensors_error
 
 GNSS_ORIGIN_LLH = _synthetic.GNSS_ORIGIN_LLH
+ScenarioPhase = _synthetic.ScenarioPhase
+SyntheticRolloutSummary = _synthetic.SyntheticRolloutSummary
+SyntheticScenarioConfig = _synthetic.SyntheticScenarioConfig
 get_scenario_phase = _synthetic.get_scenario_phase
+list_scenario_windows = _synthetic.list_scenario_windows
+make_synthetic_rollout = _synthetic.make_synthetic_rollout
 make_synthetic_sensor_state = _synthetic.make_synthetic_sensor_state
+summarize_synthetic_rollout = _synthetic.summarize_synthetic_rollout
 
 _COMPAT_EXPORTS = set(getattr(_sensor_backend, "__all__", []))
 
@@ -94,6 +100,8 @@ __all__ = sorted(
         "SENSOR_BACKEND",
         "ScenarioPhase",
         "SensorFaultConfig",
+        "SyntheticRolloutSummary",
+        "SyntheticScenarioConfig",
         "SensorRig",
         "SensorRigSummary",
         "SensorScheduler",
@@ -109,13 +117,16 @@ __all__ = sorted(
         "get_scenario_phase",
         "has_upstream_sensors",
         "list_demo_scenes",
+        "list_scenario_windows",
         "make_drone_navigation_rig",
         "make_drone_perception_rig",
         "make_franka_wrist_rig",
         "make_go2_rig",
         "make_synthetic_multimodal_rig",
+        "make_synthetic_rollout",
         "make_synthetic_sensor_state",
         "require_upstream_sensors",
+        "summarize_synthetic_rollout",
         "wrap_rig_with_faults",
         "wrap_scheduler_with_faults",
         "wrap_suite_with_faults",

@@ -29,6 +29,11 @@ _GO2_START_POS = (0.0, 0.0, 0.35)
 _FRANKA_ARM_DOF_INDICES = tuple(range(7))
 _GO2_DOF_INDICES = tuple(range(12))
 _GO2_STAND_POSE = np.array([0.0, 0.7, -1.4] * 4, dtype=np.float32)
+_FRANKA_JOINT_KP = np.array([4500.0, 4500.0, 3500.0, 3500.0, 2000.0, 2000.0, 2000.0, 100.0, 100.0])
+_FRANKA_JOINT_KV = np.array([450.0, 450.0, 350.0, 350.0, 200.0, 200.0, 200.0, 10.0, 10.0])
+_FRANKA_FORCE_RANGE_LOW = np.array([-87.0, -87.0, -87.0, -87.0, -12.0, -12.0, -12.0, -100.0, -100.0])
+_FRANKA_FORCE_RANGE_HIGH = np.array([87.0, 87.0, 87.0, 87.0, 12.0, 12.0, 12.0, 100.0, 100.0])
+_FRANKA_HOME_Q = np.array([0.0, 0.35, 0.0, -2.0, 0.0, 2.35, 0.7], dtype=np.float32)
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,6 +125,14 @@ def _make_viewer_options(gs: Any, preset: ViewerCameraPreset) -> Any:
         camera_lookat=preset.camera_lookat,
         camera_fov=preset.camera_fov,
     )
+
+
+def _hold_go2_stance(robot: Any, stand_pose: np.ndarray) -> None:
+    """Keep the quadruped near its nominal stance when the runtime exposes joint control."""
+    try:
+        robot.control_dofs_position(stand_pose, list(_GO2_DOF_INDICES))
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return
 
 
 @dataclass(slots=True)
@@ -317,15 +330,12 @@ def build_franka_demo(
     franka = scene.add_entity(gs.morphs.MJCF(file="xml/franka_emika_panda/panda.xml"))
     scene.build()
 
-    franka.set_dofs_kp(np.array([4500.0, 4500.0, 3500.0, 3500.0, 2000.0, 2000.0, 2000.0, 100.0, 100.0]))
-    franka.set_dofs_kv(np.array([450.0, 450.0, 350.0, 350.0, 200.0, 200.0, 200.0, 10.0, 10.0]))
-    franka.set_dofs_force_range(
-        np.array([-87.0, -87.0, -87.0, -87.0, -12.0, -12.0, -12.0, -100.0, -100.0]),
-        np.array([87.0, 87.0, 87.0, 87.0, 12.0, 12.0, 12.0, 100.0, 100.0]),
-    )
+    franka.set_dofs_kp(_FRANKA_JOINT_KP)
+    franka.set_dofs_kv(_FRANKA_JOINT_KV)
+    franka.set_dofs_force_range(_FRANKA_FORCE_RANGE_LOW, _FRANKA_FORCE_RANGE_HIGH)
 
     arm_dofs = list(_FRANKA_ARM_DOF_INDICES)
-    home_q = np.array([0.0, 0.35, 0.0, -2.0, 0.0, 2.35, 0.7], dtype=np.float32)
+    home_q = _FRANKA_HOME_Q
 
     def _controller(step: int) -> None:
         phase = step * dt
@@ -372,10 +382,8 @@ def build_go2_demo(
     stand = _GO2_STAND_POSE
 
     def _controller(step: int) -> None:
-        try:
-            go2.control_dofs_position(stand, list(_GO2_DOF_INDICES))
-        except Exception:
-            pass
+        _ = step
+        _hold_go2_stance(go2, stand)
 
     return DemoScene(
         name="go2", scene=scene, entity=go2, rig=make_go2_rig(go2, dt=dt, seed=seed), controller=_controller

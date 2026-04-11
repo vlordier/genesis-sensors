@@ -9,10 +9,15 @@ from genesis_sensors import (
     RigProfile,
     ScenarioPhase,
     SensorRigSummary,
+    SyntheticRolloutSummary,
+    SyntheticScenarioConfig,
     build_synthetic_demo,
     filter_demo_scenes,
     get_demo_scene_spec,
     list_demo_scenes,
+    list_scenario_windows,
+    make_synthetic_rollout,
+    summarize_synthetic_rollout,
 )
 from genesis_sensors import config as config_module
 from genesis_sensors import genesis_bridge as bridge_module
@@ -79,8 +84,13 @@ def test_synthetic_module_exports_defaults_and_helpers() -> None:
         "DEFAULT_TOTAL_FRAMES",
         "GNSS_ORIGIN_LLH",
         "ScenarioPhase",
+        "SyntheticRolloutSummary",
+        "SyntheticScenarioConfig",
         "get_scenario_phase",
+        "list_scenario_windows",
+        "make_synthetic_rollout",
         "make_synthetic_sensor_state",
+        "summarize_synthetic_rollout",
     }
 
     assert expected.issubset(set(synthetic_module.__all__))
@@ -93,6 +103,20 @@ def test_public_enums_expose_expected_values() -> None:
     assert ObservationStatus.DROPOUT_HOLD.value == "dropout_hold"
     assert ScenarioPhase.TAKEOFF.value == "takeoff"
     assert ScenarioPhase.SIGNAL_RECOVERY.value == "signal_recovery"
+
+
+def test_synthetic_rollout_helpers_are_public_and_typed() -> None:
+    config = SyntheticScenarioConfig(
+        dt=0.02, total_frames=10, resolution=(24, 16), lidar_shape=(4, 8), tof_shape=(4, 4)
+    )
+    windows = list_scenario_windows()
+    rollout = make_synthetic_rollout(frame_count=4, config=config)
+    summary = summarize_synthetic_rollout(frame_count=4, config=config)
+
+    assert windows[0].phase is ScenarioPhase.TAKEOFF
+    assert rollout[0]["rgb"].shape == (16, 24, 3)
+    assert summary.__class__.__name__ == SyntheticRolloutSummary.__name__
+    assert summary.has_sensor_key("tof_ranges_m")
 
 
 def test_build_synthetic_demo_is_headless_and_public() -> None:
