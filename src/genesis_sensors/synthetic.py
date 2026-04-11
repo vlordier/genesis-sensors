@@ -25,10 +25,25 @@ _SCENARIO_PHASES = (
 )
 
 
+def _validate_positive_shape(name: str, shape: tuple[int, int]) -> tuple[int, int]:
+    """Validate two-dimensional integer shapes used by the synthetic helpers."""
+    if len(shape) != 2:
+        raise ValueError(f"{name} must contain exactly two integers, got {shape!r}")
+    dim0, dim1 = (int(shape[0]), int(shape[1]))
+    if dim0 <= 0 or dim1 <= 0:
+        raise ValueError(f"{name} dimensions must be > 0, got {shape!r}")
+    return dim0, dim1
+
+
 def get_scenario_phase(progress: float) -> str:
-    """Map rollout progress in ``[0, 1]`` to a human-readable scenario phase."""
+    """Map rollout progress to a human-readable scenario phase.
+
+    Negative progress values are clamped to the first phase, while values above
+    the final interval resolve to ``"signal_recovery"``.
+    """
+    bounded_progress = max(0.0, float(progress))
     for phase_name, start, end in _SCENARIO_PHASES:
-        if start <= progress < end:
+        if start <= bounded_progress < end:
             return phase_name
     return _SCENARIO_PHASES[-1][0]
 
@@ -42,12 +57,18 @@ def make_synthetic_sensor_state(
     lidar_shape: tuple[int, int] = DEFAULT_LIDAR_SHAPE,
 ) -> dict[str, Any]:
     """Create one rich synthetic state compatible with the upstream `genesis.sensors` models."""
-    sim_time = frame_idx * dt
-    progress = frame_idx / max(total_frames - 1, 1)
-    phase_name = get_scenario_phase(progress)
+    if dt <= 0.0:
+        raise ValueError(f"dt must be > 0, got {dt}")
+    if total_frames <= 0:
+        raise ValueError(f"total_frames must be > 0, got {total_frames}")
 
-    width, height = resolution
-    lidar_channels, lidar_res = lidar_shape
+    frame_idx = int(frame_idx)
+    width, height = _validate_positive_shape("resolution", resolution)
+    lidar_channels, lidar_res = _validate_positive_shape("lidar_shape", lidar_shape)
+
+    sim_time = frame_idx * dt
+    progress = float(np.clip(frame_idx / max(total_frames - 1, 1), 0.0, 1.0))
+    phase_name = get_scenario_phase(progress)
 
     x = np.linspace(0.0, 1.0, width, dtype=np.float32)
     y = np.linspace(0.0, 1.0, height, dtype=np.float32)
@@ -294,3 +315,14 @@ def make_synthetic_sensor_state(
         "phase": phase_name,
         "fault_flags": [phase_name.replace("_", " ")] if phase_name not in {"takeoff", "cruise"} else [],
     }
+
+
+__all__ = [
+    "DEFAULT_DT",
+    "DEFAULT_LIDAR_SHAPE",
+    "DEFAULT_RESOLUTION",
+    "DEFAULT_TOTAL_FRAMES",
+    "GNSS_ORIGIN_LLH",
+    "get_scenario_phase",
+    "make_synthetic_sensor_state",
+]

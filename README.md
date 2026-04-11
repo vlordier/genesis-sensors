@@ -86,10 +86,12 @@ pip install -e .[dev]
 pip install -e .[rerun]
 # or: pip install rerun-sdk
 
-# 4c. Optional: use uv for fast local checks
+# 4c. Optional: use uv for fast local checks and docs helpers
 uv sync --extra dev
 uv run --extra dev poe test_fast
+uv run --extra dev poe test_api
 uv run --extra dev poe coverage
+uv run --extra dev poe api_docs
 
 # 5. Or install the published package directly
 pip install genesis-sensors
@@ -207,8 +209,12 @@ python -m twine check dist/*
 uv run --extra dev poe lint
 uv run --extra dev poe docs
 uv run --extra dev poe test
+uv run --extra dev poe test_api
 uv run --extra dev poe coverage
 uv run --extra dev poe test_fast
+uv run --extra dev poe api_docs
+uv run --extra dev poe smoke_cli
+uv run --extra dev poe package
 uv run --extra dev poe fault_demo
 uv run --extra dev poe rerun_save
 uv run --extra dev poe check_fast

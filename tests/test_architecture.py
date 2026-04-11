@@ -282,6 +282,7 @@ def test_multi_rate_scheduling_cadence() -> None:
 @pytest.mark.parametrize(
     ("progress", "expected_phase"),
     [
+        (-0.25, "takeoff"),
         (0.00, "takeoff"),
         (0.1999, "takeoff"),
         (0.20, "cruise"),
@@ -295,6 +296,28 @@ def test_multi_rate_scheduling_cadence() -> None:
 )
 def test_get_scenario_phase_boundaries(progress: float, expected_phase: str) -> None:
     assert get_scenario_phase(progress) == expected_phase
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        ({"dt": 0.0}, "dt"),
+        ({"dt": -0.1}, "dt"),
+        ({"total_frames": 0}, "total_frames"),
+        ({"resolution": (0, 72)}, "resolution"),
+        ({"resolution": (96, 0)}, "resolution"),
+        ({"lidar_shape": (0, 64)}, "lidar_shape"),
+        ({"lidar_shape": (8, 0)}, "lidar_shape"),
+    ],
+)
+def test_make_synthetic_sensor_state_validates_inputs(kwargs: dict[str, Any], match: str) -> None:
+    with pytest.raises(ValueError, match=match):
+        make_synthetic_sensor_state(0, **kwargs)
+
+
+def test_make_synthetic_sensor_state_clamps_negative_frame_to_takeoff_phase() -> None:
+    state = make_synthetic_sensor_state(-5)
+    assert state["phase"] == "takeoff"
 
 
 @pytest.mark.parametrize(

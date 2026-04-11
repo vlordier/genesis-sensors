@@ -1,5 +1,13 @@
 # Hydrophone
 
+## Generated example
+
+> Generated from `examples/generate_sensor_doc_assets.py` using the real sensor models driven by headless Genesis demo scenes.
+
+### Hydrophone generated example
+
+![Hydrophone generated example](../assets/sensors/hydrophone.svg)
+
 ::: genesis_sensors._runtime_sensors.hydrophone
     options:
       show_root_heading: true

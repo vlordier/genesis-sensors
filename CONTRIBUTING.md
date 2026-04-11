@@ -76,6 +76,11 @@ pip install -e .[dev]
 # Required for scene-backed Genesis tests and demos
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 pre-commit install
+
+# Optional: use uv-managed shortcuts for repeatable local checks
+uv sync --extra dev
+uv run --extra dev poe test_fast
+uv run --extra dev poe test_api
 ```
 
 ## Checks
@@ -85,10 +90,17 @@ pre-commit run --all-files
 ruff check .
 pytest tests -q
 # Fast subset when Torch/Genesis runtime is not installed locally
-pytest tests/test_compat.py tests/test_architecture.py tests/test_rigs.py -q
+pytest tests/test_compat.py tests/test_architecture.py tests/test_rigs.py tests/test_robustness.py tests/test_cli.py tests/test_public_api.py -q
 python -m build
 python -m twine check dist/*
 mkdocs build --strict
+
+# Equivalent poe shortcuts
+uv run --extra dev poe test_fast
+uv run --extra dev poe test_api
+uv run --extra dev poe api_docs
+uv run --extra dev poe package
+uv run --extra dev poe smoke_cli
 ```
 
 ## Scope
