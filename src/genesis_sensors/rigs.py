@@ -135,6 +135,16 @@ class SensorRigSummary:
             "has_custom_reset": self.has_custom_reset,
         }
 
+    def has_sensor(self, name: str) -> bool:
+        """Check whether the summarized rig includes a named sensor."""
+        return name in self.sensor_names
+
+    def preview_sensor_names(self, limit: int = 6) -> tuple[str, ...]:
+        """Return a small preview slice of the available sensor names."""
+        if limit <= 0:
+            return ()
+        return self.sensor_names[:limit]
+
 
 @dataclass
 class VelocityCache:

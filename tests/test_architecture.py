@@ -94,6 +94,7 @@ class TestGaussMarkovProcess:
 # Config roundtrip tests
 # ────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.parametrize(
     "model_cls,config_cls",
     ALL_SENSOR_PAIRS,

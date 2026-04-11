@@ -32,8 +32,9 @@ use the built-in synthetic demo:
 
 ```bash
 PYTHONPATH=src python -m genesis_sensors.cli --list-scenes
+PYTHONPATH=src python -m genesis_sensors.cli --list-scenes --profile synthetic_multimodal --headless-only --summary-format json
 PYTHONPATH=src python -m genesis_sensors.cli synthetic --steps 8 --summary-every 4
-PYTHONPATH=src python -m genesis_sensors.cli synthetic --dry-run --summary-format json
+PYTHONPATH=src python -m genesis_sensors.cli synthetic --dry-run --summary-format json --write-summary /tmp/synthetic.json
 ```
 
 ```python

@@ -7,9 +7,11 @@ import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from . import __version__
+from .rigs import RigProfile
 
 if TYPE_CHECKING:
     from .scenes import DemoScene
@@ -31,10 +33,11 @@ _SUMMARY_PRIORITY_KEYS = ("imu", "gnss", "lidar", "rgb", "thermal", "radio")
 _EXAMPLES = (
     "Examples:\n"
     "  genesis-sensors --list-scenes\n"
+    "  genesis-sensors --list-scenes --profile perception --summary-format json\n"
     "  genesis-sensors drone --steps 200\n"
     "  genesis-sensors perception --gpu --vis\n"
     "  genesis-sensors synthetic --steps 24 --summary-every 6\n"
-    "  genesis-sensors synthetic --dry-run --summary-format json"
+    "  genesis-sensors synthetic --dry-run --summary-format json --write-summary /tmp/synthetic.json"
 )
 
 
@@ -64,10 +67,13 @@ class CLIRunConfig:
     dt: float
     summary_every: int
     summary_format: SummaryFormat
+    profile_filter: RigProfile | None
+    headless_only: bool
     show_viewer: bool
     use_gpu: bool
     dry_run: bool
     list_scenes: bool
+    write_summary: str | None
 
     @classmethod
     def from_namespace(cls, args: argparse.Namespace) -> "CLIRunConfig":
@@ -79,14 +85,18 @@ class CLIRunConfig:
             dt=dt,
             summary_every=args.summary_every,
             summary_format=SummaryFormat(args.summary_format),
+            profile_filter=RigProfile(args.profile) if args.profile is not None else None,
+            headless_only=args.headless_only,
             show_viewer=args.vis,
             use_gpu=args.gpu,
             dry_run=args.dry_run,
             list_scenes=args.list_scenes,
+            write_summary=args.write_summary,
         )
 
 
 _SCENE_CHOICES = tuple(preset.value for preset in ScenePreset)
+_PROFILE_CHOICES = tuple(profile.value for profile in RigProfile)
 _SUMMARY_FORMAT_CHOICES = tuple(fmt.value for fmt in SummaryFormat)
 
 
@@ -121,12 +131,12 @@ def _default_dt_for_scene(scene: ScenePreset | None) -> float:
     if scene is None:
         return DEFAULT_DT_S
 
-    from .scenes import list_demo_scenes
+    from .scenes import get_demo_scene_spec
 
-    for spec in list_demo_scenes():
-        if spec.name == scene.value:
-            return spec.default_dt
-    return DEFAULT_DT_S
+    try:
+        return get_demo_scene_spec(scene.value).default_dt
+    except KeyError:
+        return DEFAULT_DT_S
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -155,9 +165,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--summary-format",
         choices=_SUMMARY_FORMAT_CHOICES,
         default=SummaryFormat.TEXT.value,
-        help="Render dry-run summaries as text or JSON",
+        help="Render dry-run and scene-list summaries as text or JSON",
     )
-    parser.add_argument("--dry-run", action="store_true", help="Build the demo and print its summary without stepping it")
+    parser.add_argument("--profile", choices=_PROFILE_CHOICES, help="Filter listed scenes by rig profile")
+    parser.add_argument("--headless-only", action="store_true", help="Only list scenes that do not require Genesis")
+    parser.add_argument("--write-summary", help="Write the dry-run or scene-list summary to a file")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Build the demo and print its summary without stepping it"
+    )
     parser.add_argument("--list-scenes", action="store_true", help="List the built-in scene presets and exit")
     parser.add_argument("--vis", action="store_true", help="Open the Genesis viewer")
     parser.add_argument("--gpu", action="store_true", help="Use the GPU backend when available")
@@ -178,18 +193,53 @@ def _get_scene_builders() -> dict[ScenePreset, Callable[..., DemoScene]]:
     }
 
 
-def _print_scene_catalog() -> None:
-    """Print the built-in scene catalog without requiring the Genesis runtime."""
-    from .scenes import list_demo_scenes
+def _emit_output(text: str, *, write_summary: str | None = None) -> None:
+    """Print text to stdout and optionally persist it to a summary file."""
+    print(text)
+    if write_summary is not None:
+        output_path = Path(write_summary)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(f"{text}\n", encoding="utf-8")
 
-    for spec in list_demo_scenes():
+
+def _print_scene_catalog(
+    *,
+    summary_format: SummaryFormat,
+    profile_filter: RigProfile | None,
+    headless_only: bool,
+    write_summary: str | None,
+) -> None:
+    """Print the built-in scene catalog without requiring the Genesis runtime."""
+    from .scenes import filter_demo_scenes
+
+    specs = filter_demo_scenes(
+        profile=profile_filter,
+        requires_runtime=False if headless_only else None,
+    )
+    if summary_format is SummaryFormat.JSON:
+        payload = [
+            {
+                "name": spec.name,
+                "description": spec.description,
+                "profile": spec.profile.value,
+                "requires_runtime": spec.requires_runtime,
+                "default_dt": spec.default_dt,
+            }
+            for spec in specs
+        ]
+        _emit_output(json.dumps(payload, indent=2, sort_keys=True), write_summary=write_summary)
+        return
+
+    lines = []
+    for spec in specs:
         runtime_label = "runtime" if spec.requires_runtime else "headless"
-        print(
+        lines.append(
             f"{spec.name:<{_SCENE_NAME_WIDTH}} "
             f"{runtime_label:<{_RUNTIME_MODE_WIDTH}} "
             f"dt={spec.default_dt:.2f} "
             f"profile={spec.profile.value}  {spec.description}"
         )
+    _emit_output("\n".join(lines), write_summary=write_summary)
 
 
 def _make_summary_callback(
@@ -214,7 +264,12 @@ def _make_summary_callback(
     return _callback
 
 
-def _print_demo_summary(demo: DemoScene, *, summary_format: SummaryFormat) -> None:
+def _print_demo_summary(
+    demo: DemoScene,
+    *,
+    summary_format: SummaryFormat,
+    write_summary: str | None = None,
+) -> None:
     """Print a structured description of the selected demo without running it."""
     describe_demo = getattr(demo, "describe", None)
     if callable(describe_demo):
@@ -228,16 +283,21 @@ def _print_demo_summary(demo: DemoScene, *, summary_format: SummaryFormat) -> No
         }
 
     if summary_format is SummaryFormat.JSON:
-        print(json.dumps(summary, indent=2, sort_keys=True))
+        _emit_output(json.dumps(summary, indent=2, sort_keys=True), write_summary=write_summary)
         return
 
     rig = dict(summary["rig"])
     sensor_names = ", ".join(rig["sensor_names"])
-    print(
-        f"scene={summary['scene']} profile={rig['profile']} sensors={rig['sensor_count']} "
-        f"controller={summary['has_controller']}"
+    _emit_output(
+        "\n".join(
+            [
+                f"scene={summary['scene']} profile={rig['profile']} sensors={rig['sensor_count']} "
+                f"controller={summary['has_controller']}",
+                f"sensor_names={sensor_names}",
+            ]
+        ),
+        write_summary=write_summary,
     )
-    print(f"sensor_names={sensor_names}")
 
 
 def _run_demo(demo: DemoScene, *, steps: int, dt: float, summary_every: int) -> None:
@@ -264,7 +324,12 @@ def main(argv: Sequence[str] | None = None) -> None:
     config = CLIRunConfig.from_namespace(args)
 
     if config.list_scenes:
-        _print_scene_catalog()
+        _print_scene_catalog(
+            summary_format=config.summary_format,
+            profile_filter=config.profile_filter,
+            headless_only=config.headless_only,
+            write_summary=config.write_summary,
+        )
         return
     if config.scene is None:
         parser.error("scene is required unless --list-scenes is used")
@@ -281,7 +346,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(_RUNTIME_ERROR) from exc
 
     if config.dry_run:
-        _print_demo_summary(demo, summary_format=config.summary_format)
+        _print_demo_summary(demo, summary_format=config.summary_format, write_summary=config.write_summary)
         return
 
     _run_demo(demo, steps=config.steps, dt=config.dt, summary_every=config.summary_every)

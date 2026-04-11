@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -27,6 +28,9 @@ def test_cli_help_lists_available_scenes(capsys: pytest.CaptureFixture[str]) -> 
     assert "--list-scenes" in help_text
     assert "--dry-run" in help_text
     assert "--summary-format" in help_text
+    assert "--profile" in help_text
+    assert "--headless-only" in help_text
+    assert "--write-summary" in help_text
 
 
 def test_cli_version_reports_package_version(capsys: pytest.CaptureFixture[str]) -> None:
@@ -70,6 +74,15 @@ def test_cli_lists_built_in_scenes_without_runtime(capsys: pytest.CaptureFixture
     assert "synthetic" in output
     assert "headless" in output
     assert "navigation" in output
+
+
+def test_cli_lists_filtered_scenes_as_json(capsys: pytest.CaptureFixture[str]) -> None:
+    cli.main(["--list-scenes", "--profile", "synthetic_multimodal", "--headless-only", "--summary-format", "json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert len(payload) == 1
+    assert payload[0]["name"] == "synthetic"
+    assert payload[0]["requires_runtime"] is False
 
 
 def test_cli_runs_selected_builder(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -138,3 +151,13 @@ def test_cli_builtin_synthetic_dry_run_outputs_json(capsys: pytest.CaptureFixtur
     assert summary["rig"]["profile"] == "synthetic_multimodal"
     assert summary["rig"]["metadata"]["dt"] == pytest.approx(0.05)
     assert summary["rig"]["sensor_count"] >= 10
+
+
+def test_cli_can_write_dry_run_summary_to_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    summary_path = tmp_path / "nested" / "synthetic.json"
+
+    cli.main(["synthetic", "--dry-run", "--summary-format", "json", "--write-summary", str(summary_path)])
+
+    summary = json.loads(capsys.readouterr().out)
+    assert summary_path.exists()
+    assert json.loads(summary_path.read_text(encoding="utf-8")) == summary

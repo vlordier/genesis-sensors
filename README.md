@@ -21,7 +21,7 @@ Inspired by the standalone feel of `GenesisDroneEnv`, this package wraps the Gen
 - **Bundled sensor runtime** so the package works with released `genesis-world` as-is
 - **Headless synthetic rigs and state builders** for quickly exercising the full sensor surface
 - **Headless CLI synthetic demo** via `genesis-sensors synthetic`, useful for smoke tests even before installing the full Genesis runtime
-- **Scene catalog and dry-run summaries** via `list_demo_scenes()`, `genesis-sensors --list-scenes`, and `SensorRig.describe()`
+- **Scene catalog and dry-run summaries** via `list_demo_scenes()`, `filter_demo_scenes()`, `genesis-sensors --list-scenes`, and `SensorRig.describe()`
 - **Robustness wrappers** for latency injection, packet dropouts, and per-observation health metadata
 - **Common noise-model controls** for every sensor: `gaussian`, `laplace`, `uniform`, or `none`, plus rare outlier injection for heavier-tailed realism
 - **Preset-friendly helpers** via `get_preset()` and `list_presets()` re-exported from the companion package
@@ -198,7 +198,8 @@ genesis-sensors franka --steps 200
 genesis-sensors go2 --steps 200
 genesis-sensors synthetic --steps 24 --summary-every 6
 genesis-sensors --list-scenes
-genesis-sensors synthetic --dry-run --summary-format json
+genesis-sensors --list-scenes --profile synthetic_multimodal --headless-only --summary-format json
+genesis-sensors synthetic --dry-run --summary-format json --write-summary /tmp/synthetic.json
 
 # short alias
 gs-sensors drone --steps 200
@@ -229,6 +230,7 @@ uv run --extra dev poe smoke_cli
 uv run --extra dev poe list_scenes
 uv run --extra dev poe synthetic_demo
 uv run --extra dev poe synthetic_dry_run
+uv run --extra dev poe lint_fix   # optional auto-fix
 uv run --extra dev poe package
 uv run --extra dev poe fault_demo
 uv run --extra dev poe rerun_save

@@ -102,6 +102,8 @@ def test_sensor_rig_describe_reports_typed_profile_and_sensor_count() -> None:
     summary = rig.describe()
     assert summary.profile == RigProfile.SYNTHETIC_MULTIMODAL
     assert summary.sensor_count == len(summary.sensor_names)
+    assert summary.has_sensor("imu") is True
+    assert "imu" in summary.preview_sensor_names(limit=10)
     assert summary.as_dict()["profile"] == "synthetic_multimodal"
     assert summary.as_dict()["sensor_count"] >= 10
 

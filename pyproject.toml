@@ -75,6 +75,11 @@ genesis_sensors = ["py.typed"]
 
 [tool.ruff]
 line-length = 120
+target-version = "py310"
+src = ["src", "tests", "examples"]
+
+[tool.ruff.format]
+quote-style = "double"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -124,7 +129,9 @@ changelog_file = "CHANGELOG.md"
 output_format = "md"
 
 [tool.poe.tasks]
-lint = { shell = "ruff check ." }
+lint = { shell = "ruff check . && ruff format --check ." }
+lint_fix = { shell = "ruff check --fix . && ruff format ." }
+format = { shell = "ruff format ." }
 docs = { shell = "mkdocs build --strict" }
 test = { shell = "PYTHONPATH=src pytest tests -q" }
 coverage = { shell = "PYTHONPATH=src pytest tests --cov=genesis_sensors --cov-report=term-missing -q" }

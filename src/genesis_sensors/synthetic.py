@@ -18,6 +18,7 @@ DEFAULT_RESOLUTION = (96, 72)
 DEFAULT_LIDAR_SHAPE = (8, 64)
 GNSS_ORIGIN_LLH = (37.4275, -122.1697, 30.0)
 
+
 class ScenarioPhase(str, Enum):
     """Named rollout phases used by the synthetic-state generator."""
 

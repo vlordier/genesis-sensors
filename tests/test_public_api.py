@@ -10,6 +10,8 @@ from genesis_sensors import (
     ScenarioPhase,
     SensorRigSummary,
     build_synthetic_demo,
+    filter_demo_scenes,
+    get_demo_scene_spec,
     list_demo_scenes,
 )
 from genesis_sensors import config as config_module
@@ -114,3 +116,6 @@ def test_list_demo_scenes_exposes_catalog_metadata() -> None:
     synthetic = next(spec for spec in specs if spec.name == "synthetic")
     assert synthetic.requires_runtime is False
     assert synthetic.profile == RigProfile.SYNTHETIC_MULTIMODAL
+
+    assert get_demo_scene_spec("synthetic").name == "synthetic"
+    assert filter_demo_scenes(profile=RigProfile.SYNTHETIC_MULTIMODAL, requires_runtime=False) == (synthetic,)

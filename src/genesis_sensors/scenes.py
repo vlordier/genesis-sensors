@@ -71,7 +71,7 @@ class DemoSceneSpec:
     default_dt: float
 
 
-_DEMO_SCENE_SPECS = (
+_DEMO_SCENE_SPECS: tuple[DemoSceneSpec, ...] = (
     DemoSceneSpec("drone", "Navigation-focused quadrotor demo", RigProfile.NAVIGATION, True, _DEFAULT_DEMO_DT),
     DemoSceneSpec("perception", "Multimodal drone perception stack", RigProfile.PERCEPTION, True, _DEFAULT_DEMO_DT),
     DemoSceneSpec("franka", "Manipulation and wrist-sensing demo", RigProfile.MANIPULATION, True, _DEFAULT_DEMO_DT),
@@ -89,6 +89,28 @@ _DEMO_SCENE_SPECS = (
 def list_demo_scenes() -> tuple[DemoSceneSpec, ...]:
     """Return the built-in demo catalog for CLI help, docs, and automation."""
     return _DEMO_SCENE_SPECS
+
+
+def filter_demo_scenes(
+    *,
+    profile: RigProfile | None = None,
+    requires_runtime: bool | None = None,
+) -> tuple[DemoSceneSpec, ...]:
+    """Filter the built-in demo catalog by rig profile or runtime requirement."""
+    specs: tuple[DemoSceneSpec, ...] = _DEMO_SCENE_SPECS
+    if profile is not None:
+        specs = tuple(spec for spec in specs if spec.profile == profile)
+    if requires_runtime is not None:
+        specs = tuple(spec for spec in specs if spec.requires_runtime is requires_runtime)
+    return specs
+
+
+def get_demo_scene_spec(name: str) -> DemoSceneSpec:
+    """Resolve a built-in demo scene by name."""
+    for spec in _DEMO_SCENE_SPECS:
+        if spec.name == name:
+            return spec
+    raise KeyError(f"unknown demo scene {name!r}")
 
 
 def _make_viewer_options(gs: Any, preset: ViewerCameraPreset) -> Any:
@@ -383,5 +405,7 @@ __all__ = [
     "build_franka_demo",
     "build_go2_demo",
     "build_synthetic_demo",
+    "filter_demo_scenes",
+    "get_demo_scene_spec",
     "list_demo_scenes",
 ]
