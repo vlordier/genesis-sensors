@@ -10,6 +10,10 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  PIP_DEFAULT_TIMEOUT: '120'
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+  PIP_PROGRESS_BAR: 'off'
+  PIP_RETRIES: '10'
 
 permissions:
   contents: read
@@ -28,17 +32,24 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            pyproject.toml
+            .github/workflows/docs.yml
 
       - name: Install docs dependencies
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
-          pip install -e .[dev]
+          source .github/scripts/pip_retry.sh
+
+          python -m pip install --upgrade pip setuptools wheel
+          retry_pip install -e ".[dev]"
 
       - name: Build docs
         run: mkdocs build --strict

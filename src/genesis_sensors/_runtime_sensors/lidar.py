@@ -1,0 +1,552 @@
+"""
+LiDAR sensor model.
+
+Wraps ideal depth / geometry information (from Genesis raycaster or depth
+renders) and adds realistic hardware characteristics:
+
+* Spinning-LiDAR scan timing (points come from different drone poses).
+* Per-beam range noise and intensity model.
+* Max-range dropouts.
+* Rain / fog attenuation.
+* Mixed-pixel / edge bleeding.
+* Per-channel calibration offsets.
+
+The model accepts either a pre-cast ``range_image`` (H x W float array,
+metres) from the Genesis raycaster, or a flat list of ``(range, azimuth,
+elevation)`` tuples.
+
+Usage
+-----
+::
+
+    lidar = LidarModel(
+        name="front_lidar",
+        update_rate_hz=10.0,
+        n_channels=16,
+        v_fov_deg=(-15.0, 15.0),
+        h_resolution=1800,
+        max_range_m=100.0,
+    )
+    obs = lidar.step(sim_time, {
+        "range_image": raycaster.read().cpu().numpy(),  # (n_channels, h_res)
+    })
+    points = obs["points"]  # Nx4 array: x, y, z, intensity
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Final
+
+import numpy as np
+
+from .base import BaseSensor
+from .types import FloatArray, LidarObservation
+
+if TYPE_CHECKING:
+    from .config import LidarConfig
+
+# Beams with two-way transmission below this fraction are treated as no-return.
+_MIN_TRANSMISSION_FRACTION: Final[float] = 0.05
+# Small epsilon used in the default inverse-square intensity model.
+_INTENSITY_EPS: Final[float] = 1e-6
+# Empirical rain attenuation coefficient factor (Kunkel model approximation).
+_RAIN_ATTN_COEFF: Final[float] = 0.01
+# Rain rate exponent in the empirical attenuation formula.
+_RAIN_ATTN_EXPONENT: Final[float] = 0.6
+# Conversion factor from dB/m to Np/m.
+# 1 Np = 20·log₁₀(e) ≈ 8.686 dB, so 1 dB/m = 1/8.686 Np/m.
+_DB_TO_NP: Final[float] = 8.686
+
+
+def _box1d_cumsum(arr: "FloatArray", k: int, axis: int) -> "FloatArray":
+    """Vectorised 1-D symmetric edge-padded box filter via cumulative sum.
+
+    Replaces ``np.apply_along_axis(np.convolve, ...)`` which loops in Python.
+    Complexity is O(H·W) with only two numpy operations (``cumsum`` + slice
+    subtraction) regardless of kernel size.
+
+    Parameters
+    ----------
+    arr:
+        Input 2-D float32 array.
+    k:
+        Box width (number of samples).  Returns *arr* unchanged when ``k ≤ 1``.
+    axis:
+        Axis along which to filter (0 = elevation rows, 1 = azimuth columns).
+    """
+    if k <= 1:
+        return arr
+    # Symmetric edge padding: pad_l samples before, pad_r samples after.
+    pad_l = k // 2
+    pad_r = k - pad_l - 1
+    pad_width = [(0, 0)] * arr.ndim
+    pad_width[axis] = (pad_l, pad_r)
+    padded = np.pad(arr, pad_width, mode="edge")  # length n+k-1 along axis
+    # Exclusive prefix sum — prepend a zero slice so that cs[j+k] - cs[j]
+    # gives exactly sum(padded[j : j+k]).
+    zero_shape = list(padded.shape)
+    zero_shape[axis] = 1
+    cs = np.concatenate(
+        [np.zeros(zero_shape, dtype=np.float32), np.cumsum(padded.astype(np.float32), axis=axis)],
+        axis=axis,
+    )
+    # cs has length n+k along axis.  result[j] = (cs[j+k] - cs[j]) / k.
+    n = arr.shape[axis]
+    sl_hi: list[slice | int] = [slice(None)] * arr.ndim
+    sl_lo: list[slice | int] = [slice(None)] * arr.ndim
+    sl_hi[axis] = slice(k, k + n)
+    sl_lo[axis] = slice(0, n)
+    return ((cs[tuple(sl_hi)] - cs[tuple(sl_lo)]) / k).astype(np.float32)
+
+
+@dataclass(frozen=True)
+class LidarPoint:
+    """
+    One LiDAR return (utility dataclass for typed point construction).
+
+    Frozen so that point objects can be stored in sets or used as dict
+    keys and cannot be accidentally mutated after recording.
+    """
+
+    x: float
+    y: float
+    z: float
+    intensity: float
+    channel: int
+    azimuth_deg: float
+    range_m: float
+
+
+class LidarModel(BaseSensor):
+    """
+    Realistic LiDAR sensor model.
+
+    Parameters
+    ----------
+    name:
+        Human-readable identifier.
+    update_rate_hz:
+        LiDAR rotation rate in Hz (e.g., 10 or 20).
+    n_channels:
+        Number of vertical scan lines (beams).
+    v_fov_deg:
+        ``(min_elevation_deg, max_elevation_deg)`` for the vertical FOV.
+    h_resolution:
+        Number of azimuth steps per revolution.
+    max_range_m:
+        Maximum measurable range.  Returns beyond this are discarded.
+    no_hit_value:
+        Value written for beams that did not produce a return (e.g., 0 or
+        ``max_range_m``).
+    range_noise_sigma_m:
+        Gaussian range noise standard deviation in metres.
+    intensity_noise_sigma:
+        Gaussian noise on the returned intensity value (0-1).
+    dropout_prob:
+        Probability that any single beam return is randomly discarded.
+    rain_rate_mm_h:
+        Rain rate in mm/h; used to compute two-way rain attenuation.
+    fog_density:
+        Fog extinction coefficient (1/m) for two-way path attenuation.
+    channel_offsets_m:
+        Per-channel range offset in metres (calibration residuals).  If
+        provided must have length ``n_channels``.
+    beam_divergence_mrad:
+        Half-angle beam divergence in milli-radians.  ``0`` = disabled; a
+        typical spinning LiDAR has 1.5–3.0 mrad.  Models the mixed-pixel
+        effect at surface edges by applying a Gaussian blur to the range
+        image before the noise pipeline, with sigma computed from the
+        divergence and the sensor's angular resolution.
+    multi_return:
+        Number of returns per beam.  ``1`` = strongest return only (default).
+        ``2`` = dual return (strongest + last); beams are split at
+        range discontinuities exceeding ``multi_return_split_m``.
+    multi_return_split_m:
+        Minimum range difference between adjacent pixels (in the elevation
+        direction) for a beam to report a secondary return.  Only used when
+        ``multi_return >= 2``.
+    reflectance_model:
+        When ``True``, modulate range noise inversely with intensity to
+        simulate reflectance-dependent SNR.  High-reflectance targets (white
+        surfaces, retroreflectors) produce lower noise; low-reflectance
+        targets (dark asphalt, vegetation) produce higher noise.  Default
+        ``False`` keeps the constant ``range_noise_sigma_m``.
+    seed:
+        Optional seed for the random-number generator (reproducibility).
+    """
+
+    def __init__(
+        self,
+        name: str = "lidar",
+        update_rate_hz: float = 10.0,
+        n_channels: int = 16,
+        v_fov_deg: tuple[float, float] = (-15.0, 15.0),
+        h_resolution: int = 1800,
+        max_range_m: float = 100.0,
+        no_hit_value: float = 0.0,
+        range_noise_sigma_m: float = 0.02,
+        intensity_noise_sigma: float = 0.01,
+        dropout_prob: float = 0.0,
+        rain_rate_mm_h: float = 0.0,
+        fog_density: float = 0.0,
+        channel_offsets_m: list[float] | None = None,
+        beam_divergence_mrad: float = 0.0,
+        multi_return: int = 1,
+        multi_return_split_m: float = 1.0,
+        reflectance_model: bool = False,
+        seed: int | None = None,
+    ) -> None:
+        super().__init__(name=name, update_rate_hz=update_rate_hz)
+        self.n_channels = int(n_channels)
+        self.v_fov_deg = tuple(v_fov_deg)
+        self.h_resolution = int(h_resolution)
+        self.max_range_m = float(max_range_m)
+        self.no_hit_value = float(no_hit_value)
+        self.range_noise_sigma_m = float(range_noise_sigma_m)
+        self.intensity_noise_sigma = float(intensity_noise_sigma)
+        self.dropout_prob = float(np.clip(dropout_prob, 0.0, 1.0))
+        self.rain_rate_mm_h = float(rain_rate_mm_h)
+        self.fog_density = float(fog_density)
+        self.beam_divergence_mrad = float(max(0.0, beam_divergence_mrad))
+        self.multi_return = int(max(1, multi_return))
+        self.multi_return_split_m = float(max(0.0, multi_return_split_m))
+        self.reflectance_model = bool(reflectance_model)
+        self._rng = np.random.default_rng(seed=seed)
+        self._seed = seed
+
+        if channel_offsets_m is not None:
+            self._channel_offsets = np.asarray(channel_offsets_m, dtype=np.float32)
+            self._channel_offsets_m_given = True
+        else:
+            self._channel_offsets = np.zeros(self.n_channels, dtype=np.float32)
+            self._channel_offsets_m_given = False
+
+        # Elevation angles for each channel
+        elev_min, elev_max = self.v_fov_deg
+        self._elevations_deg: FloatArray = np.linspace(elev_min, elev_max, self.n_channels, dtype=np.float32)
+
+        # Azimuth angles for each horizontal step
+        self._azimuths_deg: FloatArray = np.linspace(0.0, 360.0, self.h_resolution, endpoint=False, dtype=np.float32)
+
+        # Pre-compute trigonometric values for the fixed beam geometry.
+        # These are constant for the lifetime of the sensor; caching avoids
+        # repeated deg2rad + trig calls on every step().
+        elev_rad = np.deg2rad(self._elevations_deg)
+        azim_rad = np.deg2rad(self._azimuths_deg)
+        # elev_grid: (n_channels, h_resolution); azim_grid: (n_channels, h_resolution)
+        self._elev_grid: FloatArray
+        self._azim_grid: FloatArray
+        self._elev_grid, self._azim_grid = np.meshgrid(elev_rad, azim_rad, indexing="ij")
+        self._cos_elev: FloatArray = np.cos(self._elev_grid).astype(np.float32)
+        self._sin_elev: FloatArray = np.sin(self._elev_grid).astype(np.float32)
+        self._cos_azim: FloatArray = np.cos(self._azim_grid).astype(np.float32)
+        self._sin_azim: FloatArray = np.sin(self._azim_grid).astype(np.float32)
+
+        # ------------------------------------------------------------------
+        # Beam divergence: pre-compute the Gaussian blur sigma (pixels) in
+        # azimuth and elevation from the divergence and angular resolution.
+        # σ_az = beam_divergence_mrad / az_resolution_mrad
+        # σ_el = beam_divergence_mrad / el_resolution_mrad
+        # A minimum sigma of 0.5 is enforced so even very fine angular
+        # resolution still produces some mixed-pixel softening.
+        # ------------------------------------------------------------------
+        self._bd_sigma_az: float = 0.0
+        self._bd_sigma_el: float = 0.0
+        if self.beam_divergence_mrad > 0.0 and self.n_channels > 1:
+            az_res_mrad = 360.0 / self.h_resolution * (math.pi / 180.0) * 1000.0
+            el_span_mrad = abs(self.v_fov_deg[1] - self.v_fov_deg[0]) * (math.pi / 180.0) * 1000.0
+            el_res_mrad = el_span_mrad / max(self.n_channels - 1, 1)
+            self._bd_sigma_az = max(self.beam_divergence_mrad / az_res_mrad, 0.5)
+            self._bd_sigma_el = max(self.beam_divergence_mrad / el_res_mrad, 0.5)
+
+        self._last_obs: dict[str, Any] = {}
+        # Cache for geometry tables at non-default input shapes (e.g., lower-
+        # resolution test range images).  Keyed by (n_ch, n_az); the default
+        # shape is handled by the pre-computed class attributes above.
+        self._geometry_cache: dict[tuple[int, int], tuple[FloatArray, FloatArray, FloatArray, FloatArray]] = {}
+
+    # ------------------------------------------------------------------
+    # Config factory
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def from_config(cls, config: "LidarConfig") -> "LidarModel":
+        """Construct a :class:`LidarModel` from a :class:`~genesis.sensors.config.LidarConfig`."""
+        return cls._from_config_with_noise(config)
+
+    def get_config(self) -> "LidarConfig":
+        """Return the current parameters as a :class:`~genesis.sensors.config.LidarConfig`."""
+        from .config import LidarConfig
+
+        return LidarConfig(
+            name=self.name,
+            update_rate_hz=self.update_rate_hz,
+            n_channels=self.n_channels,
+            v_fov_deg=self.v_fov_deg,
+            h_resolution=self.h_resolution,
+            max_range_m=self.max_range_m,
+            no_hit_value=self.no_hit_value,
+            range_noise_sigma_m=self.range_noise_sigma_m,
+            intensity_noise_sigma=self.intensity_noise_sigma,
+            dropout_prob=self.dropout_prob,
+            rain_rate_mm_h=self.rain_rate_mm_h,
+            fog_density=self.fog_density,
+            channel_offsets_m=list(self._channel_offsets) if self._channel_offsets_m_given else None,
+            beam_divergence_mrad=self.beam_divergence_mrad,
+            multi_return=self.multi_return,
+            multi_return_split_m=self.multi_return_split_m,
+            reflectance_model=self.reflectance_model,
+            seed=self._seed,
+        )
+
+    # ------------------------------------------------------------------
+    # BaseSensor interface
+    # ------------------------------------------------------------------
+
+    def reset(self, env_id: int = 0) -> None:
+        self._last_obs = {}
+        self._last_update_time = -1.0
+
+    def step(self, sim_time: float, state: dict[str, Any]) -> LidarObservation | dict[str, Any]:
+        """
+        Convert an ideal range image into a realistic point cloud.
+
+        Expected keys in *state*:
+        - ``"range_image"`` -- ``np.ndarray`` shape ``(n_channels, h_resolution)``
+          containing ideal ranges in metres.  Missing beams should be
+          ``0`` or ``max_range_m``.
+        - ``"intensity_image"`` *(optional)* -- same shape, values 0-1.
+        """
+        range_img = state.get("range_image")
+        if range_img is None:
+            self._last_obs = {"points": np.empty((0, 4), dtype=np.float32)}
+            return self._last_obs
+
+        range_img = np.asarray(range_img, dtype=np.float32)
+        if range_img.ndim != 2:
+            raise ValueError(
+                f"state['range_image'] must be a 2-D array of shape "
+                f"(n_channels, h_resolution), got shape {range_img.shape}"
+            )
+        n_ch, n_az = range_img.shape
+
+        # 0. Beam divergence: Gaussian blur models mixed-pixel / edge-bleeding
+        #    effect caused by finite beam solid angle.  Only applied when
+        #    beam_divergence_mrad > 0 and the sigmas were pre-computed.
+        if self._bd_sigma_az > 0.0 or self._bd_sigma_el > 0.0:
+            range_img = self._apply_beam_divergence(range_img)
+
+        intensity_img = state.get("intensity_image")
+        if intensity_img is not None:
+            intensity_img = np.asarray(intensity_img, dtype=np.float32)
+        else:
+            # Simple inverse-square intensity model
+            with np.errstate(divide="ignore", invalid="ignore"):
+                intensity_img = np.where(
+                    range_img > 0,
+                    np.clip(1.0 / (range_img**2 + _INTENSITY_EPS), 0, 1),
+                    0.0,
+                )
+
+        # 1. Per-channel calibration offsets
+        offsets = self._get_channel_offsets(n_ch)[:, np.newaxis]
+        range_img = range_img + offsets
+
+        # 2. Range noise — optionally modulated by reflectance (intensity)
+        if self.reflectance_model and intensity_img is not None:
+            # Reflectance-dependent SNR: sigma_eff = sigma_base / sqrt(max(intensity, 0.01))
+            # Low-reflectance targets get higher noise; high-reflectance get lower.
+            reflectance_factor = 1.0 / np.sqrt(np.clip(intensity_img, 0.01, 1.0))
+            range_sigma = self.range_noise_sigma_m * reflectance_factor
+            noise = (self._rng.normal(0.0, 1.0, range_img.shape) * range_sigma).astype(np.float32)
+        else:
+            noise = self._rng.normal(0.0, self.range_noise_sigma_m, range_img.shape).astype(np.float32)
+        range_img = range_img + noise
+
+        # 3. Rain + fog attenuation (exponential two-way path loss)
+        attenuation_coeff = self.fog_density
+        if self.rain_rate_mm_h > 0:
+            # Empirical approximation (Kunkel 1984): k ~ 0.01 * R^0.6 dB/m
+            attenuation_coeff += _RAIN_ATTN_COEFF * (self.rain_rate_mm_h**_RAIN_ATTN_EXPONENT) / _DB_TO_NP
+        if attenuation_coeff > 0:
+            transmission = np.exp(-2.0 * attenuation_coeff * np.clip(range_img, 0, None))
+            # Beams with insufficient transmission are treated as no-return
+            range_img[transmission < _MIN_TRANSMISSION_FRACTION] = self.no_hit_value
+
+        # 4. Max-range clipping: a beam is valid when it returned closer than
+        # max_range and is not the sentinel no_hit_value itself.
+        valid_mask = (range_img > 0) & (range_img < self.max_range_m) & (range_img != self.no_hit_value)
+
+        # 5. Random dropouts
+        if self.dropout_prob > 0:
+            dropout_mask = self._rng.random(range_img.shape) < self.dropout_prob
+            valid_mask &= ~dropout_mask
+
+        # 6. Intensity noise
+        intensity_img = np.clip(
+            intensity_img + self._rng.normal(0.0, self.intensity_noise_sigma, intensity_img.shape),
+            0.0,
+            1.0,
+        ).astype(np.float32)
+
+        # 7. Convert to Cartesian coordinates using the beam geometry that
+        # matches the actual input shape. This keeps the model tolerant of
+        # lower-resolution synthetic inputs used in tests and toy examples.
+        cos_elev, sin_elev, cos_azim, sin_azim = self._get_geometry_tables(n_ch, n_az)
+
+        r = range_img
+        x = r * cos_elev * cos_azim
+        y = r * cos_elev * sin_azim
+        z = r * sin_elev
+
+        # 8. Pack into Nx4 array (strongest return)
+        points: FloatArray = np.stack(
+            [x[valid_mask], y[valid_mask], z[valid_mask], intensity_img[valid_mask]],
+            axis=-1,
+        ).astype(np.float32)
+
+        # 9. Multi-return: generate secondary (last) returns at range edges
+        secondary_points: FloatArray | None = None
+        if self.multi_return >= 2:
+            secondary_points = self._generate_secondary_returns(
+                range_img,
+                intensity_img,
+                valid_mask,
+                cos_elev,
+                sin_elev,
+                cos_azim,
+                sin_azim,
+            )
+
+        result: LidarObservation = {"points": points, "range_image": range_img}
+        if secondary_points is not None and secondary_points.shape[0] > 0:
+            result["secondary_points"] = secondary_points
+        self._last_obs = result
+        self._mark_updated(sim_time)
+        return result
+
+    def get_observation(self) -> dict[str, Any]:
+        return self._last_obs
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _generate_secondary_returns(
+        self,
+        range_img: "FloatArray",
+        intensity_img: "FloatArray",
+        valid_mask: "np.ndarray",
+        cos_elev: "FloatArray",
+        sin_elev: "FloatArray",
+        cos_azim: "FloatArray",
+        sin_azim: "FloatArray",
+    ) -> "FloatArray":
+        """Generate secondary (last) returns at range discontinuities.
+
+        At pixels where the range difference to the next elevation row
+        exceeds ``multi_return_split_m``, a secondary return is produced
+        at the farther range with attenuated intensity.
+        """
+        n_ch, n_az = range_img.shape
+        if n_ch < 2:
+            return np.empty((0, 4), dtype=np.float32)
+
+        # Range difference along elevation axis
+        diff = np.abs(np.diff(range_img, axis=0))  # (n_ch-1, n_az)
+        split_mask = diff > self.multi_return_split_m
+
+        # For each split pixel, the secondary return is the farther range
+        # between rows i and i+1
+        rows, cols = np.where(split_mask)
+        if len(rows) == 0:
+            return np.empty((0, 4), dtype=np.float32)
+
+        r_a = range_img[rows, cols]
+        r_b = range_img[rows + 1, cols]
+        # Secondary = the farther of the two
+        sec_range = np.maximum(r_a, r_b)
+        # Attenuate intensity (secondary returns are weaker)
+        sec_intensity = np.minimum(intensity_img[rows, cols], intensity_img[rows + 1, cols]) * 0.3
+
+        # Only keep valid secondary returns
+        sec_valid = (sec_range > 0) & (sec_range < self.max_range_m)
+        sec_range = sec_range[sec_valid]
+        sec_intensity = sec_intensity[sec_valid]
+        sec_rows = rows[sec_valid]
+        sec_cols = cols[sec_valid]
+
+        if len(sec_range) == 0:
+            return np.empty((0, 4), dtype=np.float32)
+
+        # Convert to Cartesian
+        sx = sec_range * cos_elev[sec_rows, sec_cols] * cos_azim[sec_rows, sec_cols]
+        sy = sec_range * cos_elev[sec_rows, sec_cols] * sin_azim[sec_rows, sec_cols]
+        sz = sec_range * sin_elev[sec_rows, sec_cols]
+
+        return np.stack([sx, sy, sz, sec_intensity], axis=-1).astype(np.float32)
+
+    def _get_channel_offsets(self, n_ch: int) -> FloatArray:
+        """Return per-channel offsets matching the incoming range-image shape."""
+        if n_ch == self.n_channels:
+            return self._channel_offsets
+
+        src = np.linspace(0.0, 1.0, len(self._channel_offsets), dtype=np.float32)
+        dst = np.linspace(0.0, 1.0, n_ch, dtype=np.float32)
+        return np.interp(dst, src, self._channel_offsets).astype(np.float32)
+
+    def _get_geometry_tables(self, n_ch: int, n_az: int) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
+        """Return trig tables for the current range-image shape.
+
+        The default (configured) shape is served from pre-computed class
+        attributes.  Non-default shapes are built once and cached so that
+        simulations that always pass the same lower-resolution image incur
+        the trig cost only on the first call.
+        """
+        if n_ch == self.n_channels and n_az == self.h_resolution:
+            return self._cos_elev, self._sin_elev, self._cos_azim, self._sin_azim
+
+        key = (n_ch, n_az)
+        if key not in self._geometry_cache:
+            elev_min, elev_max = self.v_fov_deg
+            elevations = np.linspace(elev_min, elev_max, n_ch, dtype=np.float32)
+            azimuths = np.linspace(0.0, 360.0, n_az, endpoint=False, dtype=np.float32)
+            elev_grid, azim_grid = np.meshgrid(np.deg2rad(elevations), np.deg2rad(azimuths), indexing="ij")
+            self._geometry_cache[key] = (
+                np.cos(elev_grid).astype(np.float32),
+                np.sin(elev_grid).astype(np.float32),
+                np.cos(azim_grid).astype(np.float32),
+                np.sin(azim_grid).astype(np.float32),
+            )
+        return self._geometry_cache[key]
+
+    def _apply_beam_divergence(self, range_img: "FloatArray") -> "FloatArray":
+        """Apply a separable Gaussian blur to model beam-divergence mixed pixels.
+
+        The sigma is pre-computed at init from ``beam_divergence_mrad`` and the
+        sensor's angular resolution.  Uses scipy when available (exact Gaussian)
+        and falls back to a vectorised cumsum box-filter otherwise.
+        """
+        # Clamp sigma to at most half the image dimension to avoid edge artefacts.
+        n_ch, n_az = range_img.shape
+        sigma_el = min(self._bd_sigma_el, (n_ch - 1) * 0.5)
+        sigma_az = min(self._bd_sigma_az, (n_az - 1) * 0.5)
+
+        try:
+            from scipy.ndimage import gaussian_filter
+
+            return gaussian_filter(range_img, sigma=(sigma_el, sigma_az)).astype(np.float32)
+        except ImportError:
+            pass
+
+        # Vectorised separable box-filter approximation (O(H·W), no Python loops).
+        k_el = max(1, int(sigma_el * 2 + 1))
+        k_az = max(1, int(sigma_az * 2 + 1))
+        out = _box1d_cumsum(range_img, k_el, axis=0)
+        out = _box1d_cumsum(out, k_az, axis=1)
+        return out
+
+
+__all__ = ["LidarModel", "LidarPoint"]

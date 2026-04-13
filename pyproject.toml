@@ -37,11 +37,18 @@ dev = [
     "bump-my-version>=0.32.1",
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.5.39",
+    "mkdocstrings[python]>=0.29",
+    "poethepoet>=0.32.0",
     "pre-commit>=4.0.1",
     "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "rerun-sdk>=0.23",
     "python-semantic-release>=10.2.0",
     "ruff>=0.9",
     "twine>=6.1.0",
+]
+rerun = [
+    "rerun-sdk>=0.23",
 ]
 
 [project.urls]
@@ -52,6 +59,8 @@ Documentation = "https://vlordier.github.io/genesis-sensors/"
 Changelog = "https://github.com/vlordier/genesis-sensors/releases"
 
 [project.scripts]
+genesis-sensors = "genesis_sensors.cli:main"
+gs-sensors = "genesis_sensors.cli:main"
 genesis-sensors-demo = "genesis_sensors.cli:main"
 
 [tool.setuptools]
@@ -66,6 +75,11 @@ genesis_sensors = ["py.typed"]
 
 [tool.ruff]
 line-length = 120
+target-version = "py310"
+src = ["src", "tests", "examples"]
+
+[tool.ruff.format]
+quote-style = "double"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -113,3 +127,33 @@ prerelease = false
 [tool.semantic_release.changelog.default_templates]
 changelog_file = "CHANGELOG.md"
 output_format = "md"
+
+[tool.poe.tasks]
+lint = { shell = "ruff check . && ruff format --check ." }
+lint_fix = { shell = "ruff check --fix . && ruff format ." }
+format = { shell = "ruff format ." }
+docs = { shell = "mkdocs build --strict" }
+test = { shell = "PYTHONPATH=src pytest tests -q" }
+coverage = { shell = "PYTHONPATH=src pytest tests --cov=genesis_sensors --cov-report=term-missing -q" }
+test_api = { shell = "PYTHONPATH=src pytest tests/test_cli.py tests/test_public_api.py -q" }
+test_fast = { shell = "PYTHONPATH=src pytest tests/test_compat.py tests/test_architecture.py tests/test_rigs.py tests/test_robustness.py tests/test_cli.py tests/test_public_api.py -q" }
+check_fast = { shell = "pre-commit run --all-files && PYTHONPATH=src pytest tests/test_compat.py tests/test_architecture.py tests/test_rigs.py tests/test_robustness.py tests/test_cli.py tests/test_public_api.py -q" }
+api_docs = { shell = "PYTHONPATH=src python scripts/gen_api_docs.py" }
+package = { shell = "python -m build && python -m twine check dist/*" }
+smoke_cli = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --version" }
+list_scenes = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --list-scenes" }
+list_profiles = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --list-profiles --summary-format json" }
+catalog_summary = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --catalog-summary --summary-format json" }
+scene_commands = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --list-scenes --runtime-mode headless --show-commands --summary-format json" }
+describe_synthetic_scene = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --describe-scene synthetic --summary-format json" }
+list_phases = { shell = "PYTHONPATH=src python -m genesis_sensors.cli --list-phases --summary-format json" }
+synthetic_demo = { shell = "PYTHONPATH=src python -m genesis_sensors.cli synthetic --steps 8 --summary-every 4" }
+synthetic_dry_run = { shell = "PYTHONPATH=src python -m genesis_sensors.cli synthetic --dry-run --summary-format json" }
+synthetic_report = { shell = "PYTHONPATH=src python -c \"from genesis_sensors import summarize_synthetic_rollout; print(summarize_synthetic_rollout(frame_count=8).as_dict())\"" }
+fault_demo = { shell = "PYTHONPATH=src python examples/fault_tolerant_sensors.py --frames 8 --dropout 0.2" }
+environment_demo = { shell = "PYTHONPATH=src python examples/environmental_sensors.py --frames 8" }
+wireless_demo = { shell = "PYTHONPATH=src python examples/sensor_usage_patterns.py --frames 8" }
+doc_assets = { shell = "PYTHONPATH=src python examples/generate_sensor_doc_assets.py --output-dir docs/assets/sensors" }
+rerun_demo = { shell = "PYTHONPATH=src python examples/external_sensors_rerun.py --frames 60 --spawn" }
+rerun_save = { shell = "PYTHONPATH=src python examples/external_sensors_rerun.py --frames 60 --save /tmp/genesis-sensors-traces.rrd" }
+check = { shell = "pre-commit run --all-files && PYTHONPATH=src pytest tests -q" }

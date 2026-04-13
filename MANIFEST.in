@@ -1,0 +1,9 @@
+include README.md
+include LICENSE
+recursive-include src/genesis_sensors *.py py.typed
+prune build
+prune dist
+prune site
+prune .pytest_cache
+prune .ruff_cache
+global-exclude __pycache__ *.py[cod] .DS_Store

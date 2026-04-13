@@ -1,0 +1,63 @@
+# API Reference
+
+Auto-generated from source docstrings.
+
+## Regenerate locally
+
+```bash
+PYTHONPATH=src python scripts/gen_api_docs.py
+```
+
+## Top-level helper modules
+
+- `genesis_sensors.config` — backend-aware validated config shims
+- `genesis_sensors.presets` — preset constants plus `get_preset()` / `list_presets()`
+- `genesis_sensors.genesis_bridge` — helper functions for extracting Genesis state
+- `genesis_sensors.synthetic` — headless synthetic-state builders for tests and demos
+- `genesis_sensors.robustness` — latency/dropout wrappers and health metadata
+
+## Runtime sensor modules
+
+- [Base Sensor](base.md)
+- [Scheduler](scheduler.md)
+- [Sensor Suite](suite.md)
+- [Configuration](config.md)
+- [Observation Types](types.md)
+- [Presets](presets.md)
+- [Gauss-Markov Process](gauss_markov.md)
+- [IMU](imu.md)
+- [GNSS / GPS](gnss.md)
+- [Barometer](barometer.md)
+- [Magnetometer](magnetometer.md)
+- [Airspeed](airspeed.md)
+- [RGB Camera](camera_model.md)
+- [Stereo Camera](stereo_camera.md)
+- [Depth Camera](depth_camera.md)
+- [Thermal Camera](thermal_camera.md)
+- [Event Camera](event_camera.md)
+- [LiDAR](lidar.md)
+- [Rangefinder](rangefinder.md)
+- [Optical Flow](optical_flow.md)
+- [Ultrasonic Array](ultrasonic.md)
+- [Sonar (Imaging & Side-Scan)](sonar.md)
+- [DVL & Current Profiler](acoustic_navigation.md)
+- [Water Pressure](water_pressure.md)
+- [Hydrophone](hydrophone.md)
+- [Underwater Modem](underwater_modem.md)
+- [Environmental Sensors](environmental.md)
+- [Leak Detector](leak_detector.md)
+- [UWB & Radar](wireless.md)
+- [Radio Link](radio.md)
+- [Battery](battery.md)
+- [Wheel Odometry](wheel_odometry.md)
+- [Inclinometer](inclinometer.md)
+- [Force / Torque](force_torque.md)
+- [Joint State](joint_state.md)
+- [Contact Sensor](contact_sensor.md)
+- [Proximity ToF Array](proximity_tof.md)
+- [Tactile Array](tactile_array.md)
+- [Load Cell](load_cell.md)
+- [Current Sensor](current_sensor.md)
+- [RPM Sensor](rpm_sensor.md)
+- [Wire Encoder](wire_encoder.md)
+- [Motor Temperature](motor_temperature.md)

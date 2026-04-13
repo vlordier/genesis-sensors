@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="280" viewBox="0 0 760 280" role="img" aria-label="RPM Sensor example plot">
+  <rect width="100%" height="100%" fill="#ffffff" />
+  <rect x="14" y="14" width="732" height="252" rx="12" fill="#f8fafc" stroke="#cbd5e1" />
+  <text x="28" y="38" font-size="20" font-weight="700" fill="#0f172a">RPM Sensor</text>
+  <text x="28" y="258" font-size="12" fill="#475569">Generated from 24 Genesis Franka demo timesteps (dt=0.05s) via examples/generate_sensor_doc_assets.py</text>
+  <text x="28" y="54" font-size="12" fill="#475569">Representative scalar summaries extracted from the sensor observation dict</text>
+  <line x1="56" y1="56.0" x2="516" y2="56.0" stroke="#e5e7eb" /><line x1="56" y1="98.5" x2="516" y2="98.5" stroke="#e5e7eb" /><line x1="56" y1="141.0" x2="516" y2="141.0" stroke="#e5e7eb" /><line x1="56" y1="183.5" x2="516" y2="183.5" stroke="#e5e7eb" /><line x1="56" y1="226.0" x2="516" y2="226.0" stroke="#e5e7eb" />
+  <line x1="56" y1="56" x2="56" y2="226" stroke="#94a3b8" stroke-width="1.5" />
+  <line x1="56" y1="226" x2="516" y2="226" stroke="#94a3b8" stroke-width="1.5" />
+  <text x="18" y="64" font-size="11" fill="#64748b">1</text>
+  <text x="18" y="226" font-size="11" fill="#64748b">-1</text>
+  <polyline fill="none" stroke="#2563eb" stroke-width="2.5" points="56.0,141.0 76.0,141.0 96.0,141.0 116.0,141.0 136.0,141.0 156.0,141.0 176.0,141.0 196.0,141.0 216.0,141.0 236.0,141.0 256.0,141.0 276.0,141.0 296.0,141.0 316.0,141.0 336.0,141.0 356.0,141.0 376.0,141.0 396.0,141.0 416.0,141.0 436.0,141.0 456.0,141.0 476.0,141.0 496.0,141.0 516.0,141.0" /><polyline fill="none" stroke="#dc2626" stroke-width="2.5" points="56.0,141.0 76.0,141.0 96.0,141.0 116.0,141.0 136.0,141.0 156.0,141.0 176.0,141.0 196.0,141.0 216.0,141.0 236.0,141.0 256.0,141.0 276.0,141.0 296.0,141.0 316.0,141.0 336.0,141.0 356.0,141.0 376.0,141.0 396.0,141.0 416.0,141.0 436.0,141.0 456.0,141.0 476.0,141.0 496.0,141.0 516.0,141.0" />
+  <rect x="548" y="54" width="12" height="12" rx="2" fill="#2563eb" /><text x="568" y="64" font-size="12" fill="#111827">speed rads: 0</text><rect x="548" y="78" width="12" height="12" rx="2" fill="#dc2626" /><text x="568" y="88" font-size="12" fill="#111827">rpm: 0</text>
+</svg>
