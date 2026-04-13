@@ -51,6 +51,6 @@ jobs:
 
       - name: Upload distributions to GitHub Release
         if: ${{ env.RELEASE_PAT != '' && steps.semantic-release.outputs.released == 'true' }}
-        uses: python-semantic-release/publish-action@v10.2.0
+        uses: python-semantic-release/publish-action@v10.5.3
         with:
           github_token: ${{ env.RELEASE_PAT }}
