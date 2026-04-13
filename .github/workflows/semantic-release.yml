@@ -41,7 +41,7 @@ jobs:
       - name: Run semantic release
         if: ${{ env.RELEASE_PAT != '' }}
         id: semantic-release
-        uses: python-semantic-release/python-semantic-release@v10.2.0
+        uses: python-semantic-release/python-semantic-release@v10.5.3
         with:
           github_token: ${{ env.RELEASE_PAT }}
 
