@@ -200,7 +200,7 @@ class BaseSensor(ABC, Generic[ObservationT]):
         """Yield nested components of ``target_type`` from this sensor object graph."""
         seen: set[int] = set()
 
-        def visit(obj: Any):
+        def _traverse_object(obj: Any):
             obj_id = id(obj)
             if obj_id in seen:
                 return
@@ -208,25 +208,24 @@ class BaseSensor(ABC, Generic[ObservationT]):
 
             if isinstance(obj, target_type):
                 yield obj
-                return
 
             if isinstance(obj, Mapping):
                 for value in obj.values():
-                    yield from visit(value)
+                    yield from _traverse_object(value)
                 return
 
             if isinstance(obj, (list, tuple, set, frozenset)):
                 for value in obj:
-                    yield from visit(value)
+                    yield from _traverse_object(value)
                 return
 
             values = getattr(obj, "__dict__", None)
             if isinstance(values, dict):
                 for value in values.values():
-                    yield from visit(value)
+                    yield from _traverse_object(value)
 
         for value in self.__dict__.values():
-            yield from visit(value)
+            yield from _traverse_object(value)
 
     # ------------------------------------------------------------------
     # Mandatory interface
