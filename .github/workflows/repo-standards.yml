@@ -29,7 +29,7 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          regex='^(feat|fix|docs|refactor|chore|test|ci|build|release)(\([a-z0-9._-]+\))?: .+'
+          regex='^(feat|fix|perf|docs|refactor|chore|test|ci|build|release)(\([a-z0-9._-]+\))?: .+'
           if [[ ! "$PR_TITLE" =~ $regex ]]; then
             echo "PR title '$PR_TITLE' must follow Conventional Commit style, for example: feat(cli): add demo selector"
             exit 1
