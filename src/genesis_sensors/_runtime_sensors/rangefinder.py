@@ -200,6 +200,7 @@ class RangefinderModel(BaseSensor):
         # ------------------------------------------------------------------
         # Random dropout
         # ------------------------------------------------------------------
+        # Keep runtime clamping in case callers mutate `dropout_prob` after init.
         dropout_prob = float(np.clip(self.dropout_prob, 0.0, 1.0))
         if dropout_prob > 0.0 and float(self._rng.random()) < dropout_prob:
             obs = {"range_m": self.no_hit_value, "in_range": False}

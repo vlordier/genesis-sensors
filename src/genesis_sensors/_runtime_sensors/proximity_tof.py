@@ -128,7 +128,8 @@ class ProximityToFArrayModel(BaseSensor):
             noisy = (1.0 - self.crosstalk_fraction) * noisy + self.crosstalk_fraction * neighbor_mean
 
         # Clip to valid range
-        noisy = np.clip(noisy, self.min_range_m, self.max_range_m)
+        max_output_range = float(np.nextafter(np.float32(self.max_range_m), np.float32(-np.inf)))
+        noisy = np.clip(noisy, self.min_range_m, max_output_range)
         noisy[~valid] = 0.0
 
         self._last_obs = {

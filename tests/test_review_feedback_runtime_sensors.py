@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from genesis_sensors._runtime_sensors.config import ProximityToFArrayConfig
 from genesis_sensors._runtime_sensors.genesis_bridge import _build_motion_state
@@ -41,8 +42,14 @@ def test_proximity_tof_marks_no_hit_zones_invalid() -> None:
     )
     obs = sensor.step(sim_time=0.0, state={"tof_ranges_m": [[0.5, 4.0]]})
     np.testing.assert_array_equal(np.asarray(obs["valid_mask"]), np.array([[True, False]]))
+    np.testing.assert_allclose(np.asarray(obs["range_image"]), np.array([[0.5, 0.0]]), atol=1e-6)
     assert obs["n_valid_zones"] == 1
     assert float(obs["min_range_m"]) == 0.5
+
+    edge_obs = sensor.step(sim_time=0.05, state={"tof_ranges_m": [[3.99, 4.0]]})
+    np.testing.assert_array_equal(np.asarray(edge_obs["valid_mask"]), np.array([[True, False]]))
+    assert edge_obs["n_valid_zones"] == 1
+    assert float(edge_obs["min_range_m"]) == pytest.approx(3.99)
 
     missing_obs = sensor.step(sim_time=0.1, state={})
     np.testing.assert_array_equal(np.asarray(missing_obs["valid_mask"]), np.array([[False, False]]))
