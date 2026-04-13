@@ -74,8 +74,8 @@ class _SensorRNGProxy:
 
         noise = self._sample_zero_mean_noise(sigma_arr, shape)
         if shape == ():
-            return float(np.asarray(loc_arr, dtype=float) + float(noise))
-        return np.broadcast_to(loc_arr, shape).astype(float, copy=False) + np.asarray(noise, dtype=float)
+            return float(loc_arr + float(noise))
+        return np.broadcast_to(loc_arr, shape).astype(float, copy=False) + noise
 
     def _sample_zero_mean_noise(self, sigma: np.ndarray, shape: tuple[int, ...]):
         if self.noise_model == "none" or not np.any(sigma > 0.0):
@@ -192,11 +192,41 @@ class BaseSensor(ABC, Generic[ObservationT]):
 
         wrapped_rng = getattr(self, "_rng", None)
         if gauss_markov_type is not None:
-            for attr_name in dir(self):
-                attr = getattr(self, attr_name, None)
-                if isinstance(attr, gauss_markov_type):
-                    attr._rng = wrapped_rng  # type: ignore[assignment]
+            for process in self._iter_components_of_type(gauss_markov_type):
+                process._rng = wrapped_rng  # type: ignore[assignment]
         return self
+
+    def _iter_components_of_type(self, target_type: type[Any]):
+        """Yield nested components of ``target_type`` from this sensor object graph."""
+        seen: set[int] = set()
+
+        def visit(obj: Any):
+            obj_id = id(obj)
+            if obj_id in seen:
+                return
+            seen.add(obj_id)
+
+            if isinstance(obj, target_type):
+                yield obj
+                return
+
+            if isinstance(obj, Mapping):
+                for value in obj.values():
+                    yield from visit(value)
+                return
+
+            if isinstance(obj, (list, tuple, set, frozenset)):
+                for value in obj:
+                    yield from visit(value)
+                return
+
+            values = getattr(obj, "__dict__", None)
+            if isinstance(values, dict):
+                for value in values.values():
+                    yield from visit(value)
+
+        for value in self.__dict__.values():
+            yield from visit(value)
 
     # ------------------------------------------------------------------
     # Mandatory interface

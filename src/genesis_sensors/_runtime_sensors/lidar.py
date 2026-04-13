@@ -89,7 +89,7 @@ def _box1d_cumsum(arr: "FloatArray", k: int, axis: int) -> "FloatArray":
     zero_shape = list(padded.shape)
     zero_shape[axis] = 1
     cs = np.concatenate(
-        [np.zeros(zero_shape, dtype=np.float32), np.cumsum(padded.astype(np.float32), axis=axis)],
+        [np.zeros(zero_shape, dtype=np.float32), np.cumsum(padded, axis=axis)],
         axis=axis,
     )
     # cs has length n+k along axis.  result[j] = (cs[j+k] - cs[j]) / k.
