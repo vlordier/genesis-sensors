@@ -258,7 +258,8 @@ class EventCameraModel(BaseSensor):
         if raw_arr.ndim not in (2, 3):
             raise ValueError(f"state['gray'] must be a 2-D or 3-D array, got shape {raw_arr.shape}")
         is_uint8 = raw_arr.dtype == np.uint8
-        gray: FloatArray = raw_arr.astype(np.float32)
+        # copy=False avoids allocation when raw_arr is already float32.
+        gray: FloatArray = raw_arr.astype(np.float32, copy=False)
         if gray.ndim == _NDIM_3D:
             gray = gray[..., 0]
         if is_uint8:

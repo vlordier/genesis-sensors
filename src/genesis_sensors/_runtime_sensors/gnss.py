@@ -265,13 +265,10 @@ class GNSSModel(BaseSensor):
                 )
                 # jammed pos_llh: convert the stale ENU position to LLH so users
                 # can correlate pos and pos_llh without seeing ground truth.
-                stale_lat = self.origin_llh[0] + stale_pos[1] / self._m_per_deg_lat
-                stale_lon = self.origin_llh[1] + stale_pos[0] / self._m_per_deg_lon
-                stale_alt = self.origin_llh[2] + stale_pos[2]
                 result: GnssObservation = {
                     "pos": stale_pos,
                     "vel": stale_vel,
-                    "pos_llh": np.array([stale_lat, stale_lon, stale_alt]),
+                    "pos_llh": self._enu_to_llh(stale_pos),
                     "fix_quality": GnssFixQuality.NO_FIX,
                     "n_satellites": 0,
                     "hdop": _HDOP_NO_FIX,
@@ -339,16 +336,10 @@ class GNSSModel(BaseSensor):
         ):
             fix_quality = GnssFixQuality.RTK
 
-        # Convert ENU XYZ to lat/lon/height (flat-earth approximation).
-        # ENU convention: x=East → longitude, y=North → latitude.
-        lat = self.origin_llh[0] + noisy_pos[1] / self._m_per_deg_lat
-        lon = self.origin_llh[1] + noisy_pos[0] / self._m_per_deg_lon
-        alt_m = self.origin_llh[2] + noisy_pos[2]
-
         obs: GnssObservation = {
             "pos": noisy_pos,
             "vel": noisy_vel,
-            "pos_llh": np.array([lat, lon, alt_m]),
+            "pos_llh": self._enu_to_llh(noisy_pos),
             "fix_quality": fix_quality,
             "n_satellites": n_sat,
             "hdop": hdop,
@@ -361,6 +352,13 @@ class GNSSModel(BaseSensor):
 
     def get_observation(self) -> dict[str, Any]:
         return self._last_obs
+
+    def _enu_to_llh(self, enu_pos: Float64Array) -> Float64Array:
+        """Convert ENU XYZ (metres) to LLH (lat_deg, lon_deg, alt_m)."""
+        lat = self.origin_llh[0] + enu_pos[1] / self._m_per_deg_lat
+        lon = self.origin_llh[1] + enu_pos[0] / self._m_per_deg_lon
+        alt_m = self.origin_llh[2] + enu_pos[2]
+        return np.array([lat, lon, alt_m], dtype=np.float64)
 
 
 __all__ = ["GNSSModel", "GnssFixQuality"]
