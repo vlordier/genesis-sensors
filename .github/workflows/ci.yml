@@ -47,7 +47,7 @@ jobs:
 
           python -m pip install --upgrade pip setuptools wheel
           retry_pip install --index-url https://download.pytorch.org/whl/cpu torch
-          retry_pip install "genesis-world @ git+https://github.com/vlordier/Genesis.git@copilot/genesis-sensors-integration"
+          retry_pip install "genesis-world>=0.4.2"
           retry_pip install -e ".[dev]"
 
       - name: Ruff
@@ -105,7 +105,7 @@ jobs:
 
           python -m pip install --upgrade pip setuptools wheel
           retry_pip install --index-url https://download.pytorch.org/whl/cpu torch
-          retry_pip install "genesis-world @ git+https://github.com/vlordier/Genesis.git@copilot/genesis-sensors-integration"
+          retry_pip install "genesis-world>=0.4.2"
           retry_pip install -e .
 
       - name: Import package
