@@ -123,7 +123,7 @@ class RangefinderModel(BaseSensor):
         if accuracy_mode not in ("additive", "max"):
             raise ValueError(f"accuracy_mode must be 'additive' or 'max', got {accuracy_mode!r}")
         self.accuracy_mode: Literal["additive", "max"] = accuracy_mode
-        self.dropout_prob = float(dropout_prob)
+        self.dropout_prob = float(np.clip(dropout_prob, 0.0, 1.0))
         self.resolution_m = float(max(0.0, resolution_m))
         self.no_hit_value = float(no_hit_value)
         self._rng = np.random.default_rng(seed=seed)
@@ -200,7 +200,8 @@ class RangefinderModel(BaseSensor):
         # ------------------------------------------------------------------
         # Random dropout
         # ------------------------------------------------------------------
-        if self.dropout_prob > 0.0 and float(self._rng.random()) < self.dropout_prob:
+        dropout_prob = float(np.clip(self.dropout_prob, 0.0, 1.0))
+        if dropout_prob > 0.0 and float(self._rng.random()) < dropout_prob:
             obs = {"range_m": self.no_hit_value, "in_range": False}
             self._last_obs = obs
             self._mark_updated(sim_time)

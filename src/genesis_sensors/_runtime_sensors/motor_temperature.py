@@ -103,7 +103,7 @@ class MotorTemperatureModel(BaseSensor):
         )
 
     def step(self, *, sim_time: float, state: SensorInput) -> SensorObservation:
-        self._last_update_time = sim_time
+        self._mark_updated(sim_time)
 
         current_a = float(state.get("motor_current_a", 0.0))
         speed_rads = float(state.get("motor_speed_rads", 0.0))

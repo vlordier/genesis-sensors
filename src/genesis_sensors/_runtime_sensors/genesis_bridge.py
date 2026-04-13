@@ -150,7 +150,7 @@ def _build_motion_state(
     else:
         a_world = np.zeros(3, dtype=np.float64)
 
-    gravity_world = np.array([0.0, 0.0, _G_WORLD_Z], dtype=np.float64)
+    gravity_world = np.array([0.0, 0.0, -_G_WORLD_Z], dtype=np.float64)
     state: SensorState = {
         "pos": pos.astype(np.float64, copy=False),
         "vel": vel.astype(np.float64, copy=False),

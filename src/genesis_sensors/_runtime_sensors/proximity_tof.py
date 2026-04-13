@@ -93,21 +93,25 @@ class ProximityToFArrayModel(BaseSensor):
             update_rate_hz=self.update_rate_hz,
             rows=self.rows,
             cols=self.cols,
+            min_range_m=self.min_range_m,
             max_range_m=self.max_range_m,
             noise_sigma_base_m=self.noise_sigma_base_m,
             noise_sigma_scale=self.noise_sigma_scale,
+            fov_deg=self.fov_deg,
             crosstalk_fraction=self.crosstalk_fraction,
             seed=self._seed,
         )
 
     def step(self, *, sim_time: float, state: SensorInput) -> SensorObservation:
-        self._last_update_time = sim_time
+        self._mark_updated(sim_time)
 
         raw = state.get("tof_ranges_m", state.get("tof_range_image"))
         if raw is not None:
             ranges = np.asarray(raw, dtype=np.float32).reshape(self.rows, self.cols)
+            valid = np.isfinite(ranges) & (ranges >= self.min_range_m) & (ranges < self.max_range_m)
         else:
             ranges = np.full((self.rows, self.cols), self.max_range_m, dtype=np.float32)
+            valid = np.zeros((self.rows, self.cols), dtype=bool)
 
         # Range-dependent noise
         sigma = self.noise_sigma_base_m + self.noise_sigma_scale * ranges**2
@@ -124,7 +128,6 @@ class ProximityToFArrayModel(BaseSensor):
             noisy = (1.0 - self.crosstalk_fraction) * noisy + self.crosstalk_fraction * neighbor_mean
 
         # Clip to valid range
-        valid = (ranges >= self.min_range_m) & (ranges <= self.max_range_m)
         noisy = np.clip(noisy, self.min_range_m, self.max_range_m)
         noisy[~valid] = 0.0
 

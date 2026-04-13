@@ -1298,9 +1298,11 @@ class ProximityToFArrayConfig(BaseModel):
     update_rate_hz: float = Field(default=15.0, gt=0, description="Ranging rate (Hz).")
     rows: int = Field(default=8, ge=1, description="Number of zone rows.")
     cols: int = Field(default=8, ge=1, description="Number of zone columns.")
+    min_range_m: float = Field(default=0.02, ge=0.0, description="Minimum measurable range (m).")
     max_range_m: float = Field(default=4.0, gt=0, description="Maximum measurable range (m).")
     noise_sigma_base_m: float = Field(default=0.005, ge=0.0, description="Base range noise 1-σ (m).")
     noise_sigma_scale: float = Field(default=0.001, ge=0.0, description="Range-squared noise coefficient.")
+    fov_deg: float = Field(default=63.0, ge=1.0, description="Total field of view (deg).")
     crosstalk_fraction: float = Field(default=0.02, ge=0.0, le=1.0, description="Optical inter-zone crosstalk.")
     seed: int | None = None
 
