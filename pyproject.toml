@@ -43,7 +43,7 @@ dev = [
     "pytest>=8.0",
     "rerun-sdk>=0.23",
     "python-semantic-release>=10.2.0",
-    "ruff>=0.9",
+    "ruff>=0.15.10",
     "twine>=6.1.0",
 ]
 rerun = [
