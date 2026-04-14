@@ -26,7 +26,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "genesis-world>=0.4.2",
+    "genesis-world>=0.4.6",
     "numpy>=1.26.4",
     "pydantic>=2.12.5",
 ]
