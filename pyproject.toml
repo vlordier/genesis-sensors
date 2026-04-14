@@ -27,7 +27,7 @@ classifiers = [
 ]
 dependencies = [
     "genesis-world>=0.4.6",
-    "numpy>=1.26.4",
+    "numpy>=2.2.6",
     "pydantic>=2.12.5",
 ]
 
