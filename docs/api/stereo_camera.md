@@ -8,6 +8,10 @@
 
 ![Stereo camera snapshot](../assets/sensors/stereo_camera.svg)
 
+## Public symbols
+
+`StereoCameraModel`
+
 ::: genesis_sensors._runtime_sensors.stereo_camera
     options:
       show_root_heading: true

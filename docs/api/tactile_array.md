@@ -8,6 +8,10 @@
 
 ![Tactile-array generated example](../assets/sensors/tactile_array.svg)
 
+## Public symbols
+
+`TactileArraySensor`
+
 ::: genesis_sensors._runtime_sensors.tactile_array
     options:
       show_root_heading: true

@@ -33,17 +33,7 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          retry_pip() {
-            local attempt=1
-            until python -m pip "$@"; do
-              if [ "$attempt" -ge 3 ]; then
-                echo "pip $* failed after ${attempt} attempts"
-                return 1
-              fi
-              echo "pip $* failed on attempt ${attempt}; retrying..."
-              attempt=$((attempt + 1))
-            done
-          }
+          source .github/scripts/pip_retry.sh
 
           python -m pip install --upgrade pip setuptools wheel
           retry_pip install --index-url https://download.pytorch.org/whl/cpu torch
@@ -51,21 +41,22 @@ jobs:
           retry_pip install -e ".[dev]"
 
       - name: Ruff
-        run: ruff check .
+        run: poe lint
+
+      - name: API smoke tests
+        run: poe test_api
 
       - name: Tests
-        env:
-          PYTHONPATH: ${{ github.workspace }}/src
-        run: pytest tests -q
+        run: poe coverage
+
+      - name: Smoke CLI entry point
+        run: poe smoke_cli
 
       - name: Build docs
-        run: mkdocs build --strict
+        run: poe docs
 
       - name: Build distributions
-        run: python -m build
-
-      - name: Validate package metadata
-        run: python -m twine check dist/*
+        run: poe package
 
   compatibility:
     runs-on: ubuntu-latest
@@ -91,17 +82,7 @@ jobs:
       - name: Install runtime dependencies
         shell: bash
         run: |
-          retry_pip() {
-            local attempt=1
-            until python -m pip "$@"; do
-              if [ "$attempt" -ge 3 ]; then
-                echo "pip $* failed after ${attempt} attempts"
-                return 1
-              fi
-              echo "pip $* failed on attempt ${attempt}; retrying..."
-              attempt=$((attempt + 1))
-            done
-          }
+          source .github/scripts/pip_retry.sh
 
           python -m pip install --upgrade pip setuptools wheel
           retry_pip install --index-url https://download.pytorch.org/whl/cpu torch

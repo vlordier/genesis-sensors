@@ -8,6 +8,10 @@
 
 ![Wheel odometry generated example](../assets/sensors/wheel_odometry.svg)
 
+## Public symbols
+
+`WheelOdometryModel`
+
 ::: genesis_sensors._runtime_sensors.wheel_odometry
     options:
       show_root_heading: true

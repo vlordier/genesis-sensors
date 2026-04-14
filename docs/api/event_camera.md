@@ -8,6 +8,10 @@
 
 ![Event camera snapshot](../assets/sensors/event_camera.svg)
 
+## Public symbols
+
+`Event`, `EventCameraModel`
+
 ::: genesis_sensors._runtime_sensors.event_camera
     options:
       show_root_heading: true

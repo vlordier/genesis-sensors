@@ -8,6 +8,10 @@
 
 ![Joint-state generated example](../assets/sensors/joint_state.svg)
 
+## Public symbols
+
+`JointStateSensor`
+
 ::: genesis_sensors._runtime_sensors.joint_state
     options:
       show_root_heading: true

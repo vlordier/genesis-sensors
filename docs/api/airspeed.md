@@ -8,6 +8,10 @@
 
 ![Airspeed generated example](../assets/sensors/airspeed.svg)
 
+## Public symbols
+
+`AirspeedModel`
+
 ::: genesis_sensors._runtime_sensors.airspeed
     options:
       show_root_heading: true

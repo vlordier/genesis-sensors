@@ -17,7 +17,7 @@ from genesis_sensors import (
     list_presets,
     make_synthetic_sensor_state,
 )
-from genesis_sensors.rigs import NamedContactSensor, SensorRig, make_synthetic_multimodal_rig
+from genesis_sensors.rigs import NamedContactSensor, RigProfile, SensorRig, make_synthetic_multimodal_rig
 
 
 def test_named_contact_sensor_reads_only_its_link_force() -> None:
@@ -96,6 +96,18 @@ def test_synthetic_multimodal_rig_surfaces_more_upstream_sensors() -> None:
     assert "current_profile_ms" in obs0["current_profiler"]
 
 
+def test_sensor_rig_describe_reports_typed_profile_and_sensor_count() -> None:
+    rig = make_synthetic_multimodal_rig(dt=0.05, seed=0)
+
+    summary = rig.describe()
+    assert summary.profile == RigProfile.SYNTHETIC_MULTIMODAL
+    assert summary.sensor_count == len(summary.sensor_names)
+    assert summary.has_sensor("imu") is True
+    assert "imu" in summary.preview_sensor_names(limit=10)
+    assert summary.as_dict()["profile"] == "synthetic_multimodal"
+    assert summary.as_dict()["sensor_count"] >= 10
+
+
 def test_synthetic_state_and_preset_helpers_expose_upstream_surface() -> None:
     state = make_synthetic_sensor_state(2)
 
@@ -139,7 +151,12 @@ def _load_doc_assets_module():
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except ImportError as exc:
+        if "torch" in str(exc).lower() or "genesis" in str(exc).lower():
+            pytest.skip("Genesis/Torch runtime is not available in the current environment")
+        raise
     return module
 
 

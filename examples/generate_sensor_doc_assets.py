@@ -54,7 +54,6 @@ from genesis_sensors import (
     WheelOdometryModel,
     WireEncoderModel,
 )
-from genesis_sensors.scenes import build_franka_demo, build_perception_demo
 from genesis_sensors.synthetic import GNSS_ORIGIN_LLH
 
 SVG_COLORS = ("#2563eb", "#dc2626", "#059669", "#d97706")
@@ -74,10 +73,15 @@ class DemoCapture:
     observations: dict[str, dict[str, Any]]
 
 
-DEMO_BUILDERS: dict[str, tuple[str, Callable[..., Any]]] = {
-    "perception": ("Genesis perception demo", build_perception_demo),
-    "franka": ("Genesis Franka demo", build_franka_demo),
-}
+def _get_demo_builders() -> dict[str, tuple[str, Callable[..., Any]]]:
+    """Import scene builders lazily so metadata inspection works without Genesis/Torch."""
+    from genesis_sensors.scenes import build_franka_demo, build_perception_demo
+
+    return {
+        "perception": ("Genesis perception demo", build_perception_demo),
+        "franka": ("Genesis Franka demo", build_franka_demo),
+    }
+
 
 DEMO_SENSOR_KEYS: dict[str, tuple[str, str]] = {
     "imu": ("perception", "imu"),
@@ -372,9 +376,10 @@ def _collect_genesis_captures(
         if slug in specs and (not only or slug in only)
     }
     captures: dict[str, DemoCapture] = {}
+    demo_builders = _get_demo_builders()
 
     for demo_idx, demo_name in enumerate(sorted(requested_demos)):
-        label, builder = DEMO_BUILDERS[demo_name]
+        label, builder = demo_builders[demo_name]
         captures[demo_name] = _collect_demo_capture(
             builder,
             label=label,

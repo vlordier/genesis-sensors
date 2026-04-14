@@ -8,6 +8,10 @@
 
 ![RGB camera snapshot](../assets/sensors/camera_model.svg)
 
+## Public symbols
+
+`CameraModel`
+
 ::: genesis_sensors._runtime_sensors.camera_model
     options:
       show_root_heading: true

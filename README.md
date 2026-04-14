@@ -20,6 +20,9 @@ Inspired by the standalone feel of `GenesisDroneEnv`, this package wraps the Gen
   - Go2 proprioception + per-leg contact sensing
 - **Bundled sensor runtime** so the package works with released `genesis-world` as-is
 - **Headless synthetic rigs and state builders** for quickly exercising the full sensor surface
+- **Synthetic rollout planning helpers** via `SyntheticScenarioConfig`, `make_synthetic_rollout()`, `summarize_synthetic_rollout()`, and `genesis-sensors --list-phases`
+- **Headless CLI synthetic demo** via `genesis-sensors synthetic`, useful for smoke tests even before installing the full Genesis runtime
+- **Scene catalog and dry-run summaries** via `list_demo_scenes()`, `list_demo_scene_names()`, `list_demo_scene_commands()`, `describe_demo_catalog()`, `genesis-sensors --list-scenes`, `genesis-sensors --catalog-summary`, `genesis-sensors --list-profiles`, and `SensorRig.describe()`
 - **Robustness wrappers** for latency injection, packet dropouts, and per-observation health metadata
 - **Common noise-model controls** for every sensor: `gaussian`, `laplace`, `uniform`, or `none`, plus rare outlier injection for heavier-tailed realism
 - **Preset-friendly helpers** via `get_preset()` and `list_presets()` re-exported from the companion package
@@ -86,6 +89,13 @@ pip install -e .[dev]
 pip install -e .[rerun]
 # or: pip install rerun-sdk
 
+# 4c. Optional: use uv for fast local checks and docs helpers
+uv sync --extra dev
+uv run --extra dev poe test_fast
+uv run --extra dev poe test_api
+uv run --extra dev poe coverage
+uv run --extra dev poe api_docs
+
 # 5. Or install the published package directly
 pip install genesis-sensors
 
@@ -120,6 +130,26 @@ from genesis_sensors.scenes import build_franka_demo
 
 demo = build_franka_demo(show_viewer=False)
 demo.rig.reset()
+
+# Or smoke-test the full stack without Genesis/Torch:
+# genesis-sensors synthetic --steps 24 --summary-every 6
+
+from genesis_sensors import (
+    SceneRuntimeMode,
+    SyntheticScenarioConfig,
+    describe_demo_catalog,
+    list_demo_scene_commands,
+    list_demo_scene_names,
+    list_demo_scenes,
+    summarize_synthetic_rollout,
+)
+
+print(list_demo_scenes()[0])
+print(list_demo_scene_names(query="syn"))
+print(list_demo_scene_commands(runtime_mode=SceneRuntimeMode.HEADLESS))
+print(describe_demo_catalog(runtime_mode=SceneRuntimeMode.HEADLESS).as_dict())
+print(demo.rig.describe().as_dict())
+print(summarize_synthetic_rollout(frame_count=8, config=SyntheticScenarioConfig()).as_dict())
 ```
 
 See `docs/examples.md` for the full `genesis-world` + `genesis_sensors` walkthroughs and the generated outputs embedded in the documentation.
@@ -180,6 +210,16 @@ genesis-sensors drone --steps 200
 genesis-sensors perception --steps 200
 genesis-sensors franka --steps 200
 genesis-sensors go2 --steps 200
+genesis-sensors synthetic --steps 24 --summary-every 6
+genesis-sensors --list-scenes
+genesis-sensors --list-scenes --runtime-mode headless --show-commands --summary-format json
+genesis-sensors --list-scenes --search syn --summary-format json
+genesis-sensors --catalog-summary --summary-format json
+genesis-sensors --list-profiles --summary-format json
+genesis-sensors --describe-scene synthetic --summary-format json
+genesis-sensors --list-phases --summary-format json
+genesis-sensors --list-scenes --profile synthetic_multimodal --headless-only --summary-format json
+genesis-sensors synthetic --dry-run --summary-format json --write-summary /tmp/synthetic.json
 
 # short alias
 gs-sensors drone --steps 200
@@ -199,9 +239,22 @@ python -m build
 python -m twine check dist/*
 
 # or use the pyproject-managed task shortcuts
+uv run --extra dev poe lint
+uv run --extra dev poe docs
 uv run --extra dev poe test
+uv run --extra dev poe test_api
+uv run --extra dev poe coverage
+uv run --extra dev poe test_fast
+uv run --extra dev poe api_docs
+uv run --extra dev poe smoke_cli
+uv run --extra dev poe list_scenes
+uv run --extra dev poe synthetic_demo
+uv run --extra dev poe synthetic_dry_run
+uv run --extra dev poe lint_fix   # optional auto-fix
+uv run --extra dev poe package
 uv run --extra dev poe fault_demo
 uv run --extra dev poe rerun_save
+uv run --extra dev poe check_fast
 uv run --extra dev poe check
 
 # publish from GitHub Actions after configuring PyPI trusted publishing
@@ -225,6 +278,19 @@ See `CONTRIBUTING.md`, `RELEASE.md`, and `CHANGELOG.md` for the full workflow.
 The docs site is built with **MkDocs Material** and published via **GitHub Pages**.
 
 ---
+
+## 🛠️ Troubleshooting
+
+- If `import genesis` fails with a missing `torch` error, install PyTorch for your platform first, for example:
+  `pip install torch --index-url https://download.pytorch.org/whl/cpu`
+- To confirm which sensor implementation is active, run:
+  `python -c "import genesis_sensors as gs; print(gs.SENSOR_BACKEND)"`
+- To confirm the installed CLI entry point and package version, run:
+  `genesis-sensors --version`
+- For a fast local verification pass that does not require the full scene runtime, use:
+  `uv run --extra dev poe test_fast`
+- To inspect coverage for the review branch locally, use:
+  `uv run --extra dev poe coverage`
 
 ## 🧭 Notes
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
-import os
+from dataclasses import dataclass
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -24,52 +24,62 @@ from pathlib import Path
 PACKAGE = "genesis_sensors._runtime_sensors"
 API_DIR = Path(__file__).resolve().parent.parent / "docs" / "api"
 ASSET_DIR = Path(__file__).resolve().parent.parent / "docs" / "assets" / "sensors"
-# Modules to document, in nav order.  Each tuple is (module_name, page_title).
-MODULES: list[tuple[str, str]] = [
-    ("base", "Base Sensor"),
-    ("scheduler", "Scheduler"),
-    ("suite", "Sensor Suite"),
-    ("config", "Configuration"),
-    ("types", "Observation Types"),
-    ("presets", "Presets"),
-    ("_gauss_markov", "Gauss-Markov Process"),
-    ("imu", "IMU"),
-    ("gnss", "GNSS / GPS"),
-    ("barometer", "Barometer"),
-    ("magnetometer", "Magnetometer"),
-    ("airspeed", "Airspeed"),
-    ("camera_model", "RGB Camera"),
-    ("stereo_camera", "Stereo Camera"),
-    ("depth_camera", "Depth Camera"),
-    ("thermal_camera", "Thermal Camera"),
-    ("event_camera", "Event Camera"),
-    ("lidar", "LiDAR"),
-    ("rangefinder", "Rangefinder"),
-    ("optical_flow", "Optical Flow"),
-    ("ultrasonic", "Ultrasonic Array"),
-    ("sonar", "Sonar (Imaging & Side-Scan)"),
-    ("acoustic_navigation", "DVL & Current Profiler"),
-    ("water_pressure", "Water Pressure"),
-    ("hydrophone", "Hydrophone"),
-    ("underwater_modem", "Underwater Modem"),
-    ("environmental", "Environmental Sensors"),
-    ("leak_detector", "Leak Detector"),
-    ("wireless", "UWB & Radar"),
-    ("radio", "Radio Link"),
-    ("battery", "Battery"),
-    ("wheel_odometry", "Wheel Odometry"),
-    ("inclinometer", "Inclinometer"),
-    ("force_torque", "Force / Torque"),
-    ("joint_state", "Joint State"),
-    ("contact_sensor", "Contact Sensor"),
-    ("proximity_tof", "Proximity ToF Array"),
-    ("tactile_array", "Tactile Array"),
-    ("load_cell", "Load Cell"),
-    ("current_sensor", "Current Sensor"),
-    ("rpm_sensor", "RPM Sensor"),
-    ("wire_encoder", "Wire Encoder"),
-    ("motor_temperature", "Motor Temperature"),
-]
+
+
+@dataclass(frozen=True, slots=True)
+class ModuleDocSpec:
+    """A single API documentation page definition."""
+
+    module_name: str
+    page_title: str
+
+
+# Modules to document, in nav order.
+MODULES: tuple[ModuleDocSpec, ...] = (
+    ModuleDocSpec("base", "Base Sensor"),
+    ModuleDocSpec("scheduler", "Scheduler"),
+    ModuleDocSpec("suite", "Sensor Suite"),
+    ModuleDocSpec("config", "Configuration"),
+    ModuleDocSpec("types", "Observation Types"),
+    ModuleDocSpec("presets", "Presets"),
+    ModuleDocSpec("_gauss_markov", "Gauss-Markov Process"),
+    ModuleDocSpec("imu", "IMU"),
+    ModuleDocSpec("gnss", "GNSS / GPS"),
+    ModuleDocSpec("barometer", "Barometer"),
+    ModuleDocSpec("magnetometer", "Magnetometer"),
+    ModuleDocSpec("airspeed", "Airspeed"),
+    ModuleDocSpec("camera_model", "RGB Camera"),
+    ModuleDocSpec("stereo_camera", "Stereo Camera"),
+    ModuleDocSpec("depth_camera", "Depth Camera"),
+    ModuleDocSpec("thermal_camera", "Thermal Camera"),
+    ModuleDocSpec("event_camera", "Event Camera"),
+    ModuleDocSpec("lidar", "LiDAR"),
+    ModuleDocSpec("rangefinder", "Rangefinder"),
+    ModuleDocSpec("optical_flow", "Optical Flow"),
+    ModuleDocSpec("ultrasonic", "Ultrasonic Array"),
+    ModuleDocSpec("sonar", "Sonar (Imaging & Side-Scan)"),
+    ModuleDocSpec("acoustic_navigation", "DVL & Current Profiler"),
+    ModuleDocSpec("water_pressure", "Water Pressure"),
+    ModuleDocSpec("hydrophone", "Hydrophone"),
+    ModuleDocSpec("underwater_modem", "Underwater Modem"),
+    ModuleDocSpec("environmental", "Environmental Sensors"),
+    ModuleDocSpec("leak_detector", "Leak Detector"),
+    ModuleDocSpec("wireless", "UWB & Radar"),
+    ModuleDocSpec("radio", "Radio Link"),
+    ModuleDocSpec("battery", "Battery"),
+    ModuleDocSpec("wheel_odometry", "Wheel Odometry"),
+    ModuleDocSpec("inclinometer", "Inclinometer"),
+    ModuleDocSpec("force_torque", "Force / Torque"),
+    ModuleDocSpec("joint_state", "Joint State"),
+    ModuleDocSpec("contact_sensor", "Contact Sensor"),
+    ModuleDocSpec("proximity_tof", "Proximity ToF Array"),
+    ModuleDocSpec("tactile_array", "Tactile Array"),
+    ModuleDocSpec("load_cell", "Load Cell"),
+    ModuleDocSpec("current_sensor", "Current Sensor"),
+    ModuleDocSpec("rpm_sensor", "RPM Sensor"),
+    ModuleDocSpec("wire_encoder", "Wire Encoder"),
+    ModuleDocSpec("motor_temperature", "Motor Temperature"),
+)
 
 EXAMPLE_ASSETS: dict[str, list[tuple[str, str]]] = {
     "imu": [("IMU generated example", "imu.svg")],
@@ -165,19 +175,29 @@ def _example_block(mod_name: str) -> list[str]:
 def _write_module_page(mod_name: str, title: str) -> str:
     """Write a single API reference page and return its relative path."""
     fqn = _module_path(mod_name)
+    public_names = _collect_public_names(mod_name)
 
-    lines = [
-        f"# {title}",
-        "",
-        *_example_block(mod_name),
-        f"::: {fqn}",
-        "    options:",
-        "      show_root_heading: true",
-        "      show_source: false",
-        "      members_order: source",
-        "      show_category_heading: true",
-        "      merge_init_into_class: true",
-    ]
+    lines = [f"# {title}", "", *_example_block(mod_name)]
+    if public_names:
+        lines.extend(
+            [
+                "## Public symbols",
+                "",
+                ", ".join(f"`{name}`" for name in public_names),
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            f"::: {fqn}",
+            "    options:",
+            "      show_root_heading: true",
+            "      show_source: false",
+            "      members_order: source",
+            "      show_category_heading: true",
+            "      merge_init_into_class: true",
+        ]
+    )
 
     filename = f"{mod_name.lstrip('_')}.md"
     filepath = API_DIR / filename
@@ -193,11 +213,25 @@ def _write_index(page_paths: list[tuple[str, str]]) -> None:
         "",
         "Auto-generated from source docstrings.",
         "",
-        "## Modules",
+        "## Regenerate locally",
+        "",
+        "```bash",
+        "PYTHONPATH=src python scripts/gen_api_docs.py",
+        "```",
+        "",
+        "## Top-level helper modules",
+        "",
+        "- `genesis_sensors.config` — backend-aware validated config shims",
+        "- `genesis_sensors.presets` — preset constants plus `get_preset()` / `list_presets()`",
+        "- `genesis_sensors.genesis_bridge` — helper functions for extracting Genesis state",
+        "- `genesis_sensors.synthetic` — headless synthetic-state builders for tests and demos",
+        "- `genesis_sensors.robustness` — latency/dropout wrappers and health metadata",
+        "",
+        "## Runtime sensor modules",
         "",
     ]
     for title, rel_path in page_paths:
-        basename = os.path.basename(rel_path).replace(".md", "")
+        basename = Path(rel_path).name.replace(".md", "")
         lines.append(f"- [{title}]({basename}.md)")
     lines.append("")
 
@@ -211,9 +245,9 @@ def main() -> None:
     print(f"Generating API docs in {API_DIR} ...")
 
     page_paths: list[tuple[str, str]] = []
-    for mod_name, title in MODULES:
-        rel = _write_module_page(mod_name, title)
-        page_paths.append((title, rel))
+    for spec in MODULES:
+        rel = _write_module_page(spec.module_name, spec.page_title)
+        page_paths.append((spec.page_title, rel))
 
     _write_index(page_paths)
     print(f"Done. {len(page_paths)} pages generated.")

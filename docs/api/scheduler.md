@@ -1,5 +1,9 @@
 # Scheduler
 
+## Public symbols
+
+`SensorScheduler`
+
 ::: genesis_sensors._runtime_sensors.scheduler
     options:
       show_root_heading: true

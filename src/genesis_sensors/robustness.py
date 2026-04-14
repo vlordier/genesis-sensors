@@ -5,17 +5,71 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import Mapping
 from copy import deepcopy
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import asdict, dataclass
+from enum import Enum
+from typing import Any, cast
 
 import numpy as np
 
 from . import SENSOR_BACKEND, SensorScheduler, SensorSuite
 
+_RELEASE_EPSILON_S = 1e-12
+_UNINITIALIZED_TIME_S = -1.0
+
+
+class ObservationStatus(str, Enum):
+    """Canonical lifecycle states surfaced in robustness metadata."""
+
+    WARMING_UP = "warming_up"
+    OK = "ok"
+    DELAYED = "delayed"
+    DROPOUT = "dropout"
+    DROPOUT_HOLD = "dropout_hold"
+
+
+@dataclass(frozen=True, slots=True)
+class ObservationMetadata:
+    """Typed metadata attached to robustness-wrapped observations."""
+
+    sensor_name: str
+    wrapped_sensor_type: str
+    backend: str
+    sim_time: float
+    source_time: float | None
+    age_s: float | None
+    status: ObservationStatus
+    dropped: bool
+    latency_s: float
+    dropout_prob: float
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return a JSON-friendly metadata payload."""
+        payload = asdict(self)
+        payload["status"] = self.status.value
+        return payload
+
+
+def _validate_fault_params(latency_s: float, dropout_prob: float) -> tuple[float, float]:
+    """Normalise and validate latency / dropout settings shared across wrappers."""
+    latency = float(latency_s)
+    dropout = float(dropout_prob)
+    if latency < 0.0:
+        raise ValueError(f"latency_s must be >= 0, got {latency}")
+    if not 0.0 <= dropout <= 1.0:
+        raise ValueError(f"dropout_prob must be in [0, 1], got {dropout}")
+    return latency, dropout
+
 
 @dataclass(slots=True)
 class SensorFaultConfig:
-    """Configuration for latency/dropout injection on a wrapped sensor."""
+    """Configuration for latency/dropout injection on a wrapped sensor.
+
+    Examples
+    --------
+    >>> cfg = SensorFaultConfig(latency_s=0.05, dropout_prob=0.1, seed=7)
+    >>> cfg.latency_s
+    0.05
+    """
 
     latency_s: float = 0.0
     dropout_prob: float = 0.0
@@ -24,10 +78,7 @@ class SensorFaultConfig:
     seed: int | None = None
 
     def __post_init__(self) -> None:
-        if self.latency_s < 0.0:
-            raise ValueError(f"latency_s must be >= 0, got {self.latency_s}")
-        if not 0.0 <= self.dropout_prob <= 1.0:
-            raise ValueError(f"dropout_prob must be in [0, 1], got {self.dropout_prob}")
+        self.latency_s, self.dropout_prob = _validate_fault_params(self.latency_s, self.dropout_prob)
 
 
 class RobustSensorWrapper:
@@ -36,6 +87,14 @@ class RobustSensorWrapper:
     The wrapper is intentionally backend-agnostic: it only assumes the wrapped
     sensor exposes ``name``, ``update_rate_hz``, ``reset()``, ``step()``,
     ``get_observation()``, and optionally ``is_due()``.
+
+    Examples
+    --------
+    >>> from genesis_sensors import RangefinderModel
+    >>> sensor = RangefinderModel(seed=0, noise_floor_m=0.0, noise_slope=0.0)
+    >>> wrapped = RobustSensorWrapper(sensor, latency_s=0.05, dropout_prob=0.1, seed=1)
+    >>> isinstance(wrapped.get_observation(), dict)
+    True
     """
 
     def __init__(
@@ -49,16 +108,13 @@ class RobustSensorWrapper:
         include_metadata: bool = True,
         seed: int | None = None,
     ) -> None:
-        if latency_s < 0.0:
-            raise ValueError(f"latency_s must be >= 0, got {latency_s}")
-        if not 0.0 <= dropout_prob <= 1.0:
-            raise ValueError(f"dropout_prob must be in [0, 1], got {dropout_prob}")
+        latency_s, dropout_prob = _validate_fault_params(latency_s, dropout_prob)
 
         self.sensor = sensor
-        self.name = name or getattr(sensor, "name", type(sensor).__name__)
+        self.name = str(name or getattr(sensor, "name", type(sensor).__name__))
         self.update_rate_hz = float(getattr(sensor, "update_rate_hz", 1.0))
-        self.latency_s = float(latency_s)
-        self.dropout_prob = float(dropout_prob)
+        self.latency_s = latency_s
+        self.dropout_prob = dropout_prob
         self.hold_last_on_dropout = bool(hold_last_on_dropout)
         self.include_metadata = bool(include_metadata)
         self._rng = np.random.default_rng(seed=seed)
@@ -67,24 +123,26 @@ class RobustSensorWrapper:
         self._last_payload: dict[str, Any] = {}
         self._last_obs: dict[str, Any] = {}
         self._last_source_time: float | None = None
-        self._last_update_time: float = -1.0
+        self._last_update_time: float = _UNINITIALIZED_TIME_S
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.sensor, name)
 
     def reset(self, env_id: int = 0) -> None:
         self.sensor.reset(env_id=env_id)
+        if self._seed is not None:
+            self._rng = np.random.default_rng(seed=self._seed)
         self._history.clear()
         self._last_payload = {}
         self._last_obs = {}
         self._last_source_time = None
-        self._last_update_time = -1.0
+        self._last_update_time = _UNINITIALIZED_TIME_S
 
     def is_due(self, sim_time: float) -> bool:
         sensor_is_due = getattr(self.sensor, "is_due", None)
         if callable(sensor_is_due):
             return bool(sensor_is_due(sim_time))
-        if self._last_update_time < 0.0:
+        if self._last_update_time <= _UNINITIALIZED_TIME_S:
             return True
         return (sim_time - self._last_update_time) >= 1.0 / self.update_rate_hz
 
@@ -99,7 +157,7 @@ class RobustSensorWrapper:
             ready_obs = self._copy_mapping(raw_obs)
             ready_source_time = float(sim_time)
         else:
-            release_time = float(sim_time) - self.latency_s + 1e-12
+            release_time = float(sim_time) - self.latency_s + _RELEASE_EPSILON_S
             while self._history and self._history[0][0] <= release_time:
                 ready_source_time, ready_obs = self._history.popleft()
 
@@ -109,10 +167,12 @@ class RobustSensorWrapper:
                     self._last_payload,
                     sim_time=sim_time,
                     source_time=self._last_source_time,
-                    status="warming_up",
+                    status=ObservationStatus.WARMING_UP,
                     dropped=False,
                 )
-            return self._annotate({}, sim_time=sim_time, source_time=None, status="warming_up", dropped=False)
+            return self._annotate(
+                {}, sim_time=sim_time, source_time=None, status=ObservationStatus.WARMING_UP, dropped=False
+            )
 
         if self.dropout_prob > 0.0 and float(self._rng.random()) < self.dropout_prob:
             if self.hold_last_on_dropout and self._last_payload:
@@ -120,20 +180,24 @@ class RobustSensorWrapper:
                     self._last_payload,
                     sim_time=sim_time,
                     source_time=self._last_source_time,
-                    status="dropout_hold",
+                    status=ObservationStatus.DROPOUT_HOLD,
                     dropped=True,
                 )
             return self._annotate(
                 {},
                 sim_time=sim_time,
                 source_time=ready_source_time,
-                status="dropout",
+                status=ObservationStatus.DROPOUT,
                 dropped=True,
             )
 
         self._last_payload = self._copy_mapping(ready_obs)
         self._last_source_time = ready_source_time
-        status = "ok" if ready_source_time is not None and abs(sim_time - ready_source_time) < 1e-9 else "delayed"
+        status = (
+            ObservationStatus.OK
+            if ready_source_time is not None and abs(sim_time - ready_source_time) < _RELEASE_EPSILON_S
+            else ObservationStatus.DELAYED
+        )
         return self._annotate(ready_obs, sim_time=sim_time, source_time=ready_source_time, status=status, dropped=False)
 
     def get_observation(self) -> dict[str, Any]:
@@ -145,23 +209,23 @@ class RobustSensorWrapper:
         *,
         sim_time: float,
         source_time: float | None,
-        status: str,
+        status: ObservationStatus,
         dropped: bool,
     ) -> dict[str, Any]:
         obs = self._copy_mapping(payload)
         if self.include_metadata:
-            obs["_meta"] = {
-                "sensor_name": self.name,
-                "wrapped_sensor_type": type(self.sensor).__name__,
-                "backend": SENSOR_BACKEND,
-                "sim_time": float(sim_time),
-                "source_time": None if source_time is None else float(source_time),
-                "age_s": None if source_time is None else float(max(0.0, sim_time - source_time)),
-                "status": status,
-                "dropped": bool(dropped),
-                "latency_s": self.latency_s,
-                "dropout_prob": self.dropout_prob,
-            }
+            obs["_meta"] = ObservationMetadata(
+                sensor_name=self.name,
+                wrapped_sensor_type=type(self.sensor).__name__,
+                backend=SENSOR_BACKEND,
+                sim_time=float(sim_time),
+                source_time=None if source_time is None else float(source_time),
+                age_s=None if source_time is None else float(max(0.0, sim_time - source_time)),
+                status=status,
+                dropped=bool(dropped),
+                latency_s=self.latency_s,
+                dropout_prob=self.dropout_prob,
+            ).as_dict()
         self._last_obs = obs
         return self._copy_mapping(obs)
 
@@ -196,20 +260,27 @@ def wrap_scheduler_with_faults(
     """Return a new scheduler whose sensors are wrapped with fault injection."""
     wrapped = SensorScheduler()
     names = scheduler.sensor_names()
-    child_seeds = np.random.SeedSequence(seed).spawn(len(names)) if seed is not None else [None] * len(names)
+    if seed is None:
+        child_seeds: list[np.random.SeedSequence | None] = [None for _ in names]
+    else:
+        child_seeds = list(np.random.SeedSequence(seed).spawn(len(names)))
 
     for idx, name in enumerate(names):
-        child_seed = None if child_seeds[idx] is None else int(child_seeds[idx].generate_state(1)[0])
+        seed_sequence = child_seeds[idx]
+        child_seed = None if seed_sequence is None else int(seed_sequence.generate_state(1)[0])
         sensor = scheduler.get_sensor(name)
         wrapped.add(
-            RobustSensorWrapper(
-                sensor,
-                name=name,
-                latency_s=_value_for_sensor(latency_s, name),
-                dropout_prob=_value_for_sensor(dropout_prob, name),
-                hold_last_on_dropout=hold_last_on_dropout,
-                include_metadata=include_metadata,
-                seed=child_seed,
+            cast(
+                Any,
+                RobustSensorWrapper(
+                    sensor,
+                    name=name,
+                    latency_s=_value_for_sensor(latency_s, name),
+                    dropout_prob=_value_for_sensor(dropout_prob, name),
+                    hold_last_on_dropout=hold_last_on_dropout,
+                    include_metadata=include_metadata,
+                    seed=child_seed,
+                ),
             ),
             name=name,
         )
@@ -267,6 +338,8 @@ def wrap_rig_with_faults(
 
 
 __all__ = [
+    "ObservationMetadata",
+    "ObservationStatus",
     "RobustSensorWrapper",
     "SensorFaultConfig",
     "wrap_rig_with_faults",

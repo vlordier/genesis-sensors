@@ -8,6 +8,10 @@
 
 ![LiDAR snapshot](../assets/sensors/lidar.svg)
 
+## Public symbols
+
+`LidarModel`, `LidarPoint`
+
 ::: genesis_sensors._runtime_sensors.lidar
     options:
       show_root_heading: true

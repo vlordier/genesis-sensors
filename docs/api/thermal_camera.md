@@ -8,6 +8,10 @@
 
 ![Thermal camera snapshot](../assets/sensors/thermal_camera.svg)
 
+## Public symbols
+
+`ThermalCameraModel`
+
 ::: genesis_sensors._runtime_sensors.thermal_camera
     options:
       show_root_heading: true

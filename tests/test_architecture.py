@@ -10,15 +10,26 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
 
 from genesis_sensors import (
+    ScenarioPhase,
     SensorScheduler,
     SensorSuite,
     SensorSuiteConfig,
+    SyntheticScenarioConfig,
+    get_scenario_phase,
+    list_presets,
+    list_scenario_windows,
+    make_synthetic_rollout,
     make_synthetic_sensor_state,
+    summarize_synthetic_rollout,
 )
+
+from conftest import ALL_SENSOR_PAIRS, STEPPABLE_SENSORS  # type: ignore[import-not-found]
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -88,74 +99,23 @@ class TestGaussMarkovProcess:
 # Config roundtrip tests
 # ────────────────────────────────────────────────────────────────────
 
-# Mapping of (model_class, config_class) pairs for roundtrip testing.
-# We import lazily inside the test to avoid coupling this list to __init__.py.
-_ROUNDTRIP_PAIRS: list[tuple[str, str]] = [
-    ("IMUModel", "IMUConfig"),
-    ("CameraModel", "CameraConfig"),
-    ("LidarModel", "LidarConfig"),
-    ("GNSSModel", "GNSSConfig"),
-    ("BarometerModel", "BarometerConfig"),
-    ("MagnetometerModel", "MagnetometerConfig"),
-    ("AirspeedModel", "AirspeedConfig"),
-    ("RadioLinkModel", "RadioConfig"),
-    ("RangefinderModel", "RangefinderConfig"),
-    ("OpticalFlowModel", "OpticalFlowConfig"),
-    ("BatteryModel", "BatteryConfig"),
-    ("WheelOdometryModel", "WheelOdometryConfig"),
-    ("ForceTorqueSensorModel", "ForceTorqueConfig"),
-    ("JointStateSensor", "JointStateConfig"),
-    ("ContactSensor", "ContactSensorConfig"),
-    ("DepthCameraModel", "DepthCameraConfig"),
-    ("TactileArraySensor", "TactileArrayConfig"),
-    ("CurrentSensor", "CurrentSensorConfig"),
-    ("RPMSensor", "RPMSensorConfig"),
-    ("EventCameraModel", "EventCameraConfig"),
-    ("ThermalCameraModel", "ThermalCameraConfig"),
-    ("StereoCameraModel", "StereoCameraConfig"),
-    ("UltrasonicArrayModel", "UltrasonicArrayConfig"),
-    ("ThermometerModel", "ThermometerConfig"),
-    ("HygrometerModel", "HygrometerConfig"),
-    ("LightSensorModel", "LightSensorConfig"),
-    ("GasSensorModel", "GasSensorConfig"),
-    ("AnemometerModel", "AnemometerConfig"),
-    ("UWBRangingModel", "UWBRangeConfig"),
-    ("RadarModel", "RadarConfig"),
-    ("ImagingSonarModel", "ImagingSonarConfig"),
-    ("SideScanSonarModel", "SideScanSonarConfig"),
-    ("DVLModel", "DVLConfig"),
-    ("AcousticCurrentProfilerModel", "AcousticCurrentProfilerConfig"),
-    ("WaterPressureModel", "WaterPressureConfig"),
-    ("HydrophoneModel", "HydrophoneConfig"),
-    ("LeakDetectorModel", "LeakDetectorConfig"),
-    ("UnderwaterModemModel", "UnderwaterModemConfig"),
-    ("InclinometerModel", "InclinometerConfig"),
-    ("ProximityToFArrayModel", "ProximityToFArrayConfig"),
-    ("LoadCellModel", "LoadCellConfig"),
-    ("WireEncoderModel", "WireEncoderConfig"),
-    ("MotorTemperatureModel", "MotorTemperatureConfig"),
-]
-
 
 @pytest.mark.parametrize(
-    "model_name,config_name",
-    _ROUNDTRIP_PAIRS,
-    ids=[p[0] for p in _ROUNDTRIP_PAIRS],
+    "model_cls,config_cls",
+    ALL_SENSOR_PAIRS,
+    ids=[model_cls.__name__ for model_cls, _ in ALL_SENSOR_PAIRS],
 )
-def test_config_roundtrip(model_name: str, config_name: str) -> None:
+def test_config_roundtrip(model_cls: Any, config_cls: Any) -> None:
     """from_config(cfg).get_config() should produce an equivalent config."""
-    import genesis_sensors._runtime_sensors as gs
-
-    model_cls = getattr(gs, model_name)
-    config_cls = getattr(gs, config_name)
-
     cfg1 = config_cls()
     sensor = model_cls.from_config(cfg1)
     cfg2 = sensor.get_config()
 
     # Compare serialised forms — tolerant of list/tuple differences.
     assert cfg1.model_dump() == cfg2.model_dump(), (
-        f"{model_name} config roundtrip mismatch:\n  original: {cfg1.model_dump()}\n  recovered: {cfg2.model_dump()}"
+        f"{model_cls.__name__} config roundtrip mismatch:\n"
+        f"  original: {cfg1.model_dump()}\n"
+        f"  recovered: {cfg2.model_dump()}"
     )
 
 
@@ -239,6 +199,55 @@ def test_preset_produces_valid_sensor(preset_name: str) -> None:
     assert sensor.update_rate_hz > 0
 
 
+_PRESET_KINDS = (
+    "camera",
+    "stereo",
+    "lidar",
+    "imu",
+    "gnss",
+    "thermal",
+    "event",
+    "barometer",
+    "magnetometer",
+    "thermometer",
+    "hygrometer",
+    "light_sensor",
+    "gas_sensor",
+    "anemometer",
+    "uwb",
+    "radar",
+    "ultrasonic",
+    "imaging_sonar",
+    "side_scan_sonar",
+    "dvl",
+    "current_profiler",
+    "airspeed",
+    "rangefinder",
+    "optical_flow",
+    "battery",
+    "wheel_odometry",
+    "force_torque",
+    "joint_state",
+    "contact",
+    "depth_camera",
+    "tactile_array",
+    "current",
+    "rpm",
+)
+
+
+@pytest.mark.parametrize("kind", _PRESET_KINDS)
+def test_list_presets_kind_filter_returns_sorted_unique_values(kind: str) -> None:
+    names = list_presets(kind=kind)
+    assert names == sorted(names)
+    assert len(names) == len(set(names))
+
+
+def test_list_presets_unknown_kind_raises_helpful_error() -> None:
+    with pytest.raises(KeyError, match="Available kinds"):
+        list_presets(kind="not-a-kind")
+
+
 # ────────────────────────────────────────────────────────────────────
 # Multi-rate scheduling test
 # ────────────────────────────────────────────────────────────────────
@@ -274,6 +283,108 @@ def test_multi_rate_scheduling_cadence() -> None:
     assert 99 <= imu_due <= 101, f"IMU due: {imu_due}"
     # Baro at 10 Hz over 1 second = ~10 updates (±1 for timing)
     assert 9 <= baro_due <= 11, f"Baro due: {baro_due}"
+
+
+@pytest.mark.parametrize(
+    ("progress", "expected_phase"),
+    [
+        (-0.25, "takeoff"),
+        (0.00, "takeoff"),
+        (0.1999, "takeoff"),
+        (0.20, "cruise"),
+        (0.4499, "cruise"),
+        (0.45, "urban_canyon"),
+        (0.70, "rain_burst"),
+        (0.88, "signal_recovery"),
+        (1.00, "signal_recovery"),
+        (1.25, "signal_recovery"),
+    ],
+)
+def test_get_scenario_phase_boundaries(progress: float, expected_phase: str) -> None:
+    assert get_scenario_phase(progress) == expected_phase
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        ({"dt": 0.0}, "dt"),
+        ({"dt": -0.1}, "dt"),
+        ({"total_frames": 0}, "total_frames"),
+        ({"resolution": (0, 72)}, "resolution"),
+        ({"resolution": (96, 0)}, "resolution"),
+        ({"lidar_shape": (0, 64)}, "lidar_shape"),
+        ({"lidar_shape": (8, 0)}, "lidar_shape"),
+        ({"tof_shape": (0, 8)}, "tof_shape"),
+        ({"tof_shape": (8, 0)}, "tof_shape"),
+    ],
+)
+def test_make_synthetic_sensor_state_validates_inputs(kwargs: dict[str, Any], match: str) -> None:
+    with pytest.raises(ValueError, match=match):
+        make_synthetic_sensor_state(0, **kwargs)
+
+
+def test_make_synthetic_sensor_state_clamps_negative_frame_to_takeoff_phase() -> None:
+    state = make_synthetic_sensor_state(-5)
+    assert state["phase"] == "takeoff"
+
+
+def test_make_synthetic_sensor_state_exposes_rollout_metadata() -> None:
+    state = make_synthetic_sensor_state(5, dt=0.1, total_frames=20)
+    assert state["frame_idx"] == 5
+    assert state["sim_time"] == pytest.approx(0.5)
+    assert 0.0 <= state["scenario_progress"] <= 1.0
+    assert state["phase"] == get_scenario_phase(state["scenario_progress"])
+
+
+def test_synthetic_scenario_config_and_phase_windows_are_consistent() -> None:
+    config = SyntheticScenarioConfig(
+        dt=0.02,
+        total_frames=12,
+        resolution=(32, 24),
+        lidar_shape=(4, 16),
+        tof_shape=(4, 4),
+    ).validated()
+    windows = list_scenario_windows()
+
+    assert windows[0].phase is ScenarioPhase.TAKEOFF
+    assert windows[-1].phase is ScenarioPhase.SIGNAL_RECOVERY
+    assert windows[0].duration == pytest.approx(0.20)
+    assert config.phase_for_frame(0) is ScenarioPhase.TAKEOFF
+    assert config.phase_for_frame(config.total_frames - 1) is ScenarioPhase.SIGNAL_RECOVERY
+
+
+def test_make_synthetic_rollout_and_summary_share_metadata() -> None:
+    config = SyntheticScenarioConfig(
+        dt=0.02,
+        total_frames=20,
+        resolution=(32, 24),
+        lidar_shape=(4, 16),
+        tof_shape=(4, 4),
+    ).validated()
+
+    rollout = make_synthetic_rollout(frame_count=6, config=config)
+    summary = summarize_synthetic_rollout(frame_count=6, config=config)
+
+    assert len(rollout) == 6
+    assert rollout[0]["rgb"].shape == (24, 32, 3)
+    assert rollout[-1]["tof_ranges_m"].shape == (4, 4)
+    assert summary.frame_count == 6
+    assert summary.has_sensor_key("rgb")
+    assert summary.phase_counts[ScenarioPhase.TAKEOFF.value] >= 1
+    assert summary.as_dict()["resolution"] == [32, 24]
+
+
+@pytest.mark.parametrize(
+    "sensor_cls,sensor_name",
+    STEPPABLE_SENSORS,
+    ids=[sensor_name for _, sensor_name in STEPPABLE_SENSORS],
+)
+def test_steppable_sensors_accept_synthetic_state(sensor_cls: Any, sensor_name: str) -> None:
+    sensor = sensor_cls(seed=0)
+    sensor.reset()
+    obs = sensor.step(sim_time=0.0, state=make_synthetic_sensor_state(0))
+    assert isinstance(obs, dict)
+    assert obs, f"{sensor_name} returned an empty observation"
 
 
 # ────────────────────────────────────────────────────────────────────

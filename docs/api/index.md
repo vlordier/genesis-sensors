@@ -2,7 +2,21 @@
 
 Auto-generated from source docstrings.
 
-## Modules
+## Regenerate locally
+
+```bash
+PYTHONPATH=src python scripts/gen_api_docs.py
+```
+
+## Top-level helper modules
+
+- `genesis_sensors.config` — backend-aware validated config shims
+- `genesis_sensors.presets` — preset constants plus `get_preset()` / `list_presets()`
+- `genesis_sensors.genesis_bridge` — helper functions for extracting Genesis state
+- `genesis_sensors.synthetic` — headless synthetic-state builders for tests and demos
+- `genesis_sensors.robustness` — latency/dropout wrappers and health metadata
+
+## Runtime sensor modules
 
 - [Base Sensor](base.md)
 - [Scheduler](scheduler.md)
