@@ -419,6 +419,8 @@ class GenesisLiDAR(BaseSensor):
         self._geom_tri_info: dict[int, dict[str, Any]] = {}
         self._numba_geom_cache: dict[str, tuple[np.ndarray, ...] | np.ndarray] = {}
         self._tri_centroids: np.ndarray | None = None
+        self._geom_dirty: bool = True
+        self._cached_geoms: list[_Geomtri] | None = None
 
     @property
     def _tri_soa(self) -> tuple[np.ndarray, ...] | None:
@@ -463,6 +465,8 @@ class GenesisLiDAR(BaseSensor):
         self._geom_tri_info.clear()
         self._numba_geom_cache.clear()
         self._tri_centroids = None
+        self._geom_dirty = True
+        self._cached_geoms = None
 
     def step(self, sim_time: float, state: dict[str, Any]) -> LidarObservation | dict[str, Any]:
         """
@@ -957,35 +961,49 @@ class GenesisLiDAR(BaseSensor):
     ) -> tuple[np.ndarray, np.ndarray]:
         """Compute range image via raycasting against scene geometry.
 
+        Uses caching to avoid rebuilding geometry every frame. Geometry is only
+        rebuilt when _geom_dirty is True (set by invalidate_geometry_cache()).
+
         Priority: Numba JIT with BVH > Numba JIT (brute force) > trimesh BVH > parallel fallback
         """
-        geoms: list[_Geomtri] = []
-        if self._scene_geom_getter is not None:
-            try:
-                raw_geoms = self._scene_geom_getter()
-                if raw_geoms is not None:
-                    for item in raw_geoms:
-                        if isinstance(item, _Geomtri):
-                            geoms.append(item)
-            except Exception:
-                pass
+        if self._geom_dirty or self._cached_geoms is None:
+            geoms: list[_Geomtri] = []
+            if self._scene_geom_getter is not None:
+                try:
+                    raw_geoms = self._scene_geom_getter()
+                    if raw_geoms is not None:
+                        for item in raw_geoms:
+                            if isinstance(item, _Geomtri):
+                                geoms.append(item)
+                except Exception:
+                    pass
+            self._cached_geoms = geoms
+            self._geom_dirty = False
 
         initial_range = np.full((self.n_channels, self.h_resolution), self.max_range_m, dtype=np.float32)
 
         if self._use_numba:
-            if self._build_numba_geometry(geoms):
+            if self._build_numba_geometry(self._cached_geoms):
                 if self._scipy_available():
                     return self._cast_rays_numba_bvh(pos, quat, initial_range)
                 return self._cast_rays_numba(pos, quat, initial_range)
 
         if self._use_trimesh:
-            self._build_trimesh_meshes(geoms)
+            self._build_trimesh_meshes(self._cached_geoms)
             if self._trimesh_meshes:
                 rays = self._build_rays(pos, quat)
                 return self._cast_rays_trimesh_bvh(rays, initial_range)
 
         rays = self._build_rays(pos, quat)
         return self._cast_rays_parallel(rays, initial_range)
+
+    def invalidate_geometry_cache(self) -> None:
+        """Mark geometry cache as dirty to force rebuild on next step.
+
+        Call this when the scene geometry changes (e.g., objects moved,
+        added, or removed).
+        """
+        self._geom_dirty = True
 
     @staticmethod
     def _scipy_available() -> bool:
