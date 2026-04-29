@@ -667,42 +667,28 @@ class GenesisLiDAR(BaseSensor):
         for geom in geoms:
             verts = geom.verts
             idx_arr = geom.tri_indices
-            if idx_arr.ndim != 2 or idx_arr.shape[1] != 3:
+            if idx_arr.ndim != 2 or idx_arr.shape[1] != 3 or idx_arr.shape[0] == 0:
                 continue
 
-            roughness = geom.roughness
-            metallic = geom.metallic
-            base_color = geom.base_color
-            geom_id = geom.geom_id
-
-            for i in range(idx_arr.shape[0]):
-                i0, i1, i2 = int(idx_arr[i, 0]), int(idx_arr[i, 1]), int(idx_arr[i, 2])
-                if i0 < 0 or i1 < 0 or i2 < 0:
-                    continue
-                if i0 >= len(verts) or i1 >= len(verts) or i2 >= len(verts):
-                    continue
-
-                v0 = verts[i0]
-                v1 = verts[i1]
-                v2 = verts[i2]
-                edge1 = v1 - v0
-                edge2 = v2 - v0
-
-                nx, ny, nz = np.cross(edge1, edge2)
-                norm_val = math.sqrt(nx * nx + ny * ny + nz * nz)
-                if norm_val < 1e-12:
-                    continue
-
-                face_normal = np.array([nx / norm_val, ny / norm_val, nz / norm_val], dtype=np.float64)
-
-                all_v0.append(v0)
-                all_v1.append(v1)
-                all_v2.append(v2)
-                all_normals.append(face_normal)
-                all_roughness.append(roughness)
-                all_metallic.append(metallic)
-                all_base_color.append(base_color)
-                all_geom_id.append(geom_id)
+            n_tris = idx_arr.shape[0]
+            if n_tris > 50000:
+                n_tris_batch = 10000
+                for batch_start in range(0, idx_arr.shape[0], n_tris_batch):
+                    batch_end = min(batch_start + n_tris_batch, idx_arr.shape[0])
+                    batch_idx = idx_arr[batch_start:batch_end]
+                    self._process_triangle_batch(
+                        verts, batch_idx, geom.roughness, geom.metallic,
+                        geom.base_color, geom.geom_id,
+                        all_v0, all_v1, all_v2, all_normals,
+                        all_roughness, all_metallic, all_base_color, all_geom_id
+                    )
+            else:
+                self._process_triangle_batch(
+                    verts, idx_arr, geom.roughness, geom.metallic,
+                    geom.base_color, geom.geom_id,
+                    all_v0, all_v1, all_v2, all_normals,
+                    all_roughness, all_metallic, all_base_color, all_geom_id
+                )
 
         if not all_v0:
             return False
@@ -717,13 +703,62 @@ class GenesisLiDAR(BaseSensor):
         tri_geom_id = np.array(all_geom_id, dtype=np.int64)
 
         self._tri_soa = (tri_v0, tri_v1, tri_v2, tri_normals, tri_roughness, tri_metallic, tri_base_color, tri_geom_id)
-
-        tri_v0_list = np.array(all_v0, dtype=np.float64)
-        tri_v1_list = np.array(all_v1, dtype=np.float64)
-        tri_v2_list = np.array(all_v2, dtype=np.float64)
-        self._tri_centroids = (tri_v0_list + tri_v1_list + tri_v2_list) / 3.0
+        self._tri_centroids = (tri_v0 + tri_v1 + tri_v2) / 3.0
 
         return True
+
+    def _process_triangle_batch(
+        self,
+        verts: np.ndarray,
+        idx_arr: np.ndarray,
+        roughness: float,
+        metallic: float,
+        base_color: np.ndarray,
+        geom_id: int,
+        all_v0: list,
+        all_v1: list,
+        all_v2: list,
+        all_normals: list,
+        all_roughness: list,
+        all_metallic: list,
+        all_base_color: list,
+        all_geom_id: list,
+    ) -> None:
+        """Process a batch of triangles with vectorized operations."""
+        valid_mask = (idx_arr >= 0).all(axis=1)
+        valid_mask &= (idx_arr < len(verts)).all(axis=1)
+
+        valid_idx = idx_arr[valid_mask]
+        if len(valid_idx) == 0:
+            return
+
+        v0_batch = verts[valid_idx[:, 0]]
+        v1_batch = verts[valid_idx[:, 1]]
+        v2_batch = verts[valid_idx[:, 2]]
+
+        edge1_batch = v1_batch - v0_batch
+        edge2_batch = v2_batch - v0_batch
+
+        cross = np.cross(edge1_batch, edge2_batch)
+        norm_vals = np.sqrt((cross ** 2).sum(axis=1))
+        valid_norm = norm_vals > 1e-12
+        if not valid_norm.any():
+            return
+
+        valid_norm_idx = np.where(valid_norm)[0]
+        cross_valid = cross[valid_norm_idx]
+        norm_valid = norm_vals[valid_norm_idx]
+
+        normals_valid = cross_valid / norm_valid[:, np.newaxis]
+
+        all_v0.extend(v0_batch[valid_norm_idx].tolist())
+        all_v1.extend(v1_batch[valid_norm_idx].tolist())
+        all_v2.extend(v2_batch[valid_norm_idx].tolist())
+        all_normals.extend(normals_valid.tolist())
+        all_roughness.extend([roughness] * len(valid_norm_idx))
+        all_metallic.extend([metallic] * len(valid_norm_idx))
+        all_base_color.extend([base_color] * len(valid_norm_idx))
+        all_geom_id.extend([geom_id] * len(valid_norm_idx))
 
     def _build_trimesh_meshes(self, geoms: list[_Geomtri]) -> None:
         """Build trimesh objects from geometry for BVH raycasting."""
@@ -1082,10 +1117,16 @@ class GenesisLiDAR(BaseSensor):
         y = ri * cos_el * sin_az
         z = ri * sin_el
 
-        points = np.stack(
-            [x[valid_mask], y[valid_mask], z[valid_mask], intensity_image[valid_mask]],
-            axis=-1,
-        ).astype(np.float32)
+        valid_indices = np.where(valid_mask)
+        n_points = len(valid_indices[0])
+        if n_points == 0:
+            return {"points": np.empty((0, 4), dtype=np.float32), "range_image": ri}
+
+        points = np.empty((n_points, 4), dtype=np.float32)
+        points[:, 0] = x[valid_mask]
+        points[:, 1] = y[valid_mask]
+        points[:, 2] = z[valid_mask]
+        points[:, 3] = intensity_image[valid_mask]
 
         return {"points": points, "range_image": ri}
 
