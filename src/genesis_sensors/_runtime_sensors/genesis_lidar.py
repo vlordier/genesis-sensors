@@ -831,6 +831,7 @@ class GenesisLiDAR(BaseSensor):
         This is O(n_rays * k) instead of O(n_rays * n_tris) where k << n_tris.
 
         The cKDTree is cached and only rebuilt when geometry changes.
+        cKDTree queries are parallelized using ThreadPoolExecutor.
         """
         from scipy.spatial import cKDTree
 
@@ -854,20 +855,24 @@ class GenesisLiDAR(BaseSensor):
             self._kdtree_centroids = centroids
 
         kdtree = self._kdtree
+        max_range = self.max_range_m
 
-        candidates_list = []
-        n_candidates_list = []
+        def query_ray(ray_idx: int) -> tuple:
+            nearby = kdtree.query_ball_point(origins[ray_idx], max_range)
+            return tuple(nearby)
 
-        for ray_idx in range(n_rays):
-            origin = origins[ray_idx]
-            nearby_indices = kdtree.query_ball_point(origin, self.max_range_m)
-            n_cands = len(nearby_indices)
-            n_candidates_list.append(n_cands)
-            for idx in nearby_indices:
-                candidates_list.append(idx)
+        with ThreadPoolExecutor(max_workers=self._n_threads) as executor:
+            results = list(executor.map(query_ray, range(n_rays)))
 
-        candidates = np.array(candidates_list, dtype=np.int64)
-        n_candidates_per_ray = np.array(n_candidates_list, dtype=np.int64)
+        total_cands = sum(len(r) for r in results)
+        candidates = np.empty(total_cands, dtype=np.int64)
+        n_candidates_per_ray = np.array([len(r) for r in results], dtype=np.int64)
+
+        offset = 0
+        for r in results:
+            n = len(r)
+            candidates[offset:offset + n] = r
+            offset += n
 
         return _numba_mt_intersect_bvh(
             origins,
@@ -902,8 +907,7 @@ class GenesisLiDAR(BaseSensor):
         origins = np.array([[r.ox, r.oy, r.oz] for r in rays], dtype=np.float64)
         dirs = np.array([[r.dx, r.dy, r.dz] for r in rays], dtype=np.float64)
 
-        locations_all: list[tuple] = []
-        ray_idxs_all: list[int] = []
+        hit_data = []
 
         for mesh in self._trimesh_meshes:
             geom_id = mesh.primitive.data.get("geom_id", 0)
@@ -914,12 +918,14 @@ class GenesisLiDAR(BaseSensor):
                     origins, dirs, return_ray_id=True
                 )
                 for loc, ray_idx in zip(locs, idxs):
-                    locations_all.append((loc, ray_idx, geom_id))
-                    ray_idxs_all.append(ray_idx)
+                    hit_data.append((loc, ray_idx, geom_id))
             except Exception:
                 continue
 
-        for loc, ray_idx, geom_id in locations_all:
+        if not hit_data:
+            return range_image, intensity_image
+
+        for loc, ray_idx, geom_id in hit_data:
             ch = ray_idx // n_az
             az = ray_idx % n_az
             if ch >= n_ch:
