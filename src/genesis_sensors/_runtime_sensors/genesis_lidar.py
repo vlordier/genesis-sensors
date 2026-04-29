@@ -61,6 +61,117 @@ _DEFAULT_V_FOV: Final[tuple[float, float]] = (-15.0, 15.0)
 _DEFAULT_H_RES: Final[int] = 1800
 _DEFAULT_MAX_RANGE_M: Final[float] = 100.0
 
+_NUMBA_AVAILABLE: bool = False
+try:
+    from numba import prange
+    _NUMBA_AVAILABLE = True
+except ImportError:
+    prange = range
+    pass
+
+
+def _numba_mt_intersect(
+    origins: np.ndarray,
+    dirs: np.ndarray,
+    tri_v0: np.ndarray,
+    tri_v1: np.ndarray,
+    tri_v2: np.ndarray,
+    tri_normals: np.ndarray,
+    tri_roughness: np.ndarray,
+    tri_metallic: np.ndarray,
+    tri_base_color: np.ndarray,
+    tri_geom_id: np.ndarray,
+    max_range: float,
+    n_ch: int,
+    n_az: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Numba-accelerated Moller-Trumbore ray intersection.
+
+    Uses SOA (Structure of Arrays) for better cache performance.
+    Returns (range_image, intensity_image).
+    """
+    n_rays = origins.shape[0]
+    n_tris = tri_v0.shape[0]
+
+    range_image = np.full((n_ch, n_az), max_range, dtype=np.float32)
+    intensity_image = np.zeros((n_ch, n_az), dtype=np.float32)
+
+    eps = 1e-9
+
+    for ray_idx in prange(n_rays):
+        ox, oy, oz = origins[ray_idx]
+        dx, dy, dz = dirs[ray_idx]
+
+        ch = ray_idx // n_az
+        az = ray_idx % n_az
+
+        min_t = max_range
+
+        for tri_idx in range(n_tris):
+            v0x, v0y, v0z = tri_v0[tri_idx]
+            v1x, v1y, v1z = tri_v1[tri_idx]
+            v2x, v2y, v2z = tri_v2[tri_idx]
+
+            e1x = v1x - v0x
+            e1y = v1y - v0y
+            e1z = v1z - v0z
+
+            e2x = v2x - v0x
+            e2y = v2y - v0y
+            e2z = v2z - v0z
+
+            hx = dy * e2z - dz * e2y
+            hy = dz * e2x - dx * e2z
+            hz = dx * e2y - dy * e2x
+
+            a_val = e1x * hx + e1y * hy + e1z * hz
+            if abs(a_val) < eps:
+                continue
+
+            f_val = 1.0 / a_val
+
+            sx = ox - v0x
+            sy = oy - v0y
+            sz = oz - v0z
+
+            u = f_val * (sx * hx + sy * hy + sz * hz)
+            if u < 0.0 or u > 1.0:
+                continue
+
+            qx = sy * e1z - sz * e1y
+            qy = sz * e1x - sx * e1z
+            qz = sx * e1y - sy * e1x
+
+            v = f_val * (dx * qx + dy * qy + dz * qz)
+            if v < 0.0 or u + v > 1.0:
+                continue
+
+            t_val = f_val * (e2x * qx + e2y * qy + e2z * qz)
+            if t_val < eps or t_val >= min_t:
+                continue
+
+            nx, ny, nz = tri_normals[tri_idx]
+            cos_incident = max(0.0, -(dx * nx + dy * ny + dz * nz))
+
+            roughness = tri_roughness[tri_idx]
+            metallic = tri_metallic[tri_idx]
+
+            diffuse = 1.0 - roughness
+            spec = metallic * (1.0 - roughness)
+            reflectance = diffuse * (1.0 - metallic) * cos_incident
+            reflectance += spec * cos_incident * cos_incident
+
+            base_color = tri_base_color[tri_idx]
+            base_lum = base_color[0] * 0.299 + base_color[1] * 0.587 + base_color[2] * 0.114
+            reflectance *= max(0.1, base_lum)
+            reflectance = min(1.0, max(0.0, reflectance))
+
+            min_t = t_val
+            range_image[ch, az] = t_val
+            intensity_image[ch, az] = reflectance
+
+    return range_image, intensity_image
+
 
 @dataclass(frozen=True)
 class _Ray:
@@ -84,23 +195,6 @@ class _Geomtri:
     roughness: float = 0.5
     metallic: float = 0.0
     base_color: np.ndarray = field(default_factory=lambda: np.array([0.7, 0.7, 0.7], dtype=np.float32))
-
-
-@dataclass
-class _Triangle:
-    """One triangle with precomputed data for fast intersection."""
-
-    v0: np.ndarray
-    v1: np.ndarray
-    v2: np.ndarray
-    edge1: np.ndarray
-    edge2: np.ndarray
-    face_normal: np.ndarray
-    area: float
-    geom_id: int
-    roughness: float
-    metallic: float
-    base_color: np.ndarray
 
 
 class GenesisLiDAR(BaseSensor):
@@ -178,6 +272,7 @@ class GenesisLiDAR(BaseSensor):
         self._rng = np.random.default_rng(seed=seed)
         self._scene_geom_getter = scene_geom_getter
         self._use_trimesh = use_trimesh_bvh and self._trimesh_available()
+        self._use_numba = _NUMBA_AVAILABLE
         self._n_threads = n_threads
         if n_threads <= 0:
             import os
@@ -201,10 +296,18 @@ class GenesisLiDAR(BaseSensor):
 
         self._lidar_model = lidar_model
         self._last_obs: dict[str, Any] = {}
-        self._tri_cache: list[_Triangle] = []
-        self._centroids: np.ndarray | None = None
         self._trimesh_meshes: list[Any] = []
         self._geom_tri_info: dict[int, dict[str, Any]] = {}
+        self._numba_geom_cache: dict[str, tuple[np.ndarray, ...]] = {}
+
+    @property
+    def _tri_soa(self) -> tuple[np.ndarray, ...] | None:
+        """Return cached SOA triangle data for numba."""
+        return self._numba_geom_cache.get("_tri_soa")
+
+    @_tri_soa.setter
+    def _tri_soa(self, value: tuple[np.ndarray, ...]) -> None:
+        self._numba_geom_cache["_tri_soa"] = value
 
     @staticmethod
     def _trimesh_available() -> bool:
@@ -236,10 +339,9 @@ class GenesisLiDAR(BaseSensor):
     def reset(self, env_id: int = 0) -> None:
         self._last_obs = {}
         self._last_update_time = -1.0
-        self._tri_cache.clear()
-        self._centroids = None
         self._trimesh_meshes.clear()
         self._geom_tri_info.clear()
+        self._numba_geom_cache.clear()
 
     def step(self, sim_time: float, state: dict[str, Any]) -> LidarObservation | dict[str, Any]:
         """
@@ -330,49 +432,74 @@ class GenesisLiDAR(BaseSensor):
                 ))
         return rays
 
-    @staticmethod
-    def _ray_triangle_intersection(
-        ray: "_Ray",
-        tri: "_Triangle",
-    ) -> tuple[float, float]:
-        """Moller-Trumbore intersection; returns (range_m, cos_incident_angle)."""
-        epsilon = 1e-9
+    def _build_numba_rays(self, pos: np.ndarray, quat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Build ray origins and directions as numpy arrays for numba."""
+        w, x, y, z = quat
+        norm = math.sqrt(w * w + x * x + y * y + z * z)
+        if norm < 1e-9:
+            w, x, y, z = 1.0, 0.0, 0.0, 0.0
+        else:
+            w, x, y, z = w / norm, x / norm, y / norm, z / norm
 
-        hx = ray.dy * tri.edge2[2] - ray.dz * tri.edge2[1]
-        hy = ray.dz * tri.edge2[0] - ray.dx * tri.edge2[2]
-        hz = ray.dx * tri.edge2[1] - ray.dy * tri.edge2[0]
-        a_val = float(np.dot(tri.edge1, np.array([hx, hy, hz])))
-        if abs(a_val) < epsilon:
-            return math.inf, 0.0
+        tx = 2.0 * (x * z + w * y)
+        ty = 2.0 * (y * z - w * x)
+        tz = 1.0 - 2.0 * (x * x + y * y)
+        R_bw = np.array([
+            [1.0 - 2.0 * (y * y + z * z), tx, tz],
+            [tx, 1.0 - 2.0 * (y * y + z * z), ty],
+            [tz, ty, 1.0 - 2.0 * (x * x + y * y)],
+        ], dtype=np.float64)
+        R_wb = R_bw.T
 
-        f_val = 1.0 / a_val
-        v0 = tri.v0
-        sx = ray.ox - v0[0]
-        sy = ray.oy - v0[1]
-        sz = ray.oz - v0[2]
-        u = f_val * float(np.dot(np.array([sx, sy, sz]), np.array([hx, hy, hz])))
-        if u < 0.0 or u > 1.0:
-            return math.inf, 0.0
+        n_ch = self.n_channels
+        n_az = self.h_resolution
+        n_rays = n_ch * n_az
 
-        qx = sy * tri.edge1[2] - sz * tri.edge1[1]
-        qy = sz * tri.edge1[0] - sx * tri.edge1[2]
-        qz = sx * tri.edge1[1] - sy * tri.edge1[0]
-        v = f_val * float(np.dot(ray.dx * np.array([qx, qy, qz])))
-        if v < 0.0 or u + v > 1.0:
-            return math.inf, 0.0
+        origins = np.zeros((n_rays, 3), dtype=np.float64)
+        dirs = np.zeros((n_rays, 3), dtype=np.float64)
 
-        t_val = f_val * float(np.dot(tri.edge2, np.array([qx, qy, qz])))
-        if t_val < epsilon:
-            return math.inf, 0.0
+        ray_idx = 0
+        for ch in range(n_ch):
+            sin_el = float(self._sin_elev[ch, 0])
+            cos_el = float(self._cos_elev[ch, 0])
+            for az in range(n_az):
+                dx_w = R_wb[0, 0] * self._cos_azim[ch, az] * cos_el + \
+                       R_wb[0, 1] * self._sin_azim[ch, az] * cos_el + \
+                       R_wb[0, 2] * sin_el
+                dy_w = R_wb[1, 0] * self._cos_azim[ch, az] * cos_el + \
+                       R_wb[1, 1] * self._sin_azim[ch, az] * cos_el + \
+                       R_wb[1, 2] * sin_el
+                dz_w = R_wb[2, 0] * self._cos_azim[ch, az] * cos_el + \
+                       R_wb[2, 1] * self._sin_azim[ch, az] * cos_el + \
+                       R_wb[2, 2] * sin_el
+                len_xy = math.sqrt(dx_w * dx_w + dy_w * dy_w)
+                if len_xy < 1e-9 and abs(dz_w) < 1e-9:
+                    dx_w, dy_w, dz_w = 0.0, 0.0, 1.0
+                else:
+                    norm_val = math.sqrt(dx_w * dx_w + dy_w * dy_w + dz_w * dz_w)
+                    dx_w /= norm_val
+                    dy_w /= norm_val
+                    dz_w /= norm_val
 
-        cos_incident = float(np.dot(tri.face_normal, np.array([-ray.dx, -ray.dy, -ray.dz])))
-        cos_incident = max(0.0, cos_incident)
-        return t_val, cos_incident
+                origins[ray_idx] = [pos[0], pos[1], pos[2]]
+                dirs[ray_idx] = [dx_w, dy_w, dz_w]
+                ray_idx += 1
 
-    def _build_triangle_cache(self, geoms: list[_Geomtri]) -> None:
-        """Precompute triangle data for fast intersection."""
-        self._tri_cache.clear()
-        self._geom_tri_info.clear()
+        return origins, dirs
+
+    def _build_numba_geometry(self, geoms: list[_Geomtri]) -> bool:
+        """Build SOA (Structure of Arrays) geometry data for numba JIT.
+
+        Returns True if geometry was built successfully.
+        """
+        all_v0 = []
+        all_v1 = []
+        all_v2 = []
+        all_normals = []
+        all_roughness = []
+        all_metallic = []
+        all_base_color = []
+        all_geom_id = []
 
         for geom in geoms:
             verts = geom.verts
@@ -383,8 +510,8 @@ class GenesisLiDAR(BaseSensor):
             roughness = geom.roughness
             metallic = geom.metallic
             base_color = geom.base_color
+            geom_id = geom.geom_id
 
-            tri_start = len(self._tri_cache)
             for i in range(idx_arr.shape[0]):
                 i0, i1, i2 = int(idx_arr[i, 0]), int(idx_arr[i, 1]), int(idx_arr[i, 2])
                 if i0 < 0 or i1 < 0 or i2 < 0:
@@ -402,35 +529,32 @@ class GenesisLiDAR(BaseSensor):
                 norm_val = math.sqrt(nx * nx + ny * ny + nz * nz)
                 if norm_val < 1e-12:
                     continue
+
                 face_normal = np.array([nx / norm_val, ny / norm_val, nz / norm_val], dtype=np.float64)
 
-                area = 0.5 * norm_val
+                all_v0.append(v0)
+                all_v1.append(v1)
+                all_v2.append(v2)
+                all_normals.append(face_normal)
+                all_roughness.append(roughness)
+                all_metallic.append(metallic)
+                all_base_color.append(base_color)
+                all_geom_id.append(geom_id)
 
-                self._tri_cache.append(_Triangle(
-                    v0=v0, v1=v1, v2=v2,
-                    edge1=edge1, edge2=edge2,
-                    face_normal=face_normal,
-                    area=area,
-                    geom_id=geom.geom_id,
-                    roughness=roughness,
-                    metallic=metallic,
-                    base_color=base_color,
-                ))
+        if not all_v0:
+            return False
 
-            tri_end = len(self._tri_cache)
-            if tri_end > tri_start:
-                self._geom_tri_info[geom.geom_id] = {
-                    "start": tri_start,
-                    "end": tri_end,
-                    "roughness": roughness,
-                    "metallic": metallic,
-                    "base_color": base_color,
-                }
+        tri_v0 = np.array(all_v0, dtype=np.float64)
+        tri_v1 = np.array(all_v1, dtype=np.float64)
+        tri_v2 = np.array(all_v2, dtype=np.float64)
+        tri_normals = np.array(all_normals, dtype=np.float64)
+        tri_roughness = np.array(all_roughness, dtype=np.float64)
+        tri_metallic = np.array(all_metallic, dtype=np.float64)
+        tri_base_color = np.array(all_base_color, dtype=np.float64)
+        tri_geom_id = np.array(all_geom_id, dtype=np.int64)
 
-        if self._tri_cache:
-            self._centroids = np.array([
-                (t.v0 + t.v1 + t.v2) / 3.0 for t in self._tri_cache
-            ], dtype=np.float64)
+        self._tri_soa = (tri_v0, tri_v1, tri_v2, tri_normals, tri_roughness, tri_metallic, tri_base_color, tri_geom_id)
+        return True
 
     def _build_trimesh_meshes(self, geoms: list[_Geomtri]) -> None:
         """Build trimesh objects from geometry for BVH raycasting."""
@@ -461,6 +585,33 @@ class GenesisLiDAR(BaseSensor):
                 }
             except Exception:
                 continue
+
+    def _cast_rays_numba(
+        self, pos: np.ndarray, quat: np.ndarray, initial_range: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Numba-JIT accelerated ray intersection - fastest option."""
+        tri_soa = self._tri_soa
+        if tri_soa is None:
+            return initial_range, np.zeros((self.n_channels, self.h_resolution), dtype=np.float32)
+
+        origins, dirs = self._build_numba_rays(pos, quat)
+        tri_v0, tri_v1, tri_v2, tri_normals, tri_roughness, tri_metallic, tri_base_color, tri_geom_id = tri_soa
+
+        return _numba_mt_intersect(
+            origins,
+            dirs,
+            tri_v0,
+            tri_v1,
+            tri_v2,
+            tri_normals,
+            tri_roughness,
+            tri_metallic,
+            tri_base_color,
+            tri_geom_id,
+            self.max_range_m,
+            self.n_channels,
+            self.h_resolution,
+        )
 
     def _cast_rays_trimesh_bvh(
         self, rays: list[_Ray], initial_range: np.ndarray
@@ -525,16 +676,17 @@ class GenesisLiDAR(BaseSensor):
 
         return range_image, intensity_image
 
-    def _cast_rays_vectorized(
+    def _cast_rays_parallel(
         self, rays: list[_Ray], initial_range: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Vectorized ray intersection using numpy batch operations."""
+        """Multi-threaded fallback using numpy."""
+
         n_ch = self.n_channels
         n_az = self.h_resolution
         range_image = initial_range.copy()
         intensity_image = np.zeros((n_ch, n_az), dtype=np.float32)
 
-        if not rays or not self._tri_cache:
+        if not rays or not self._trimesh_meshes:
             return range_image, intensity_image
 
         origins = np.array([[r.ox, r.oy, r.oz] for r in rays], dtype=np.float64)
@@ -542,123 +694,57 @@ class GenesisLiDAR(BaseSensor):
 
         n_rays = len(rays)
 
-        tri_v0 = np.array([t.v0 for t in self._tri_cache], dtype=np.float64)
-        tri_edge1 = np.array([t.edge1 for t in self._tri_cache], dtype=np.float64)
-        tri_edge2 = np.array([t.edge2 for t in self._tri_cache], dtype=np.float64)
-        tri_normals = np.array([t.face_normal for t in self._tri_cache], dtype=np.float64)
-        tri_roughness = np.array([t.roughness for t in self._tri_cache], dtype=np.float64)
-        tri_metallic = np.array([t.metallic for t in self._tri_cache], dtype=np.float64)
-        tri_base_color = np.array([t.base_color for t in self._tri_cache], dtype=np.float64)
+        def process_ray(ray_idx: int) -> tuple[int, int, float, float]:
+            ray = rays[ray_idx]
+            ch = ray_idx // n_az
+            az = ray_idx % n_az
+            min_dist = self.max_range_m
+            max_reflectance = 0.0
 
-        batch_size = min(self.ray_batch_size, n_rays)
+            for mesh in self._trimesh_meshes:
+                try:
+                    geom_id = mesh.primitive.data.get("geom_id", 0)
+                    tri_info = self._geom_tri_info.get(geom_id, {})
 
-        for batch_start in range(0, n_rays, batch_size):
-            batch_end = min(batch_start + batch_size, n_rays)
-            batch_origins = origins[batch_start:batch_end]
-            batch_dirs = dirs[batch_start:batch_end]
+                    locs, _ = mesh.ray.intersects_location(
+                        origins[ray_idx:ray_idx+1], dirs[ray_idx:ray_idx+1], return_ray_id=True
+                    )
+                    if len(locs) > 0:
+                        for loc in locs:
+                            dist = math.sqrt(
+                                (loc[0] - ray.ox)**2 + (loc[1] - ray.oy)**2 + (loc[2] - ray.oz)**2
+                            )
+                            if dist < min_dist:
+                                min_dist = dist
+                                roughness = tri_info.get("roughness", 0.5)
+                                metallic = tri_info.get("metallic", 0.0)
+                                base_color = tri_info.get("base_color", np.array([0.7, 0.7, 0.7]))
 
-            h_vecs = np.cross(batch_dirs[:, np.newaxis, :], tri_edge2[np.newaxis, :, :])
-            a_vals = np.sum(tri_edge1[np.newaxis, :, :] * h_vecs, axis=2)
+                                ray_dir = np.array([ray.dx, ray.dy, ray.dz])
+                                hit_normal = loc[3:6] if len(loc) > 5 else np.array([0.0, 0.0, 1.0])
+                                cos_incident = max(0.0, float(np.dot(hit_normal, -ray_dir)))
 
-            valid = np.abs(a_vals) > 1e-9
-            a_inv = np.where(valid, 1.0 / a_vals, 0.0)
-
-            s_vecs = batch_origins[:, np.newaxis, :] - tri_v0[np.newaxis, :, :]
-            u_vals = np.sum(s_vecs * h_vecs, axis=2) * a_inv
-
-            q_vecs = np.cross(s_vecs, tri_edge1[np.newaxis, :, :])
-            v_vals = np.sum(batch_dirs[:, np.newaxis, :] * q_vecs, axis=2) * a_inv
-
-            t_vals = np.sum(tri_edge2[np.newaxis, :, :] * q_vecs, axis=2) * a_inv
-
-            hit_mask = (u_vals >= 0.0) & (v_vals >= 0.0) & (u_vals + v_vals <= 1.0) & (t_vals > 1e-9)
-
-            for ray_local_idx in range(batch_end - batch_start):
-                ray_global_idx = batch_start + ray_local_idx
-                ch = ray_global_idx // n_az
-                az = ray_global_idx % n_az
-                if ch >= n_ch:
-                    break
-
-                local_hits = hit_mask[ray_local_idx]
-                if not np.any(local_hits):
+                                max_reflectance = self._compute_reflectance_scalar(
+                                    roughness, metallic, base_color, cos_incident
+                                )
+                except Exception:
                     continue
 
-                hit_t = t_vals[ray_local_idx][local_hits]
-                hit_tri_idx = np.where(local_hits)[0][np.argmin(hit_t)]
-
-                hit_range = t_vals[ray_local_idx, hit_tri_idx]
-                if hit_range < range_image[ch, az] and hit_range <= self.max_range_m:
-                    range_image[ch, az] = hit_range
-
-                    cos_incident = max(0.0, float(np.dot(tri_normals[hit_tri_idx], -dirs[ray_global_idx])))
-
-                    reflectance = self._compute_reflectance_scalar(
-                        float(tri_roughness[hit_tri_idx]),
-                        float(tri_metallic[hit_tri_idx]),
-                        tri_base_color[hit_tri_idx],
-                        cos_incident,
-                    )
-                    intensity_image[ch, az] = reflectance
-
-        return range_image, intensity_image
-
-    def _cast_rays_parallel(
-        self, rays: list[_Ray], initial_range: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Multi-threaded naive ray intersection."""
-        n_ch = self.n_channels
-        n_az = self.h_resolution
-        range_image = initial_range.copy()
-        intensity_image = np.zeros((n_ch, n_az), dtype=np.float32)
-
-        if not rays or not self._tri_cache:
-            return range_image, intensity_image
-
-        n_rays = len(rays)
-        tri_cache = self._tri_cache
-        batch_size = self.ray_batch_size
-
-        def process_batch(batch_info: tuple) -> dict[int, tuple[float, float, _Triangle | None]]:
-            start, end = batch_info
-            results: dict[int, tuple[float, float, _Triangle | None]] = {}
-            for ray_idx in range(start, end):
-                ray = rays[ray_idx]
-                hit_range = math.inf
-                hit_cos = 0.0
-                hit_tri: _Triangle | None = None
-
-                for tri in tri_cache:
-                    t_val, cos_val = self._ray_triangle_intersection(ray, tri)
-                    if t_val < hit_range:
-                        hit_range = t_val
-                        hit_cos = cos_val
-                        hit_tri = tri
-
-                results[ray_idx] = (hit_range, hit_cos, hit_tri)
-            return results
-
-        batches = [(i, min(i + batch_size, n_rays)) for i in range(0, n_rays, batch_size)]
+            return ch, az, min_dist, max_reflectance
 
         with ThreadPoolExecutor(max_workers=self._n_threads) as executor:
-            futures = list(executor.map(process_batch, batches))
-            for batch_results in futures:
-                for ray_idx, (hit_range, hit_cos, hit_tri) in batch_results.items():
-                    ch = ray_idx // n_az
-                    az = ray_idx % n_az
-                    if ch >= n_ch:
-                        break
+            results = list(executor.map(process_ray, range(n_rays)))
 
-                    if hit_range < math.inf and hit_range <= self.max_range_m:
-                        range_image[ch, az] = float(hit_range)
-                        if hit_tri is not None:
-                            intensity_image[ch, az] = self._compute_reflectance(hit_tri, hit_cos)
+        for ch, az, dist, reflectance in results:
+            if dist < self.max_range_m:
+                range_image[ch, az] = dist
+                intensity_image[ch, az] = reflectance
 
         return range_image, intensity_image
 
-    def _compute_reflectance(self, tri: "_Triangle", cos_incident: float) -> float:
-        """Compute Lambertian + specular reflectance for a hit triangle."""
-        return self._compute_reflectance_scalar(tri.roughness, tri.metallic, tri.base_color, cos_incident)
+    def _compute_reflectance(self, roughness: float, metallic: float, base_color: np.ndarray, cos_incident: float) -> float:
+        """Compute Lambertian + specular reflectance."""
+        return self._compute_reflectance_scalar(roughness, metallic, base_color, cos_incident)
 
     def _compute_reflectance_scalar(
         self, roughness: float, metallic: float, base_color: np.ndarray, cos_incident: float
@@ -679,9 +765,10 @@ class GenesisLiDAR(BaseSensor):
     def _compute_range_image(
         self, pos: np.ndarray, quat: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Compute range image via raycasting against scene geometry."""
-        rays = self._build_rays(pos, quat)
+        """Compute range image via raycasting against scene geometry.
 
+        Priority: Numba JIT > trimesh BVH > parallel fallback
+        """
         geoms: list[_Geomtri] = []
         if self._scene_geom_getter is not None:
             try:
@@ -695,14 +782,17 @@ class GenesisLiDAR(BaseSensor):
 
         initial_range = np.full((self.n_channels, self.h_resolution), self.max_range_m, dtype=np.float32)
 
+        if self._use_numba:
+            if self._build_numba_geometry(geoms):
+                return self._cast_rays_numba(pos, quat, initial_range)
+
         if self._use_trimesh:
             self._build_trimesh_meshes(geoms)
             if self._trimesh_meshes:
+                rays = self._build_rays(pos, quat)
                 return self._cast_rays_trimesh_bvh(rays, initial_range)
 
-        self._build_triangle_cache(geoms)
-        if self._tri_cache:
-            return self._cast_rays_vectorized(rays, initial_range)
+        rays = self._build_rays(pos, quat)
         return self._cast_rays_parallel(rays, initial_range)
 
     def _synthetic_lidar_step(
