@@ -62,6 +62,7 @@ _DEFAULT_H_RES: Final[int] = 1800
 _DEFAULT_MAX_RANGE_M: Final[float] = 100.0
 
 _NUMBA_AVAILABLE: bool = False
+_NUMBA_WARMED: bool = False
 
 
 def _noop_decorator(func):
@@ -74,6 +75,43 @@ try:
 except ImportError:
     njit = _noop_decorator
     prange = range
+
+
+def _warmup_numba() -> None:
+    """Pre-compile numba functions at module load time for faster first call."""
+    global _NUMBA_WARMED
+    if _NUMBA_WARMED or not _NUMBA_AVAILABLE:
+        return
+
+    dummy_origins = np.zeros((2, 3), dtype=np.float64)
+    dummy_dirs = np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]], dtype=np.float64)
+    dummy_tri = np.zeros((1, 3), dtype=np.float64)
+    dummy_normals = np.array([[0.0, 0.0, 1.0]], dtype=np.float64)
+    dummy_roughness = np.array([0.5], dtype=np.float64)
+    dummy_metallic = np.array([0.0], dtype=np.float64)
+    dummy_base_color = np.array([[0.7, 0.7, 0.7]], dtype=np.float64)
+    dummy_centroids = np.array([[0.0, 0.0, 0.0]], dtype=np.float64)
+    dummy_candidates = np.array([0], dtype=np.int64)
+    dummy_n_candidates = np.array([1, 1], dtype=np.int64)
+
+    try:
+        _numba_mt_intersect_bvh(
+            dummy_origins, dummy_dirs, dummy_tri, dummy_tri, dummy_tri,
+            dummy_normals, dummy_roughness, dummy_metallic, dummy_base_color,
+            dummy_centroids, dummy_candidates, dummy_n_candidates,
+            100.0, 1, 1,
+        )
+        _numba_mt_intersect(
+            dummy_origins, dummy_dirs, dummy_tri, dummy_tri, dummy_tri,
+            dummy_normals, dummy_roughness, dummy_metallic, dummy_base_color,
+            np.array([0], dtype=np.int64), 100.0, 1, 1,
+        )
+        _NUMBA_WARMED = True
+    except Exception:
+        pass
+
+
+_warmup_numba()
 
 
 @njit(cache=True)
@@ -1128,19 +1166,34 @@ class GenesisLiDAR(BaseSensor):
                             mesh_obj = getattr(vgeom, "mesh", None)
                             if mesh_obj is None:
                                 continue
-                            verts = getattr(mesh_obj, "vertices", None) or getattr(mesh_obj, "verts", None)
-                            if verts is None:
-                                continue
-                            verts_arr = np.asarray(verts, dtype=np.float64)
+
+                            verts_arr = None
+                            faces_arr = None
+
+                            if hasattr(vgeom, "get_trimesh") and include_visual:
+                                try:
+                                    trimesh_mesh = vgeom.get_trimesh()
+                                    if trimesh_mesh is not None:
+                                        verts_arr = np.asarray(trimesh_mesh.vertices, dtype=np.float64)
+                                        faces_arr = np.asarray(trimesh_mesh.faces, dtype=np.int64)
+                                except Exception:
+                                    pass
+
+                            if verts_arr is None:
+                                verts = getattr(mesh_obj, "vertices", None) or getattr(mesh_obj, "verts", None)
+                                if verts is None:
+                                    continue
+                                verts_arr = np.asarray(verts, dtype=np.float64)
+
                             if verts_arr.ndim != 2 or verts_arr.shape[1] != 3:
                                 continue
 
-                            faces_arr = None
-                            for attr in ("faces", "indices", "tri_indices"):
-                                faces = getattr(mesh_obj, attr, None)
-                                if faces is not None:
-                                    faces_arr = np.asarray(faces, dtype=np.int64)
-                                    break
+                            if faces_arr is None:
+                                for attr in ("faces", "indices", "tri_indices"):
+                                    faces = getattr(mesh_obj, attr, None)
+                                    if faces is not None:
+                                        faces_arr = np.asarray(faces, dtype=np.int64)
+                                        break
 
                             if faces_arr is None:
                                 init_vfaces = getattr(vgeom, "init_vfaces", None)
