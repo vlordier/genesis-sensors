@@ -137,6 +137,7 @@ from .depth_camera import DepthCameraModel
 from .event_camera import Event, EventCameraModel
 from .environmental import AnemometerModel, GasSensorModel, HygrometerModel, LightSensorModel, ThermometerModel
 from .force_torque import ForceTorqueSensorModel
+from .genesis_lidar import GenesisLiDAR
 from .gnss import GNSSModel, GnssFixQuality
 from .hydrophone import HydrophoneModel
 from .imu import IMUModel
@@ -473,6 +474,7 @@ __all__ = [
     "EventCameraModel",
     "ForceTorqueSensorModel",
     "GasSensorModel",
+    "GenesisLiDAR",
     "GNSSModel",
     "GnssFixQuality",
     "HydrophoneModel",

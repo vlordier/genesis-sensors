@@ -28,6 +28,7 @@ _COMPAT_EXPORTS = set(getattr(_sensor_backend, "__all__", []))
 
 _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "DemoScene": (".scenes", "DemoScene"),
+    "GenesisLiDAR": ("._runtime_sensors", "GenesisLiDAR"),
     "NamedContactSensor": (".rigs", "NamedContactSensor"),
     "RobustSensorWrapper": (".robustness", "RobustSensorWrapper"),
     "SensorFaultConfig": (".robustness", "SensorFaultConfig"),
