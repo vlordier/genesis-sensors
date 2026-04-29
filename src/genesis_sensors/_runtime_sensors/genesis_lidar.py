@@ -62,12 +62,131 @@ _DEFAULT_H_RES: Final[int] = 1800
 _DEFAULT_MAX_RANGE_M: Final[float] = 100.0
 
 _NUMBA_AVAILABLE: bool = False
+
+
+def _noop_decorator(func):
+    return func
+
+
 try:
-    from numba import prange
+    from numba import njit, prange
     _NUMBA_AVAILABLE = True
 except ImportError:
+    njit = _noop_decorator
     prange = range
-    pass
+
+
+@njit(cache=True)
+def _numba_mt_intersect_bvh(
+    origins: np.ndarray,
+    dirs: np.ndarray,
+    tri_v0: np.ndarray,
+    tri_v1: np.ndarray,
+    tri_v2: np.ndarray,
+    tri_normals: np.ndarray,
+    tri_roughness: np.ndarray,
+    tri_metallic: np.ndarray,
+    tri_base_color: np.ndarray,
+    tri_centroids: np.ndarray,
+    candidates: np.ndarray,
+    n_candidates_per_ray: np.ndarray,
+    max_range: float,
+    n_ch: int,
+    n_az: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Numba-accelerated Moller-Trumbore with BVH candidate testing.
+
+    Only tests triangles that are near each ray (from cKDTree query).
+    Returns (range_image, intensity_image).
+    """
+    n_rays = origins.shape[0]
+
+    range_image = np.full((n_ch, n_az), max_range, dtype=np.float32)
+    intensity_image = np.zeros((n_ch, n_az), dtype=np.float32)
+
+    eps = 1e-9
+
+    for ray_idx in prange(n_rays):
+        ox, oy, oz = origins[ray_idx]
+        dx, dy, dz = dirs[ray_idx]
+
+        ch = ray_idx // n_az
+        az = ray_idx % n_az
+
+        min_t = max_range
+
+        start_idx = 0
+        for i in range(ray_idx):
+            start_idx += n_candidates_per_ray[i]
+
+        n_cands = n_candidates_per_ray[ray_idx]
+
+        for j in range(n_cands):
+            tri_idx = candidates[start_idx + j]
+
+            v0x, v0y, v0z = tri_v0[tri_idx]
+            v1x, v1y, v1z = tri_v1[tri_idx]
+            v2x, v2y, v2z = tri_v2[tri_idx]
+
+            e1x = v1x - v0x
+            e1y = v1y - v0y
+            e1z = v1z - v0z
+
+            e2x = v2x - v0x
+            e2y = v2y - v0y
+            e2z = v2z - v0z
+
+            hx = dy * e2z - dz * e2y
+            hy = dz * e2x - dx * e2z
+            hz = dx * e2y - dy * e2x
+
+            a_val = e1x * hx + e1y * hy + e1z * hz
+            if abs(a_val) < eps:
+                continue
+
+            f_val = 1.0 / a_val
+
+            sx = ox - v0x
+            sy = oy - v0y
+            sz = oz - v0z
+
+            u = f_val * (sx * hx + sy * hy + sz * hz)
+            if u < 0.0 or u > 1.0:
+                continue
+
+            qx = sy * e1z - sz * e1y
+            qy = sz * e1x - sx * e1z
+            qz = sx * e1y - sy * e1x
+
+            v = f_val * (dx * qx + dy * qy + dz * qz)
+            if v < 0.0 or u + v > 1.0:
+                continue
+
+            t_val = f_val * (e2x * qx + e2y * qy + e2z * qz)
+            if t_val < eps or t_val >= min_t:
+                continue
+
+            nx, ny, nz = tri_normals[tri_idx]
+            cos_incident = max(0.0, -(dx * nx + dy * ny + dz * nz))
+
+            roughness = tri_roughness[tri_idx]
+            metallic = tri_metallic[tri_idx]
+
+            diffuse = 1.0 - roughness
+            spec = metallic * (1.0 - roughness)
+            reflectance = diffuse * (1.0 - metallic) * cos_incident
+            reflectance += spec * cos_incident * cos_incident
+
+            base_color = tri_base_color[tri_idx]
+            base_lum = base_color[0] * 0.299 + base_color[1] * 0.587 + base_color[2] * 0.114
+            reflectance *= max(0.1, base_lum)
+            reflectance = min(1.0, max(0.0, reflectance))
+
+            min_t = t_val
+            range_image[ch, az] = t_val
+            intensity_image[ch, az] = reflectance
+
+    return range_image, intensity_image
 
 
 def _numba_mt_intersect(
@@ -298,7 +417,8 @@ class GenesisLiDAR(BaseSensor):
         self._last_obs: dict[str, Any] = {}
         self._trimesh_meshes: list[Any] = []
         self._geom_tri_info: dict[int, dict[str, Any]] = {}
-        self._numba_geom_cache: dict[str, tuple[np.ndarray, ...]] = {}
+        self._numba_geom_cache: dict[str, tuple[np.ndarray, ...] | np.ndarray] = {}
+        self._tri_centroids: np.ndarray | None = None
 
     @property
     def _tri_soa(self) -> tuple[np.ndarray, ...] | None:
@@ -342,6 +462,7 @@ class GenesisLiDAR(BaseSensor):
         self._trimesh_meshes.clear()
         self._geom_tri_info.clear()
         self._numba_geom_cache.clear()
+        self._tri_centroids = None
 
     def step(self, sim_time: float, state: dict[str, Any]) -> LidarObservation | dict[str, Any]:
         """
@@ -554,6 +675,12 @@ class GenesisLiDAR(BaseSensor):
         tri_geom_id = np.array(all_geom_id, dtype=np.int64)
 
         self._tri_soa = (tri_v0, tri_v1, tri_v2, tri_normals, tri_roughness, tri_metallic, tri_base_color, tri_geom_id)
+
+        tri_v0_list = np.array(all_v0, dtype=np.float64)
+        tri_v1_list = np.array(all_v1, dtype=np.float64)
+        tri_v2_list = np.array(all_v2, dtype=np.float64)
+        self._tri_centroids = (tri_v0_list + tri_v1_list + tri_v2_list) / 3.0
+
         return True
 
     def _build_trimesh_meshes(self, geoms: list[_Geomtri]) -> None:
@@ -611,6 +738,69 @@ class GenesisLiDAR(BaseSensor):
             self.max_range_m,
             self.n_channels,
             self.h_resolution,
+        )
+
+    def _cast_rays_numba_bvh(
+        self, pos: np.ndarray, quat: np.ndarray, initial_range: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Numba-JIT with BVH acceleration using scipy cKDTree.
+
+        Uses cKDTree to find candidate triangles near each ray,
+        then tests only those candidates with numba.
+        This is O(n_rays * k) instead of O(n_rays * n_tris) where k << n_tris.
+        """
+        from scipy.spatial import cKDTree
+
+        tri_soa = self._tri_soa
+        if tri_soa is None:
+            return initial_range, np.zeros((self.n_channels, self.h_resolution), dtype=np.float32)
+
+        origins, dirs = self._build_numba_rays(pos, quat)
+        tri_v0, tri_v1, tri_v2, tri_normals, tri_roughness, tri_metallic, tri_base_color, tri_geom_id = tri_soa
+
+        centroids = self._tri_centroids
+        if centroids is None:
+            return self._cast_rays_numba(pos, quat, initial_range)
+
+        n_rays = origins.shape[0]
+        n_ch = self.n_channels
+        n_az = self.h_resolution
+
+        kdtree = cKDTree(centroids)
+
+        candidates_list = []
+        n_candidates_list = []
+
+        for ray_idx in range(n_rays):
+            origin = origins[ray_idx]
+
+            nearby_indices = kdtree.query_ball_point(origin, self.max_range_m)
+
+            n_cands = len(nearby_indices)
+            n_candidates_list.append(n_cands)
+
+            for idx in nearby_indices:
+                candidates_list.append(idx)
+
+        candidates = np.array(candidates_list, dtype=np.int64)
+        n_candidates_per_ray = np.array(n_candidates_list, dtype=np.int64)
+
+        return _numba_mt_intersect_bvh(
+            origins,
+            dirs,
+            tri_v0,
+            tri_v1,
+            tri_v2,
+            tri_normals,
+            tri_roughness,
+            tri_metallic,
+            tri_base_color,
+            centroids,
+            candidates,
+            n_candidates_per_ray,
+            self.max_range_m,
+            n_ch,
+            n_az,
         )
 
     def _cast_rays_trimesh_bvh(
@@ -767,7 +957,7 @@ class GenesisLiDAR(BaseSensor):
     ) -> tuple[np.ndarray, np.ndarray]:
         """Compute range image via raycasting against scene geometry.
 
-        Priority: Numba JIT > trimesh BVH > parallel fallback
+        Priority: Numba JIT with BVH > Numba JIT (brute force) > trimesh BVH > parallel fallback
         """
         geoms: list[_Geomtri] = []
         if self._scene_geom_getter is not None:
@@ -784,6 +974,8 @@ class GenesisLiDAR(BaseSensor):
 
         if self._use_numba:
             if self._build_numba_geometry(geoms):
+                if self._scipy_available():
+                    return self._cast_rays_numba_bvh(pos, quat, initial_range)
                 return self._cast_rays_numba(pos, quat, initial_range)
 
         if self._use_trimesh:
@@ -794,6 +986,14 @@ class GenesisLiDAR(BaseSensor):
 
         rays = self._build_rays(pos, quat)
         return self._cast_rays_parallel(rays, initial_range)
+
+    @staticmethod
+    def _scipy_available() -> bool:
+        try:
+            import importlib.util
+            return importlib.util.find_spec("scipy") is not None
+        except Exception:
+            return False
 
     def _synthetic_lidar_step(
         self, sim_time: float, state: dict[str, Any]
