@@ -459,6 +459,8 @@ class GenesisLiDAR(BaseSensor):
         self._tri_centroids: np.ndarray | None = None
         self._geom_dirty: bool = True
         self._cached_geoms: list[_Geomtri] | None = None
+        self._kdtree: Any = None
+        self._kdtree_centroids: np.ndarray | None = None
 
     @property
     def _tri_soa(self) -> tuple[np.ndarray, ...] | None:
@@ -505,6 +507,8 @@ class GenesisLiDAR(BaseSensor):
         self._tri_centroids = None
         self._geom_dirty = True
         self._cached_geoms = None
+        self._kdtree = None
+        self._kdtree_centroids = None
 
     def step(self, sim_time: float, state: dict[str, Any]) -> LidarObservation | dict[str, Any]:
         """
@@ -825,6 +829,8 @@ class GenesisLiDAR(BaseSensor):
         Uses cKDTree to find candidate triangles near each ray,
         then tests only those candidates with numba.
         This is O(n_rays * k) instead of O(n_rays * n_tris) where k << n_tris.
+
+        The cKDTree is cached and only rebuilt when geometry changes.
         """
         from scipy.spatial import cKDTree
 
@@ -843,19 +849,20 @@ class GenesisLiDAR(BaseSensor):
         n_ch = self.n_channels
         n_az = self.h_resolution
 
-        kdtree = cKDTree(centroids)
+        if self._kdtree is None or self._kdtree_centroids is not centroids:
+            self._kdtree = cKDTree(centroids)
+            self._kdtree_centroids = centroids
+
+        kdtree = self._kdtree
 
         candidates_list = []
         n_candidates_list = []
 
         for ray_idx in range(n_rays):
             origin = origins[ray_idx]
-
             nearby_indices = kdtree.query_ball_point(origin, self.max_range_m)
-
             n_cands = len(nearby_indices)
             n_candidates_list.append(n_cands)
-
             for idx in nearby_indices:
                 candidates_list.append(idx)
 
