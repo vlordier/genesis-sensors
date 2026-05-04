@@ -762,16 +762,12 @@ def _build_ugv_sensor_suite(
     lidar_cfg = VELODYNE_VLP16.model_copy(
         update={"name": "front_lidar", "n_channels": 16, "h_resolution": 360, "max_range_m": 100.0, "seed": seed_for(0)}
     )
-    rgb_cfg = RASPBERRY_PI_V2.model_copy(
-        update={"name": "front_rgb", "resolution": (640, 480), "seed": seed_for(1)}
-    )
+    rgb_cfg = RASPBERRY_PI_V2.model_copy(update={"name": "front_rgb", "resolution": (640, 480), "seed": seed_for(1)})
 
     wheel_odom: dict[str, WheelOdometryModel] = {}
     wheel_names = ["FL", "FR", "RL", "RR"]
     for i, name in enumerate(wheel_names):
-        w_cfg = DIFF_DRIVE_ENCODER_50HZ.model_copy(
-            update={"name": f"wheel_odometry_{name}", "seed": seed_for(10 + i)}
-        )
+        w_cfg = DIFF_DRIVE_ENCODER_50HZ.model_copy(update={"name": f"wheel_odometry_{name}", "seed": seed_for(10 + i)})
         wheel_odom[name] = WheelOdometryModel.from_config(w_cfg)
 
     extra_sensors: list[tuple[str, Any]] = []
@@ -868,8 +864,8 @@ def make_ugv_rig(
     wheel_indices = wheel_joint_indices or [0, 1, 2, 3]
 
     if genesis_entity is not None:
+
         def _state_fn() -> dict[str, Any]:
-            sim_time = cache.frame_idx * dt
             state: dict[str, Any] = dict(
                 extract_rigid_body_state(
                     genesis_entity,
@@ -880,8 +876,11 @@ def make_ugv_rig(
                 )
             )
             wheel_state = _wheel_odometry_state(
-                genesis_entity, wheel_indices, wheel_radius,
-                None, dt,
+                genesis_entity,
+                wheel_indices,
+                wheel_radius,
+                None,
+                dt,
             )
             state.update(wheel_state)
             cache.prev_world_vel = np.asarray(state["vel"], dtype=np.float64).copy()
@@ -896,9 +895,12 @@ def make_ugv_rig(
             nonlocal prev_pos
             sim_time = cache.frame_idx * dt
             state = _ugv_synthetic_state(
-                sim_time=sim_time, frame_idx=cache.frame_idx,
-                prev_pos=prev_pos, prev_vel=cache.prev_world_vel,
-                dt=dt, seed=seed or 0,
+                sim_time=sim_time,
+                frame_idx=cache.frame_idx,
+                prev_pos=prev_pos,
+                prev_vel=cache.prev_world_vel,
+                dt=dt,
+                seed=seed or 0,
             )
             prev_pos = np.asarray(state["pos"], dtype=np.float64).copy()
             cache.prev_world_vel = np.asarray(state["vel"], dtype=np.float64).copy()
