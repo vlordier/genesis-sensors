@@ -730,8 +730,6 @@ def _wheel_odometry_state(
     Returns a dict with per-wheel angular velocity and estimated ground velocity,
     suitable for feeding WheelOdometryModel instances.
     """
-    import numpy as np
-
     try:
         dof_vels = entity.get_dofs_velocity()
         if hasattr(dof_vels, "cpu"):
