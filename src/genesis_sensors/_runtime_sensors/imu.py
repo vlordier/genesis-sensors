@@ -162,6 +162,13 @@ class IMUModel(BaseSensor):
         adc_resolution_gyr: int = 0,
         bandwidth_hz: float = 0.0,
         seed: int | None = None,
+        # Vibration injection (engine + terrain broadband)
+        vib_engine_hz: float = 35.0,      # Base engine vibration frequency
+        vib_engine_harmonics: int = 3,     # Number of harmonics (1=fundamental only)
+        vib_engine_amplitude_ms2: float = 0.3,  # Amplitude at full throttle
+        vib_terrain_scale: float = 0.1,    # Terrain roughness → vibration scale
+        # Sensor mount misalignment
+        misalignment_deg: tuple[float, float, float] = (0.0, 0.0, 0.0),
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
         self.noise_density_acc = float(noise_density_acc)
@@ -183,8 +190,24 @@ class IMUModel(BaseSensor):
         self.adc_resolution_acc = int(max(0, adc_resolution_acc))
         self.adc_resolution_gyr = int(max(0, adc_resolution_gyr))
         self.bandwidth_hz = float(max(0.0, bandwidth_hz))
+        self.vib_engine_hz = float(vib_engine_hz)
+        self.vib_engine_harmonics = int(vib_engine_harmonics)
+        self.vib_engine_amplitude_ms2 = float(vib_engine_amplitude_ms2)
+        self.vib_terrain_scale = float(vib_terrain_scale)
+        self.misalignment_deg = tuple(float(v) for v in misalignment_deg)
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
+
+        # Pre-compute misalignment rotation matrix
+        rx, ry, rz = np.radians(self.misalignment_deg)
+        cx, sx = np.cos(rx), np.sin(rx)
+        cy, sy = np.cos(ry), np.sin(ry)
+        cz, sz = np.cos(rz), np.sin(rz)
+        self._M_misalign = np.array([
+            [cy*cz, cy*sz, -sy],
+            [sx*sy*cz - cx*sz, sx*sy*sz + cx*cz, sx*cy],
+            [cx*sy*cz + sx*sz, cx*sy*sz - sx*cz, cx*cy],
+        ], dtype=np.float64)
 
         # ------------------------------------------------------------------
         # Pre-computed noise and Gauss-Markov coefficients
@@ -341,6 +364,34 @@ class IMUModel(BaseSensor):
             else:
                 g_vec = _DEFAULT_GRAVITY_BODY
             true_acc = true_acc + g_vec
+
+        # ------------------------------------------------------------------
+        # Vibration injection (engine + terrain broadband)
+        # Applied BEFORE scale-factor/cross-axis — vibration is real acceleration
+        # ------------------------------------------------------------------
+        throttle = float(state.get("throttle", 0.0))
+        terrain_roughness = float(state.get("terrain_roughness", 0.0))
+        if abs(throttle) > 0.01 or terrain_roughness > 0.01:
+            vib = np.zeros(3, dtype=np.float64)
+            # Engine vibration: harmonic series at base frequency
+            if abs(throttle) > 0.01:
+                t = sim_time
+                amp = abs(throttle) * self.vib_engine_amplitude_ms2
+                for h in range(1, self.vib_engine_harmonics + 1):
+                    vib[0] += amp * np.sin(2 * np.pi * self.vib_engine_hz * h * t + h * 0.7) / h
+                    vib[1] += amp * np.sin(2 * np.pi * self.vib_engine_hz * h * t + h * 1.3) / h
+                    vib[2] += amp * 0.5 * np.sin(2 * np.pi * self.vib_engine_hz * h * t + h) / h
+            # Terrain vibration: broadband Gaussian proportional to roughness
+            if terrain_roughness > 0.01:
+                vib += self._rng.normal(0, terrain_roughness * self.vib_terrain_scale, 3)
+            true_acc = true_acc + vib
+
+        # ------------------------------------------------------------------
+        # Sensor mount misalignment (rotation of measurement frame)
+        # ------------------------------------------------------------------
+        if np.any(self.misalignment_deg):
+            true_acc = self._M_misalign @ true_acc
+            true_gyr = self._M_misalign @ true_gyr
 
         # ------------------------------------------------------------------
         # Scale-factor error + cross-axis coupling (applied before bias/noise)

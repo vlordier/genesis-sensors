@@ -140,7 +140,6 @@ class SensorScheduler:
                         ts = sim_time
                         if self.jitter_sigma_s > 0.0:
                             ts += float(self._rng.normal(0.0, self.jitter_sigma_s))
-                        sensor_obs = dict(sensor_obs)  # ensure mutable copy
                         sensor_obs["timestamp_s"] = ts
                     obs[name] = sensor_obs
                 else:

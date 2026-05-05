@@ -17,7 +17,7 @@ from genesis_sensors import (
     list_presets,
     make_synthetic_sensor_state,
 )
-from genesis_sensors.rigs import NamedContactSensor, SensorRig, make_synthetic_multimodal_rig
+from genesis_sensors.rigs import NamedContactSensor, SensorRig, make_synthetic_multimodal_rig, make_ugv_rig
 
 
 def test_named_contact_sensor_reads_only_its_link_force() -> None:
@@ -233,3 +233,97 @@ def test_sensor_suite_from_config_applies_noise_models() -> None:
     obs = suite.step(0.0, {"lin_acc": np.zeros(3), "ang_vel": np.zeros(3), "gravity_body": np.zeros(3)})
     assert suite.get_sensor("imu").noise_model == "none"
     assert np.allclose(np.asarray(obs["imu"]["lin_acc"], dtype=float), 0.0)
+
+
+# ---------------------------------------------------------------------------
+# UGV rig tests
+# ---------------------------------------------------------------------------
+
+
+def test_ugv_rig_sensor_keys_present() -> None:
+    rig = make_ugv_rig(dt=0.05, seed=42)
+    rig.reset()
+    obs = rig.step(0.05)
+
+    expected_sensors = {
+        "rgb",
+        "lidar",
+        "imu",
+        "gnss",
+        "barometer",
+        "inclinometer",
+        "magnetometer",
+        "battery",
+        "wheel_odometry_FL",
+        "wheel_odometry_FR",
+        "wheel_odometry_RL",
+        "wheel_odometry_RR",
+    }
+    assert expected_sensors.issubset(set(obs.keys()))
+
+    for w in ("FL", "FR", "RL", "RR"):
+        key = f"wheel_odometry_{w}"
+        for sub_key in ("delta_pos_m", "delta_heading_rad", "linear_vel_ms", "angular_vel_rads"):
+            assert sub_key in obs[key], f"{key} missing {sub_key}"
+
+
+def test_ugv_rig_per_wheel_odometry_differs_during_turning() -> None:
+    rig = make_ugv_rig(dt=0.05, seed=42)
+    rig.reset()
+
+    left_speeds = []
+    right_speeds = []
+    for _ in range(10):
+        obs = rig.step(0.05)
+        fl = float(obs["wheel_odometry_FL"]["linear_vel_ms"])
+        fr = float(obs["wheel_odometry_FR"]["linear_vel_ms"])
+        rl = float(obs["wheel_odometry_RL"]["linear_vel_ms"])
+        rr = float(obs["wheel_odometry_RR"]["linear_vel_ms"])
+        left_speeds.append((fl + rl) / 2.0)
+        right_speeds.append((fr + rr) / 2.0)
+
+    assert abs(max(left_speeds) - max(right_speeds)) > 0.001, (
+        f"Left and right wheels should differ during turning: L={max(left_speeds):.3f}, R={max(right_speeds):.3f}"
+    )
+
+
+def test_ugv_rig_reset_restarts_position() -> None:
+    rig = make_ugv_rig(dt=0.05, seed=42)
+    rig.reset()
+    # Advance several steps to build up position
+    for _ in range(10):
+        rig.step(0.05)
+
+    rig.reset()
+    obs_after = rig.step(0.05)
+    dist_after_reset = float(np.linalg.norm(obs_after["wheel_odometry_FL"]["delta_pos_m"]))
+
+    # After reset with new seed, delta should be small (near origin velocity)
+    assert dist_after_reset < 0.3, (
+        f"Reset should restart near origin: after_reset={dist_after_reset:.3f}"
+    )
+
+
+def test_ugv_rig_deterministic_with_seed() -> None:
+    def _collect_4_wheel_speeds(seed: int, steps: int = 3) -> list[float]:
+        rig = make_ugv_rig(dt=0.05, seed=seed)
+        rig.reset()
+        speeds: list[float] = []
+        for _ in range(steps):
+            obs = rig.step(0.05)
+            speeds.append(float(obs["wheel_odometry_FL"]["linear_vel_ms"]))
+        return speeds
+
+    speeds_a = _collect_4_wheel_speeds(seed=42)
+    speeds_b = _collect_4_wheel_speeds(seed=42)
+    assert speeds_a == speeds_b, "Same seed should produce identical odometry"
+
+
+def test_ugv_rig_different_seeds_diverge() -> None:
+    speeds_a = [
+        float(make_ugv_rig(dt=0.05, seed=42).step(0.05)["wheel_odometry_FL"]["linear_vel_ms"]) for _ in range(3)
+    ]
+    speeds_b = [
+        float(make_ugv_rig(dt=0.05, seed=99).step(0.05)["wheel_odometry_FL"]["linear_vel_ms"]) for _ in range(3)
+    ]
+    assert speeds_a != speeds_b, "Different seeds should produce different odometry"
