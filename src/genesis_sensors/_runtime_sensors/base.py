@@ -325,6 +325,26 @@ class BaseSensor(ABC, Generic[ObservationT]):
     # ------------------------------------------------------------------
     # Pre-allocation (avoid per-frame array allocations)
     # ------------------------------------------------------------------
+
+    _buffer_cache: dict[str, Any] | None = None
+
+    def _alloc(self, key: str, shape: tuple[int, ...], dtype: Any = None) -> Any:
+        """Return a pre-allocated array, reallocating only on shape change."""
+        import numpy as np
+        if self._buffer_cache is None:
+            self._buffer_cache = {}
+        arr = self._buffer_cache.get(key)
+        if arr is None or arr.shape != shape:
+            self._buffer_cache[key] = np.zeros(shape, dtype=dtype or np.float32)
+        else:
+            self._buffer_cache[key].fill(0)
+        return self._buffer_cache[key]
+
+    def _get_buffer(self, key: str) -> Any | None:
+        """Get a cached buffer without zeroing."""
+        if self._buffer_cache is None:
+            return None
+        return self._buffer_cache.get(key)
     # Convenience
     # ------------------------------------------------------------------
 
