@@ -308,6 +308,23 @@ class BaseSensor(ABC, Generic[ObservationT]):
         self._last_update_time = sim_time
 
     # ------------------------------------------------------------------
+    # Fidelity level support
+    # ------------------------------------------------------------------
+
+    _fidelity_enabled: dict[str, bool] = {}
+
+    def configure_fidelity(self, level: Any) -> None:
+        """Enable/disable features based on fidelity level.
+
+        Subclasses override this to enable/disable expensive effects.
+        Args:
+            level: FidelityLevel enum value (LOW=0, STANDARD=1, HIGH=2, ULTRA=3).
+        """
+        pass
+
+    # ------------------------------------------------------------------
+    # Pre-allocation (avoid per-frame array allocations)
+    # ------------------------------------------------------------------
     # Convenience
     # ------------------------------------------------------------------
 
