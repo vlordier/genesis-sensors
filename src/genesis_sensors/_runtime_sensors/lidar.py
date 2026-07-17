@@ -197,6 +197,7 @@ class LidarModel(BaseSensor):
         multi_return_split_m: float = 1.0,
         reflectance_model: bool = False,
         seed: int | None = None,
+        scan_duration_s: float = 0.1,
     ) -> None:
         super().__init__(name=name, update_rate_hz=update_rate_hz)
         self.n_channels = int(n_channels)
@@ -215,6 +216,7 @@ class LidarModel(BaseSensor):
         self.reflectance_model = bool(reflectance_model)
         self._rng = np.random.default_rng(seed=seed)
         self._seed = seed
+        self._scan_duration_s = float(scan_duration_s)
 
         if channel_offsets_m is not None:
             self._channel_offsets = np.asarray(channel_offsets_m, dtype=np.float32)
@@ -390,6 +392,29 @@ class LidarModel(BaseSensor):
             0.0,
             1.0,
         ).astype(np.float32)
+
+        # 6b. Motion distortion: compensate vehicle motion during scan time.
+        # Spinning LiDAR rays are emitted at different times; the vehicle
+        # moves during the scan, distorting the point cloud.
+        motion_distortion = state.get("motion_distortion", True)
+        if motion_distortion:
+            vel = np.asarray(state.get("vel", np.zeros(3)), dtype=np.float64)
+            ang_vel = np.asarray(state.get("ang_vel", np.zeros(3)), dtype=np.float64)
+            scan_duration = getattr(self, "_scan_duration_s", 0.1)
+            if np.any(vel) or np.any(ang_vel):
+                # Per-beam time offset: beam j at t + j/n_az × scan_duration
+                t_offsets = np.linspace(-scan_duration / 2, scan_duration / 2, n_az)
+                # Translation correction: dx = vel × t_offset
+                dx = vel[0] * t_offsets
+                dy = vel[1] * t_offsets
+                dz = vel[2] * t_offsets
+                # Apply to range image as apparent range shift
+                cos_azim_dist, sin_azim_dist, cos_elev_dist, sin_elev_dist = self._get_geometry_tables(n_ch, n_az)
+                x_corr = dx[np.newaxis, :] * cos_elev_dist * cos_azim_dist
+                y_corr = dy[np.newaxis, :] * cos_elev_dist * sin_azim_dist
+                z_corr = dz[np.newaxis, :] * sin_elev_dist
+                corr = np.sqrt(x_corr**2 + y_corr**2 + z_corr**2)
+                range_img = np.clip(range_img - corr.astype(np.float32), 0.1, None)
 
         # 7. Convert to Cartesian coordinates using the beam geometry that
         # matches the actual input shape. This keeps the model tolerant of
