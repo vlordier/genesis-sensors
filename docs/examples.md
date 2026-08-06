@@ -48,8 +48,8 @@ for step in range(12):
     demo.scene.step()
     obs = demo.rig.step(step * 0.02)
 
-print(obs["rgb"]["rgb"].shape)                 # (72, 96, 3)
-print(len(obs["lidar"]["points"]))            # ~500 points
+print(obs["rgb"]["rgb"].shape)  # (72, 96, 3)
+print(len(obs["lidar"]["points"]))  # ~500 points
 print(float(obs["thermal"]["temperature_c"].max()))
 ```
 
