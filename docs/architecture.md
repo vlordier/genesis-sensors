@@ -120,6 +120,7 @@ cfg = IMUConfig()
 
 # From preset
 from genesis_sensors import get_preset
+
 cfg = get_preset("PIXHAWK_ICM20689")
 
 # Build sensor

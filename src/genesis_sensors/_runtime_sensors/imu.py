@@ -420,5 +420,15 @@ class IMUModel(BaseSensor):
     def get_observation(self) -> dict[str, Any]:
         return self._last_obs
 
+    @property
+    def accelerometer_bias(self) -> Float64Array:
+        """Return a snapshot of the current accelerometer bias in m/s²."""
+        return np.asarray(self._bias_process_acc.value, dtype=np.float64).copy()
+
+    @property
+    def gyroscope_bias(self) -> Float64Array:
+        """Return a snapshot of the current gyroscope bias in rad/s."""
+        return np.asarray(self._bias_process_gyr.value, dtype=np.float64).copy()
+
 
 __all__ = ["IMUModel"]

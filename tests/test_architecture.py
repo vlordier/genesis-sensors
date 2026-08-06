@@ -10,6 +10,9 @@
 
 from __future__ import annotations
 
+import tomllib
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -19,6 +22,16 @@ from genesis_sensors import (
     SensorSuiteConfig,
     make_synthetic_sensor_state,
 )
+
+
+def test_runtime_dependencies_target_current_genesis() -> None:
+    """The package must install every dependency needed to import Genesis."""
+    pyproject_path = Path(__file__).parents[1] / "pyproject.toml"
+    project = tomllib.loads(pyproject_path.read_text())["project"]
+    requirements = project["dependencies"]
+
+    assert any(requirement.startswith("genesis-world>=1.3.1") for requirement in requirements)
+    assert any(requirement.startswith("torch>=2.8.0") for requirement in requirements)
 
 
 # ────────────────────────────────────────────────────────────────────

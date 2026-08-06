@@ -398,6 +398,19 @@ class TestZeroNoiseSensors:
         np.testing.assert_allclose(obs["lin_acc"], true_acc, atol=1e-4)
         np.testing.assert_allclose(obs["ang_vel"], true_gyr, atol=1e-4)
 
+    def test_imu_bias_state_is_exposed_as_read_only_snapshots(self) -> None:
+        imu = IMUModel(bias_sigma_acc=0.01, bias_sigma_gyr=0.02, seed=0)
+
+        accel_bias = imu.accelerometer_bias
+        gyro_bias = imu.gyroscope_bias
+        accel_bias[:] = 99.0
+        gyro_bias[:] = 99.0
+
+        assert imu.accelerometer_bias.shape == (3,)
+        assert imu.gyroscope_bias.shape == (3,)
+        assert not np.all(imu.accelerometer_bias == 99.0)
+        assert not np.all(imu.gyroscope_bias == 99.0)
+
     def test_barometer_zero_noise(self) -> None:
         baro = BarometerModel(
             noise_sigma_m=0.0,
