@@ -716,3 +716,245 @@ def make_go2_rig(
         metadata={"foot_links": foot_links, "profile": "quadruped"},
         reset_fn=lambda: _reset_motion_cache(cache),
     )
+
+
+class PerWheelOdometryModel(WheelOdometryModel):
+    """WheelOdometryModel that reads per-wheel velocity from a custom state key.
+
+    Standard ``WheelOdometryModel`` reads ``state["vel"]`` (vehicle-level).
+    This variant reads ``state[wheel_key]`` instead, enabling truly independent
+    per-wheel odometry when velocities are provided per wheel in the state
+    (e.g., derived from skid-steer kinematics).
+    """
+
+    def __init__(self, wheel_key: str, **kwargs: Any) -> None:
+        kwargs.setdefault("name", wheel_key)
+        # Extract only the init params accepted by WheelOdometryModel
+        init_keys = {
+            "name",
+            "update_rate_hz",
+            "pos_noise_sigma_m",
+            "heading_noise_sigma_rad",
+            "slip_sigma",
+            "slip_correlation",
+            "seed",
+        }
+        filtered = {k: v for k, v in kwargs.items() if k in init_keys}
+        super().__init__(**filtered)
+        self._wheel_key = wheel_key
+
+    def step(self, sim_time: float, state: dict[str, Any]) -> dict[str, Any]:
+        wheel_vel = state.get(self._wheel_key)
+        redirected = dict(state)
+        if wheel_vel is not None:
+            redirected["vel"] = np.asarray(wheel_vel, dtype=np.float64)
+        else:
+            redirected["vel"] = np.zeros(3, dtype=np.float64)
+        return super().step(sim_time, redirected)
+
+
+def _skid_steer_wheel_velocities(
+    vel: np.ndarray,
+    ang_vel: np.ndarray,
+    track_width: float,
+) -> dict[str, np.ndarray]:
+    """Compute per-wheel ground velocities from skid-steer vehicle kinematics.
+
+    Left wheels get additional velocity from rotation (+ω×track_width/2),
+    right wheels get subtracted velocity (−ω×track_width/2).
+    """
+    yaw_rate = float(ang_vel[2]) if len(ang_vel) >= 3 else 0.0
+    half_track = track_width / 2.0
+    vx = float(vel[0]) if len(vel) > 0 else 0.0
+    vy = float(vel[1]) if len(vel) > 1 else 0.0
+    return {
+        "FL": np.array([vx + yaw_rate * half_track, vy, 0.0], dtype=np.float64),
+        "FR": np.array([vx - yaw_rate * half_track, vy, 0.0], dtype=np.float64),
+        "RL": np.array([vx + yaw_rate * half_track, vy, 0.0], dtype=np.float64),
+        "RR": np.array([vx - yaw_rate * half_track, vy, 0.0], dtype=np.float64),
+    }
+
+
+def _build_ugv_sensor_suite(
+    seed_for: Callable[[int], int | None],
+) -> SensorSuite:
+    """Create a UGV-focused sensor suite with 4 independent wheel odometry sensors.
+
+    Each wheel odometry sensor is a ``PerWheelOdometryModel`` reading from a
+    wheel-specific state key (``wheel_vel_FL``, ``wheel_vel_FR``, etc.),
+    populated via skid-steer kinematics by the state builder.
+    """
+    lidar_cfg = VELODYNE_VLP16.model_copy(
+        update={"name": "front_lidar", "n_channels": 16, "h_resolution": 360, "max_range_m": 100.0, "seed": seed_for(0)}
+    )
+    rgb_cfg = RASPBERRY_PI_V2.model_copy(update={"name": "front_rgb", "resolution": (640, 480), "seed": seed_for(1)})
+
+    wheel_names = ["FL", "FR", "RL", "RR"]
+    extra_sensors: list[tuple[str, Any]] = []
+    for i, name in enumerate(wheel_names):
+        model = PerWheelOdometryModel(
+            wheel_key=f"wheel_vel_{name}",
+            **DIFF_DRIVE_ENCODER_50HZ.model_copy(
+                update={"name": f"wheel_odometry_{name}", "seed": seed_for(10 + i)}
+            ).model_dump(),
+        )
+        extra_sensors.append((f"wheel_odometry_{name}", model))
+
+    return SensorSuite(
+        rgb_camera=CameraModel.from_config(rgb_cfg),
+        lidar=LidarModel.from_config(lidar_cfg),
+        imu=IMUModel(update_rate_hz=100.0, seed=seed_for(2)),
+        gnss=GNSSModel(update_rate_hz=5.0, noise_m=0.25, vel_noise_ms=0.02, seed=seed_for(3)),
+        barometer=BarometerModel(update_rate_hz=50.0, seed=seed_for(4)),
+        inclinometer=InclinometerModel(update_rate_hz=50.0, seed=seed_for(5)),
+        magnetometer=MagnetometerModel(update_rate_hz=50.0, seed=seed_for(6)),
+        battery=BatteryModel(n_cells=4, capacity_mah=10000.0, seed=seed_for(7)),
+        extra_sensors=extra_sensors,
+    )
+
+
+def _ugv_synthetic_state(
+    *,
+    sim_time: float,
+    frame_idx: int,
+    prev_pos: np.ndarray,
+    prev_vel: np.ndarray,
+    dt: float,
+    track_width: float = 1.6,
+    wheel_radius: float = 0.35,
+    seed: int = 0,
+) -> dict[str, Any]:
+    """Generate synthetic UGV motion state for headless/synthetic rig mode."""
+    speed = 1.5 + 0.3 * np.sin(0.2 * sim_time)
+    heading = 0.3 * np.sin(0.15 * sim_time)
+    vx = speed * np.cos(heading)
+    vy = speed * np.sin(heading)
+    vel = np.array([vx, vy, 0.0], dtype=np.float64)
+    pos = prev_pos.astype(np.float64) + vel * dt
+    ang_vel = np.array([0.0, 0.0, 0.15 * np.cos(0.15 * sim_time)], dtype=np.float64)
+    lin_acc = (vel - prev_vel) / max(dt, 1e-6)
+
+    wheel_vels = _skid_steer_wheel_velocities(vel, ang_vel, track_width)
+    state: dict[str, Any] = {
+        "pos": pos,
+        "vel": vel,
+        "lin_acc": lin_acc,
+        "ang_vel": ang_vel,
+        "gravity_body": np.array([0.0, 0.0, 9.80665], dtype=np.float64),
+        "current_a": float(np.clip(8.0 + 2.0 * speed, 0.0, 30.0)),
+        "voltage_v": 24.0,
+    }
+    for name, wv in wheel_vels.items():
+        state[f"wheel_vel_{name}"] = wv
+    return state
+
+
+def make_ugv_rig(
+    genesis_entity: Any = None,
+    *,
+    wheel_joint_indices: list[int] | None = None,
+    wheel_radius: float = 0.35,
+    track_width: float = 1.6,
+    dt: float = 0.01,
+    seed: int | None = 0,
+) -> SensorRig:
+    """Create a multi-modal sensor rig for wheeled UGV (Unmanned Ground Vehicle).
+
+    Includes 4 independent wheel odometry sensors (FL, FR, RL, RR) with
+    velocities derived from skid-steer kinematics: left wheels get
+    +ω×track_width/2, right wheels get −ω×track_width/2. Each wheel has
+    independent slip and noise via ``PerWheelOdometryModel``.
+
+    Also includes IMU, GNSS, LiDAR, RGB camera, barometer, inclinometer,
+    magnetometer, and battery monitor.
+
+    When *genesis_entity* is None the rig operates in synthetic/headless mode
+    using a kinematic model. When an entity is provided, real Genesis
+    rigid-body state is used for physics-driven sensing.
+
+    Args:
+        genesis_entity: Live Genesis entity, or None for synthetic mode.
+        wheel_joint_indices: Reserved for future Genesis DOF velocity
+            extraction. Currently unused — per-wheel velocities derive from
+            vehicle rigid-body state via skid-steer kinematics.
+        wheel_radius: Wheel radius in metres (default 0.35). Used in metadata.
+        track_width: Vehicle track width in metres (default 1.6). Used to
+            compute per-wheel velocities from yaw rate.
+        dt: Simulation timestep in seconds.
+        seed: RNG seed for reproducible sensor noise.
+
+    Returns:
+        SensorRig with 4-wheel odometry + full UGV sensor suite.
+    """
+    cache = VelocityCache()
+    seed_for = _seed_getter(seed, n_children=48)
+    suite = _build_ugv_sensor_suite(seed_for)
+    _wheel_indices = wheel_joint_indices if wheel_joint_indices is not None else [0, 1, 2, 3]
+    _prev_pos = np.zeros(3, dtype=np.float64)
+
+    if genesis_entity is not None:
+
+        def _state_fn() -> dict[str, Any]:
+            state: dict[str, Any] = dict(
+                extract_rigid_body_state(
+                    genesis_entity,
+                    prev_vel=cache.prev_world_vel,
+                    dt=dt,
+                    current_a=12.0,
+                    wind_ms=np.array([0.5, 0.0, 0.0], dtype=np.float64),
+                )
+            )
+            wheel_vels = _skid_steer_wheel_velocities(
+                np.asarray(state["vel"], dtype=np.float64),
+                np.asarray(state["ang_vel"], dtype=np.float64),
+                track_width,
+            )
+            for name, wv in wheel_vels.items():
+                state[f"wheel_vel_{name}"] = wv
+            cache.prev_world_vel = np.asarray(state["vel"], dtype=np.float64).copy()
+            cache.frame_idx += 1
+            return state
+
+        profile = "ugv_attached"
+    else:
+
+        def _synthetic_closure() -> dict[str, Any]:
+            nonlocal _prev_pos
+            sim_time = cache.frame_idx * dt
+            state = _ugv_synthetic_state(
+                sim_time=sim_time,
+                frame_idx=cache.frame_idx,
+                prev_pos=_prev_pos,
+                prev_vel=cache.prev_world_vel,
+                dt=dt,
+                track_width=track_width,
+                wheel_radius=wheel_radius,
+                seed=seed or 0,
+            )
+            _prev_pos = np.asarray(state["pos"], dtype=np.float64).copy()
+            cache.prev_world_vel = np.asarray(state["vel"], dtype=np.float64).copy()
+            cache.frame_idx += 1
+            return state
+
+        _state_fn = _synthetic_closure
+        profile = "ugv_synthetic"
+
+    def _reset_fn() -> None:
+        _reset_motion_cache(cache)
+        nonlocal _prev_pos
+        _prev_pos = np.zeros(3, dtype=np.float64)
+
+    return SensorRig(
+        name="ugv_perception",
+        suite=suite,
+        state_fn=_state_fn,
+        metadata={
+            "dt": dt,
+            "profile": profile,
+            "wheel_count": 4,
+            "wheel_radius": wheel_radius,
+            "track_width": track_width,
+            "wheel_joint_indices": _wheel_indices,
+        },
+        reset_fn=_reset_fn,
+    )
